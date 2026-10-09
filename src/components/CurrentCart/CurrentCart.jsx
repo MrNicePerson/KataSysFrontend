@@ -1,7 +1,7 @@
 import { ChevronDown, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
-export default function CurrentCart({ items, discount, onDiscountChange, onAddReturn, onRemoveItem, onUpdateItem, onSaveBill, onHoldBill, onClear, saving = false }) {
+export default function CurrentCart({ items, discount, onDiscountChange, onAddReturn, onReturnAdded, onRemoveItem, onUpdateItem, onSaveBill, onHoldBill, onClear, saving = false }) {
   const [returnItem, setReturnItem] = useState({ itemCode: '', quantity: 1, condition: 'Sellable stock' })
   const [returnError, setReturnError] = useState('')
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0)
@@ -19,17 +19,20 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
     const code = returnItem.itemCode.trim()
     const quantity = Number(returnItem.quantity)
     if (!code) {
-      setReturnError('Please enter an item code.')
+      setReturnError('')
+      onReturnAdded?.()
       return
     }
     if (!Number.isInteger(quantity) || quantity <= 0) {
-      setReturnError('Quantity must be at least 1.')
+      setReturnError('')
+      onReturnAdded?.()
       return
     }
     const added = onAddReturn({ code, quantity, condition: returnItem.condition })
     if (added === false) return
     setReturnItem((previous) => ({ ...previous, itemCode: '', quantity: 1 }))
     setReturnError('')
+    onReturnAdded?.()
   }
 
   return (
@@ -46,13 +49,13 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
       {saleItems.length ? (
         <div data-keyboard-scope className="divide-y divide-[#edf0eb] my-3">
           {saleItems.map((item) => (
-            <div className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm" key={item.id}>
+            <div className="py-3 flex flex-col gap-3 text-sm" key={item.id}>
               <div className="flex-1 min-w-0">
-                <strong className="block text-[#12332d] font-semibold text-sm sm:text-base truncate">{item.name}</strong>
-                <small className="text-[#718078] text-xs font-medium">{item.code ? `Code ${item.code}` : 'Wholesale item'}</small>
+                <strong className="block whitespace-normal break-words text-[#12332d] font-semibold text-sm sm:text-base">{item.articleNumber || item.article || item.code || item.name}</strong>
+                <small className="block whitespace-normal break-words text-[#718078] text-xs font-medium">Brand Name: {item.name}</small>
               </div>
 
-              <div className="flex items-center gap-3 self-end sm:self-auto">
+              <div className="flex flex-wrap items-center justify-start gap-3 self-start max-w-full">
                 <label className="flex items-center gap-1.5 text-xs text-[#718078] font-semibold">
                   Qty
                   <input
@@ -60,6 +63,9 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
                     min="1"
                     className="w-14 h-8 px-1.5 text-center rounded-lg border border-[#dfe4dc] text-sm text-[#12332d] font-medium focus:outline-none focus:border-[#155b4b]"
                     value={item.quantity}
+                    onKeyDown={(event) => {
+                      if (['ArrowUp', 'ArrowDown'].includes(event.key)) event.preventDefault()
+                    }}
                     onChange={(event) => onUpdateItem(item.id, 'quantity', event.target.value)}
                     onBlur={() => {
                       if (!Number(item.quantity)) onUpdateItem(item.id, 'quantity', '1')
@@ -124,6 +130,7 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
             <label className="flex flex-col gap-1 text-xs font-semibold text-[#173b32]">
               Item code
               <input
+                id="sale-return-code"
                 name="returnCode"
                 type="text"
                 autoComplete="off"
@@ -142,7 +149,10 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
                 step="1"
                 className="w-full h-10 px-3 rounded-lg border border-[#d9e0d9] bg-white text-xs sm:text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
                 value={returnItem.quantity}
-                onChange={(event) => handleChange('quantity', event.target.value)}
+                onKeyDown={(event) => {
+                      if (['ArrowUp', 'ArrowDown'].includes(event.key)) event.preventDefault()
+                    }}
+                    onChange={(event) => handleChange('quantity', event.target.value)}
               />
             </label>
           </div>
@@ -221,7 +231,21 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
           <input
             type="number"
             className="w-full h-10 sm:h-11 px-3.5 rounded-xl border border-[#dfe4dc] text-sm sm:text-base text-[#29443b] focus:outline-none focus:border-[#155b4b] focus:ring-2 focus:ring-[#155b4b]/15"
+            id="sale-discount"
             value={discount}
+            onKeyDown={(event) => {
+              if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return
+              if (!['Enter', 'PageUp', 'PageDown', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
+              event.preventDefault()
+              const root = event.currentTarget.closest('main')
+              if (event.key === 'Enter') {
+                event.stopPropagation()
+                if (!event.repeat && !event.shiftKey) root?.querySelector('#sale-save-preview:not(:disabled)')?.click()
+                return
+              }
+              if (event.key === 'ArrowUp' || event.key === 'PageUp') root?.querySelector('#sale-return-code')?.focus()
+              if (event.key === 'ArrowDown') root?.querySelector('#sale-save-preview:not(:disabled)')?.focus()
+            }}
             onChange={(event) => onDiscountChange(Number(event.target.value))}
             min="0"
             max={Math.max(0, subtotal)}
@@ -243,6 +267,7 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
           className="w-full h-12 sm:h-14 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] disabled:opacity-50 disabled:cursor-not-allowed text-white text-base sm:text-lg font-bold transition-all shadow-md active:scale-98 cursor-pointer flex items-center justify-center gap-2"
           type="button"
           disabled={!items.length || saving}
+          id="sale-save-preview"
           onClick={() => onSaveBill({ subtotal, discount, total, items })}
         >
           {saving ? 'Saving…' : 'Save & preview bill →'}

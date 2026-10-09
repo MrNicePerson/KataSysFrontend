@@ -5,6 +5,12 @@ import abbasTextileLogo from '../../assets/abbas-textile-logo.jpeg'
 export default function BillReceipt({ bill, onClose, modal = false }) {
   const keyboard = useKeyboardScope({ onEscape: onClose, trapFocus: modal })
   useEffect(() => { keyboard.ref.current?.querySelector('[aria-label="Close receipt"]')?.focus() }, [])
+  useEffect(() => {
+    if (!bill) return undefined
+    const handleAfterPrint = () => onClose?.()
+    window.addEventListener('afterprint', handleAfterPrint)
+    return () => window.removeEventListener('afterprint', handleAfterPrint)
+  }, [bill, onClose])
   if (!bill) return null
 
   const customer = bill.customerDetails ?? {
@@ -30,7 +36,7 @@ export default function BillReceipt({ bill, onClose, modal = false }) {
   const rows = bill.items?.length ? bill.items : [{ name: `${bill.customer || 'Customer'} purchase`, quantity: 1, price: total }]
   const emptyRows = 3
   const invoiceNo = bill.padInvoiceNumber || bill.paidInvoiceNumber || bill.number || '—'
-  const shopName = bill.receiptShopName || bill.shopName || 'Abbas Textile'
+  const shopName = 'Abbas Textile'
   const address = bill.receiptAddress || 'New Road, Shangai Market, Sohrab Khan Chowk, Mingora, Swat'
   const phones = bill.receiptPhones || 'Riaz 0300-5745719 · Arsalan 0348-1958108 · Anees 0345-6553785'
 

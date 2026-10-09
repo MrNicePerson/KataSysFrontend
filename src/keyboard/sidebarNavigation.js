@@ -61,10 +61,13 @@ export function handleSidebarKeyDown(event, { items, onClose, closeButton, nav }
   let next = null
   if (event.key === 'ArrowDown') next = items[(index + 1) % items.length]
   if (event.key === 'ArrowUp') next = items[(index - 1 + items.length) % items.length]
+  if (event.key === 'PageDown') next = items[Math.min(index + 5, items.length - 1)]
+  if (event.key === 'PageUp') next = items[Math.max(index - 5, 0)]
   if (event.key === 'Home') next = items[0]
   if (event.key === 'End') next = items.at(-1)
   if (!next) return false
   event.preventDefault()
-  next.focus()
+  next.focus({ preventScroll: true })
+  next.scrollIntoView?.({ behavior: 'smooth', block: event.key === 'PageUp' ? 'start' : 'end' })
   return true
 }

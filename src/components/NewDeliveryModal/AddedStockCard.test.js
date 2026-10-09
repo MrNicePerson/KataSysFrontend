@@ -84,12 +84,12 @@ test('deferred methods never create cash, bank or cheque payments from a preview
   assert.ok(prepareStockPayment([item], '0', 'cheque').error)
 })
 
-test('bank receiving saves the selected account and amount on the purchase and payment', () => {
+test('bank receiving saves only the selected bank name and payment amount', () => {
   const supplier = createAccount(createEmptyDatabase(), 'supplier', { name: 'Textiles', supplierCode: 'TX' })
   const payment = prepareStockPayment([item], '1000.25', 'bank', { bankName: ' Sample Bank ', accountNumber: ' 00123 ' })
   assert.deepEqual(payment.payments, { cash: 0, bank: 1000.25, cheque: 0 })
   const { record, database } = receivePurchase(supplier.database, { supplierId: supplier.record.id, items: [item], ...payment })
-  const expected = { bankName: 'Sample Bank', accountNumber: '00123', amount: 1000.25 }
+  const expected = { bankName: 'Sample Bank', amount: 1000.25 }
   assert.deepEqual(record.bankDetails, expected)
   assert.deepEqual(database.payments[0].bankDetails, expected)
   assert.equal(database.payments[0].method, 'bank')
@@ -97,14 +97,13 @@ test('bank receiving saves the selected account and amount on the purchase and p
   assert.equal(record.due, 2750.5)
   assert.equal(database.suppliers[0].balance, 2750.5)
   assert.equal(database.products[0].stockQuantity, 3)
-  assert.equal(getReceivingBanks(database.purchases)[0].accountNumber, '00123')
 })
 
 test('bank validation requires a name, allows no account number and rejects overpayment', () => {
   assert.ok(prepareStockPayment([item], '100', 'bank').error)
   assert.ok(prepareStockPayment([item], '100', 'bank', { bankName: '  ' }).error)
   assert.ok(prepareStockPayment([item], '4000', 'bank', { bankName: 'Bank' }).error)
-  assert.equal(prepareStockPayment([item], '3750.75', 'bank', { bankName: 'Bank' }).bankDetails.accountNumber, '')
+  assert.deepEqual(prepareStockPayment([item], '3750.75', 'bank', { bankName: 'Bank', accountNumber: 'ignored' }).bankDetails, { bankName: 'Bank', amount: 3750.75 })
   const cash = prepareStockPayment([item], '100', 'cash', { bankName: 'Bank', accountNumber: '123' })
   assert.equal(cash.bankDetails, undefined)
   assert.deepEqual(cash.payments, { cash: 100, bank: 0, cheque: 0 })
@@ -122,7 +121,7 @@ test('split payment combines cash, bank and multiple cheques without exceeding s
   assert.ok(prepareStockPayment([item], '0', 'split', {}, [], { cash: '100', bank: '100' }).error)
 })
 
-test('previous receiving accounts are deduplicated without merging different accounts', () => {
+test('previous receiving accounts are not shown in the payment form', () => {
   const banks = getReceivingBanks([
     {}, { bankDetails: { bankName: 'Bank', accountNumber: '001' } },
     { bankDetails: { bankName: ' bank ', accountNumber: '001' } },
@@ -134,10 +133,11 @@ test('previous receiving accounts are deduplicated without merging different acc
     items: [item], method: 'bank', amountPaid: '100', banks,
     selectedBank: banks[0].key, bankDetails: banks[0],
   }))
-  for (const text of ['Pay from bank / account', 'Bank Name', 'Account', '001', '002', 'Payment Amount']) assert.ok(html.includes(text))
+  for (const text of ['Bank logos', 'Bank Name', 'Payment Amount']) assert.ok(html.includes(text))
+  for (const text of ['Previously used bank account', 'Enter bank / account details', 'Account (optional)', '>001<', '>002<']) assert.ok(!html.includes(text))
   assert.ok(!html.includes('available for preview'))
   const cash = renderToStaticMarkup(createElement(PaymentDetails, { items: [item], method: 'cash', amountPaid: '0' }))
-  assert.ok(!cash.includes('Pay from bank / account'))
+  assert.ok(!cash.includes('Bank logos'))
 })
 
 test('payment UI shows the totals and all four selectable methods', () => {

@@ -9,7 +9,7 @@ export default function DemoDataBackup({ backupData, onImport, onReset }) {
     const url = URL.createObjectURL(new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' }))
     const link = document.createElement('a')
     link.href = url
-    link.download = 'kapra-khata-backup.json'
+    link.download = 'abbas-textile-backup.json'
     link.click()
     URL.revokeObjectURL(url)
     setMessage('Backup downloaded.')

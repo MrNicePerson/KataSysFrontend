@@ -7,6 +7,7 @@ export default function ReceivingDetails({ purchase, supplier }) {
   const items = purchase.items || []
   const facts = [
     ['Batch Number', receivingLabel(purchase) || 'Not recorded'],
+    ['Pad Number', purchase.padNumber || 'Not recorded'],
     ['Supplier', purchase.supplier || supplier?.name || 'Not recorded'],
     ['Supplier Code', purchase.supplierCode || supplier?.supplierCode || 'Not recorded'],
     ['Receive Date', purchase.date || 'Not recorded'],

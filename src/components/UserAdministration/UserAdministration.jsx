@@ -1,24 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { apiRequest } from '../../api/client.js'
+import PermissionEditor, { permissionCount } from './PermissionEditor.jsx'
+import { createPermissionDraft } from '../../permissions.js'
 
-const permissionOptions = [
-  ['sales', 'Sales & bills'],
-  ['stock', 'Stock & receiving'],
-  ['suppliers', 'Suppliers'],
-  ['customers', 'Customer accounts'],
-  ['cheques', 'Cheque register'],
-  ['returns', 'Returns'],
-  ['orders', 'Held orders'],
-  ['finance', 'Finance & closing'],
-  ['reports', 'Reports'],
-  ['settings', 'Shop settings'],
-]
-const defaultStaffPermissions = { sales: true, stock: true, suppliers: true, customers: true, cheques: true, returns: true, orders: true, finance: false, reports: true, settings: false, admin: false }
+const defaultStaffPermissions = createPermissionDraft({ sales: true, stock: true, suppliers: true, customers: true, cheques: true, returns: true, orders: true, purchases: true, finance: false, dailyClosing: false, reports: true, settings: false, notifications: true, claims: true, activityHistory: false, users: false, admin: false })
 
 export default function UserAdministration({ token, currentUserId }) {
   const [users, setUsers] = useState([])
-  const [permissions, setPermissions] = useState(defaultStaffPermissions)
+  const [permissions, setPermissions] = useState(() => ({ ...defaultStaffPermissions }))
   const [newRole, setNewRole] = useState('staff')
   const [editingUserId, setEditingUserId] = useState('')
   const [permissionDraft, setPermissionDraft] = useState({})
@@ -62,7 +52,7 @@ export default function UserAdministration({ token, currentUserId }) {
       })
       formElement.reset()
       setNewRole('staff')
-      setPermissions(defaultStaffPermissions)
+      setPermissions({ ...defaultStaffPermissions })
       setMessage('User created.')
       await loadUsers()
     } catch (error) {
@@ -99,6 +89,11 @@ export default function UserAdministration({ token, currentUserId }) {
     }
   }
 
+  const savePermissions = async (user) => {
+    if (!window.confirm(`Save module permissions for ${user.name}?`)) return
+    if (await updateUser(user, { permissions: permissionDraft })) setEditingUserId('')
+  }
+
   return (
     <section className="p-5 sm:p-7 bg-white border border-[#e2e6df] rounded-xl space-y-5">
       <h2 className="text-[#173b32] text-lg sm:text-xl font-bold">Users &amp; permissions</h2>
@@ -112,24 +107,22 @@ export default function UserAdministration({ token, currentUserId }) {
           </button>
         </div>
         <select name="role" value={newRole} onChange={(event) => setNewRole(event.target.value)} className="h-10 px-3 rounded-lg border border-[#dfe4dc] text-sm"><option value="staff">Staff</option><option value="admin">Administrator</option></select>
-        {newRole === 'staff' ? <div className="sm:col-span-2 flex flex-wrap gap-x-4 gap-y-2">
-          {permissionOptions.map(([permission, label]) => <label key={permission} className="flex items-center gap-1.5 text-xs text-[#52645c]"><input type="checkbox" checked={Boolean(permissions[permission])} onChange={(event) => setPermissions((current) => ({ ...current, [permission]: event.target.checked }))} />{label}</label>)}
-        </div> : <p className="sm:col-span-2 text-sm text-[#718078]">Administrators receive access to all areas.</p>}
+        {newRole === 'staff' ? <div className="sm:col-span-2"><PermissionEditor value={permissions} onChange={setPermissions} /></div> : <p className="sm:col-span-2 text-sm text-[#718078]">Administrators receive access to all areas.</p>}
         <button type="submit" disabled={saving} className="sm:col-span-2 h-10 rounded-lg bg-[#155b4b] disabled:opacity-60 text-white text-sm font-semibold">{saving ? 'Creating user…' : 'Create user'}</button>
       </form>
       {message && <p className="text-sm text-[#155b4b]" role="status">{message}</p>}
       {loading ? <p className="text-sm text-[#718078]">Loading users…</p> : <div data-keyboard-list className="divide-y divide-[#edf0eb]">
         {users.map((user) => <div key={user.id} data-keyboard-row tabIndex={0} className="py-3 flex flex-wrap items-center justify-between gap-3 text-sm">
-          <div><strong className="text-[#173b32]">{user.name}</strong><span className="ml-2 text-[#718078]">{user.email} · {user.role} · {user.active ? 'Active' : 'Inactive'}</span></div>
+          <div><strong className="text-[#173b32]">{user.name}</strong><span className="ml-2 text-[#718078]">{user.email} · {user.role} · {user.active ? 'Active' : 'Inactive'}{user.role !== 'admin' ? ` · ${permissionCount(createPermissionDraft(user.permissions))} permissions` : ' · Full access'}</span></div>
           <div className="flex gap-2">
-            {user.role !== 'admin' && <button type="button" data-keyboard-primary className="px-3 py-1.5 rounded-lg border border-[#dfe4dc] text-xs font-semibold" onClick={() => { setEditingUserId(editingUserId === user.id ? '' : user.id); setPermissionDraft({ ...user.permissions }) }}>Permissions</button>}
-            <button type="button" className="px-3 py-1.5 rounded-lg border border-[#dfe4dc] text-xs font-semibold" onClick={() => updateUser(user, { active: !user.active })}>{user.active ? 'Deactivate' : 'Activate'}</button>
-            <button type="button" className="px-3 py-1.5 rounded-lg border border-[#dfe4dc] text-xs font-semibold" onClick={() => updateUser(user, { role: user.role === 'admin' ? 'staff' : 'admin' })}>{user.role === 'admin' ? 'Make staff' : 'Make admin'}</button>
+            {user.role !== 'admin' && <button type="button" data-keyboard-primary className="px-3 py-1.5 rounded-lg border border-[#dfe4dc] text-xs font-semibold" onClick={() => { setEditingUserId(editingUserId === user.id ? '' : user.id); setPermissionDraft(createPermissionDraft(user.permissions)) }}>Permissions</button>}
+            <button type="button" className="px-3 py-1.5 rounded-lg border border-[#dfe4dc] text-xs font-semibold" onClick={() => { const active = !user.active; if (window.confirm(`${active ? 'Activate' : 'Deactivate'} ${user.name}?`)) void updateUser(user, { active }) }}>{user.active ? 'Deactivate' : 'Activate'}</button>
+            <button type="button" className="px-3 py-1.5 rounded-lg border border-[#dfe4dc] text-xs font-semibold" onClick={() => { const role = user.role === 'admin' ? 'staff' : 'admin'; if (window.confirm(`Change ${user.name}'s role to ${role}?`)) void updateUser(user, { role }) }}>{user.role === 'admin' ? 'Make staff' : 'Make admin'}</button>
             {user.id !== currentUserId && <button type="button" disabled={deletingUserId === user.id} className="px-3 py-1.5 rounded-lg border border-red-200 text-red-700 text-xs font-semibold disabled:opacity-60" onClick={() => deleteUser(user)}>{deletingUserId === user.id ? 'Deleting…' : 'Delete'}</button>}
           </div>
-          {editingUserId === user.id && <div className="w-full flex flex-wrap gap-x-4 gap-y-2">
-            {permissionOptions.map(([permission, label]) => <label key={permission} className="flex items-center gap-1.5 text-xs text-[#52645c]"><input type="checkbox" checked={Boolean(permissionDraft[permission])} onChange={(event) => setPermissionDraft((current) => ({ ...current, [permission]: event.target.checked }))} />{label}</label>)}
-            <button type="button" className="px-3 py-1.5 rounded-lg bg-[#155b4b] text-white text-xs font-semibold" onClick={async () => { if (await updateUser(user, { permissions: permissionDraft })) setEditingUserId('') }}>Save permissions</button>
+          {editingUserId === user.id && <div className="w-full space-y-3 border-t border-[#edf0eb] pt-3">
+            <PermissionEditor value={permissionDraft} onChange={setPermissionDraft} />
+            <div className="flex justify-end gap-2"><button type="button" className="h-9 px-3 rounded-md border border-[#dfe4dc] text-xs font-semibold" onClick={() => setEditingUserId('')}>Cancel</button><button type="button" className="h-9 px-3 rounded-md bg-[#155b4b] text-white text-xs font-semibold" onClick={() => void savePermissions(user)}>Save changes</button></div>
           </div>}
         </div>)}
       </div>}

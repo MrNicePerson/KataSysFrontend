@@ -96,12 +96,18 @@ test('modal preview follows the selected supplier and date for all draft items',
 
 test('saved receiving bill resolves to product and renders its original quantities and costs', () => {
   const purchase = { ...bill, supplierCode: 'AA', items: [{ ...bill.items[0], quantity: 4, unitCost: 100, salePrice: 150 }], total: 400 }
-  const product = { id: 'p1', name: 'Lawn', supplierId: 's1', purchaseId: bill.id, batchNumber: bill.batchNumber, stockQuantity: 2, averageCost: 120, salePrice: 170 }
+  const product = { id: 'p1', name: 'Lawn', code: 'L-1', supplierId: 's1', purchaseId: bill.id, batchNumber: bill.batchNumber, stockQuantity: 2, averageCost: 120, salePrice: 170 }
   assert.equal(receivingForProduct(product, [purchase]).quantity, 4)
   const details = render(ReceivingDetails, { purchase, supplier: { id: 's1', name: 'Ali Imran', supplierCode: 'CHANGED' } })
   for (const expected of [bill.batchNumber, 'Ali Imran', 'AA', '2026-10-03', 'bill-1', 'Lawn', '4 suits', 'Rs. 100', 'Rs. 150', 'Rs. 400']) assert.ok(details.includes(expected), expected)
   const stock = render(StockProducts, { products: [product], purchases: [purchase], suppliers: [{ id: 's1', name: 'Ali Imran' }] })
-  assert.ok(stock.includes(bill.batchNumber))
+  for (const expected of ['L-1', 'Brand Name: Lawn', 'Ali Imran', bill.batchNumber, 'Available', 'Cost per suit', 'Review stock', 'Export stock CSV']) assert.ok(stock.includes(expected), expected)
+  assert.ok(!stock.includes('Location'))
+  assert.ok(!stock.includes('Reserved'))
+  assert.ok(!stock.includes('Print product labels'))
+  assert.ok(!stock.includes('Export stock audit'))
+  assert.ok(!stock.includes('>Details<'))
+  assert.ok(!stock.includes('>Adjust<'))
   const history = render(Suppliers, { suppliers: [{ id: 's1', name: 'Ali Imran', supplierCode: 'AA', balance: 400 }], products: [product], purchases: [purchase] })
   for (const expected of ['Receive Stock history (1)', bill.batchNumber, 'Product', 'Lawn', 'Rs. 400']) assert.ok(history.includes(expected), expected)
   assert.equal(receivingForProduct({ id: 'old-product', batchNumber: 'UNKNOWN' }, [purchase]), null)
@@ -118,12 +124,13 @@ test('keyboard sidebar exposes every top-level page and respects permissions', (
   assert.ok(!restricted.includes('Settings'))
 })
 
-test('saved bills expose keyboard-selectable rows and separate edit actions', () => {
+test('saved bills expose keyboard-selectable rows with one review-and-edit action', () => {
   const sale = { id: 'sale-1', number: 'INV-001', customer: 'Ali', date: '2026-10-03', total: 100, items: [{ lineId: 'line-1', name: 'Lawn', quantity: 1, price: 100 }] }
   const html = render(BillsReceipts, { bills: [sale], onUpdateReceipt() {}, onUpdateBill() {}, onViewInvoice() {} })
   assert.ok(html.includes('data-keyboard-list'))
   assert.ok(html.includes('data-keyboard-row'))
   assert.ok(html.includes('data-keyboard-primary'))
-  assert.ok(html.includes('Edit receipt'))
-  assert.ok(html.includes('Edit bill'))
+  assert.ok(html.includes('Review and edit bill'))
+  assert.ok(!html.includes('Edit receipt'))
+  assert.ok(!html.includes('>View<'))
 })

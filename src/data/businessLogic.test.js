@@ -13,6 +13,7 @@ const seed = () => {
 test('sale updates stock, customer due and cash ledger as one transaction', () => {
   const { db, customer } = seed()
   const { database: next, record: sale } = createSale(db, { items: [{ productId: 'p1', quantity: 2, price: 100 }], customerId: customer.id, payments: { cash: 50 } })
+  assert.equal(sale.customer, 'Ayesha')
   assert.equal(next.products[0].stockQuantity, 3)
   assert.equal(next.customers[0].balance, 150)
   assert.equal(sale.due, 150)
@@ -107,6 +108,33 @@ test('cash closing reflects receipts and expenses; backup validates all collecti
   next = recordExpense(next, { amount: 20, method: 'cash', date: '2026-09-28' }).database
   assert.equal(calculateDailyClosing(next, '2026-09-28').expectedCash, 70)
   assert.equal(validateBackup(next).version, 2)
+})
+
+test('daily closing requires an opening saved for the same date', () => {
+  const { db } = seed()
+  const date = '2026-10-07'
+  assert.throws(
+    () => runDatabaseCommand(db, 'daily-record', { type: 'closing', date, amount: 20, counted: 18 }),
+    /Save the daily opening/,
+  )
+  const opened = runDatabaseCommand(db, 'daily-record', { type: 'opening', date, amount: 10 })
+  const closed = runDatabaseCommand(opened.database, 'daily-record', { type: 'closing', date, amount: 20, counted: 18 })
+  assert.equal(closed.record.type, 'closing')
+})
+
+test('daily records can be deleted without leaving a closing without its opening', () => {
+  const { db } = seed()
+  const date = '2026-10-07'
+  const opened = runDatabaseCommand(db, 'daily-record', { type: 'opening', date, amount: 10 })
+  const closed = runDatabaseCommand(opened.database, 'daily-record', { type: 'closing', date, amount: 20, counted: 18 })
+  assert.throws(
+    () => runDatabaseCommand(closed.database, 'delete-daily-record', { recordId: opened.record.id }),
+    /Delete the daily closing/,
+  )
+  const deletedClosing = runDatabaseCommand(closed.database, 'delete-daily-record', { recordId: closed.record.id })
+  const deletedOpening = runDatabaseCommand(deletedClosing.database, 'delete-daily-record', { recordId: opened.record.id })
+  assert.equal(deletedOpening.database.dailyClosings.length, 0)
+  assert.throws(() => runDatabaseCommand(db, 'delete-daily-record', { recordId: 'missing' }), /could not be found/)
 })
 
 test('held orders reserve stock until released', () => {

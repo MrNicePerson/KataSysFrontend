@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 
-export default function AddItem({ onAddItem, products = [] }) {
+export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
   const [name, setName] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [price, setPrice] = useState('')
   const [selectedProduct, setSelectedProduct] = useState(null)
-  const [suggestionsOpen, setSuggestionsOpen] = useState(true)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const [activeSuggestion, setActiveSuggestion] = useState(-1)
   const quantityRef = useRef(null)
   const priceRef = useRef(null)
@@ -15,11 +15,11 @@ export default function AddItem({ onAddItem, products = [] }) {
 
   const productDetails = (product) => [
     product.shade || product.colour || product.color,
-    product.code || product.articleNumber,
     product.batchNumber,
     `${Number(product.stockQuantity || 0).toLocaleString()} available`,
     `Rs. ${Number(product.salePrice || 0).toLocaleString()}`,
   ].filter(Boolean).join(' · ')
+  const productArticle = (product) => product.articleNumber || product.article || product.code
 
   const matchesQuery = (product, query) => [
     product.name,
@@ -52,9 +52,29 @@ export default function AddItem({ onAddItem, products = [] }) {
     quantityRef.current?.focus()
   }
 
+  const handleArticlePageKey = (event) => {
+    if (event.key !== 'PageDown' && event.key !== 'PageUp') return false
+    const form = fieldRef.current?.closest('form')
+    const fields = [...(form?.querySelectorAll('#sale-item-search, input[name="quantity"], input[name="price"], button[type="submit"]') || [])]
+    const index = fields.indexOf(event.target)
+    if (event.key === 'PageDown' && index !== 0) return false
+    const nextIndex = index + (event.key === 'PageDown' ? 1 : -1)
+    if (index < 0 || nextIndex < 0 || nextIndex >= fields.length) return false
+    event.preventDefault()
+    event.stopPropagation()
+    setSuggestionsOpen(false)
+    setActiveSuggestion(-1)
+    fields[nextIndex].focus({ preventScroll: true })
+    fields[nextIndex].scrollIntoView?.({ block: 'center', behavior: 'auto' })
+    return true
+  }
+
   const handleSubmit = (event) => {
     event.preventDefault()
-    if (!name.trim()) return
+    if (!name.trim()) {
+      onSkipEmptyItem?.()
+      return
+    }
     const product = selectedProduct || productRecords.find((entry) => entry.name?.trim().toLowerCase() === name.trim().toLowerCase())
     onAddItem({
       productId: product?.id,
@@ -68,9 +88,14 @@ export default function AddItem({ onAddItem, products = [] }) {
     setPrice('')
     setSelectedProduct(null)
     setSuggestionsOpen(false)
+    setActiveSuggestion(-1)
+    fieldRef.current?.querySelector('#sale-item-search')?.focus()
   }
 
   const handleSearchKeyDown = (event) => {
+    if (handleArticlePageKey(event)) {
+      return
+    }
     if (event.key === 'ArrowDown' && suggestions.length) {
       event.preventDefault()
       setSuggestionsOpen(true)
@@ -81,7 +106,10 @@ export default function AddItem({ onAddItem, products = [] }) {
       setActiveSuggestion((index) => (index - 1 + suggestions.length) % suggestions.length)
     } else if (event.key === 'Enter') {
       event.preventDefault()
-      if (suggestions.length && suggestionsOpen) {
+      if (suggestions.length && !suggestionsOpen) {
+        setSuggestionsOpen(true)
+        setActiveSuggestion(0)
+      } else if (suggestions.length && suggestionsOpen) {
         selectProduct(suggestions[activeSuggestion >= 0 ? activeSuggestion : 0])
       } else {
         quantityRef.current?.focus()
@@ -101,7 +129,12 @@ export default function AddItem({ onAddItem, products = [] }) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-        <div className="relative" ref={fieldRef}>
+        <div className="relative" ref={fieldRef} onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
+            setSuggestionsOpen(false)
+            setActiveSuggestion(-1)
+          }
+        }}>
           <label htmlFor="sale-item-search" className="block text-[#173b32] text-sm sm:text-base font-semibold mb-2">
             Item name, article or colour
           </label>
@@ -111,7 +144,7 @@ export default function AddItem({ onAddItem, products = [] }) {
             name="name"
             placeholder="Type item name, article or colour..."
             value={name}
-            onFocus={() => {
+            onClick={() => {
               if (suggestions.length) setSuggestionsOpen(true)
             }}
             onChange={(event) => {
@@ -132,7 +165,6 @@ export default function AddItem({ onAddItem, products = [] }) {
             aria-autocomplete="list"
             aria-expanded={suggestionsOpen && suggestions.length > 0}
             aria-controls="sale-product-suggestions"
-            required
           />
 
           {suggestionsOpen && suggestions.length > 0 && (
@@ -156,7 +188,10 @@ export default function AddItem({ onAddItem, products = [] }) {
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => selectProduct(product)}
                 >
-                  <span className="text-sm sm:text-base font-bold text-[#12332d]">{product.name}</span>
+                  {productArticle(product) && (
+                    <span className="text-sm sm:text-base text-black font-bold">Article: {productArticle(product)}</span>
+                  )}
+                  <span className="text-xs sm:text-[13px] font-normal text-[#12332d]">Brand Name: {product.name}</span>
                   <span className="text-xs sm:text-[13px] text-[#718078] font-medium">{productDetails(product)}</span>
                 </button>
               ))}
@@ -174,6 +209,13 @@ export default function AddItem({ onAddItem, products = [] }) {
               value={quantity}
               onChange={(event) => setQuantity(event.target.value)}
               onKeyDown={(event) => {
+                if (handleArticlePageKey(event)) return
+                if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                  event.preventDefault()
+                  if (event.key === 'ArrowUp') fieldRef.current?.querySelector('#sale-item-search')?.focus()
+                  else priceRef.current?.focus()
+                  return
+                }
                 if (event.key === 'Enter') {
                   event.preventDefault()
                   priceRef.current?.focus()
@@ -194,6 +236,7 @@ export default function AddItem({ onAddItem, products = [] }) {
               placeholder="0"
               value={price}
               onChange={(event) => setPrice(event.target.value)}
+              onKeyDown={handleArticlePageKey}
               min="0"
               required
               className="w-full h-11 sm:h-12 px-3.5 sm:px-4 rounded-xl border border-[#dfe4dc] bg-white text-[#173b32] text-sm sm:text-base focus:outline-none focus:border-[#155b4b] focus:ring-3 focus:ring-[#155b4b]/15 transition-all"
@@ -201,6 +244,7 @@ export default function AddItem({ onAddItem, products = [] }) {
           </label>
 
           <button
+            onKeyDown={handleArticlePageKey}
             className="w-full sm:col-span-2 lg:col-span-1 lg:w-auto h-11 sm:h-12 px-6 flex items-center justify-center gap-2 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] text-white text-sm sm:text-base font-semibold transition-all cursor-pointer shadow-sm active:scale-98 whitespace-nowrap"
             type="submit"
           >

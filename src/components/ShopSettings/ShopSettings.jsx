@@ -1,8 +1,8 @@
 import { useState } from 'react'
 
-const defaults = { shopName: 'Kapra Khata', stockThreshold: '10', receiptFooter: 'Shukriya! Apna bill sambhal kar rakhein.' }
+const defaults = { shopName: 'Abbas Textile', stockThreshold: '10', receiptFooter: 'Shukriya! Apna bill sambhal kar rakhein.' }
 
-export default function ShopSettings({ value = {}, onSave }) {
+export default function ShopSettings({ value = {}, onSave, readOnly = false }) {
   const settings = { ...defaults, ...value }
   const [formKey, setFormKey] = useState(0)
   const [saved, setSaved] = useState(false)
@@ -37,6 +37,7 @@ export default function ShopSettings({ value = {}, onSave }) {
           <input
             name="shopName"
             defaultValue={settings.shopName}
+            disabled={readOnly}
             onChange={() => setSaved(false)}
             required
             className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
@@ -50,6 +51,7 @@ export default function ShopSettings({ value = {}, onSave }) {
             type="number"
             min="0"
             defaultValue={settings.stockThreshold}
+            disabled={readOnly}
             onChange={() => setSaved(false)}
             required
             className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
@@ -61,6 +63,7 @@ export default function ShopSettings({ value = {}, onSave }) {
           <input
             name="receiptFooter"
             defaultValue={settings.receiptFooter}
+            disabled={readOnly}
             onChange={() => setSaved(false)}
             className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
           />
@@ -68,7 +71,8 @@ export default function ShopSettings({ value = {}, onSave }) {
 
         <button
           type="submit"
-          className="w-full h-11 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] text-white text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer active:scale-98"
+          disabled={readOnly}
+          className="w-full h-11 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] disabled:opacity-50 text-white text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer active:scale-98"
         >
           {saved ? 'Settings saved' : 'Save settings'}
         </button>

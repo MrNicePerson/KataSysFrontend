@@ -3,7 +3,6 @@ import { localDateString } from '../../data/businessLogic.js'
 
 export default function CustomerReturns({ bills = [], customers = [], returns = [], onReturnProcessed }) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchByBillNumber, setSearchByBillNumber] = useState(false)
   const [selectedBill, setSelectedBill] = useState(null)
   const [selectedItemIndex, setSelectedItemIndex] = useState(0)
   const [returnQuantity, setReturnQuantity] = useState(1)
@@ -11,15 +10,20 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
   const [refundType, setRefundType] = useState('khata')
   const [successMessage, setSuccessMessage] = useState('')
 
+  const customerNameForId = (customerId) => customers.find((customer) => customer.id === customerId)?.name
+  const customerNameForBill = (bill) => bill?.customer?.trim()
+    || bill?.customerDetails?.name
+    || customerNameForId(bill?.customerId)
+    || 'Walk-in customer'
   const availableBills = bills.filter((bill) => bill.items?.some((item) => !item.isReturn))
 
   const filteredBills = availableBills.filter((bill) => {
     const q = searchQuery.toLowerCase().trim()
     if (!q) return true
     const num = (bill.number || '').toLowerCase()
-    const name = (bill.customer || '').toLowerCase()
+    const name = customerNameForBill(bill).toLowerCase()
     const phone = (bill.customerDetails?.phone || bill.customerPhone || '').toLowerCase()
-    return searchByBillNumber ? num.includes(q) : name.includes(q) || phone.includes(q) || num.includes(q)
+    return name.includes(q) || phone.includes(q) || num.includes(q)
   })
 
   const handleSelectBill = (bill) => {
@@ -64,17 +68,6 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
 
   return (
     <main className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-8 lg:py-10">
-      <div className="flex justify-end mb-4">
-        <button
-          type="button"
-          className="px-3.5 py-1.5 rounded-lg border border-[#e2e6df] bg-white text-xs sm:text-sm font-semibold text-[#155b4b] hover:bg-[#eaf3e7] transition-all cursor-pointer shadow-2xs"
-          aria-pressed={searchByBillNumber}
-          onClick={() => setSearchByBillNumber((current) => !current)}
-        >
-          {searchByBillNumber ? 'Find by customer instead' : 'Find by bill number instead'}
-        </button>
-      </div>
-
       <p className="text-[#70847b] text-xs sm:text-[13px] font-bold tracking-[3px] uppercase mb-1">
         YOUR WHOLESALE WORKSPACE
       </p>
@@ -82,7 +75,7 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
         Customer returns
       </h1>
       <p className="mt-1 text-xs sm:text-sm text-[#718078] mb-6 sm:mb-8">
-        Start with a bill number, or find the customer's purchase.
+        Search by customer name, phone, or bill number to find the original purchase.
       </p>
 
       {/* Find original bill search card */}
@@ -94,7 +87,7 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
           id="returns-bill-search-input"
           className="w-full max-w-lg h-11 sm:h-12 px-4 rounded-xl border border-[#dfe4dc] bg-white text-[#173b32] text-sm sm:text-base placeholder:text-[#7b857e] focus:outline-none focus:border-[#155b4b] focus:ring-3 focus:ring-[#155b4b]/15"
           type="search"
-          placeholder={searchByBillNumber ? 'Enter bill number' : 'Customer name, phone, or bill number'}
+          placeholder="Customer name, phone, or bill number"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -120,7 +113,7 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
               filteredBills.map((bill) => (
                 <tr key={bill.id} data-keyboard-row tabIndex={0} className="hover:bg-[#f8faf7] transition-colors">
                   <td className="px-4 sm:px-6 py-4 font-bold text-[#173b32]">{bill.number}</td>
-                  <td className="px-4 sm:px-6 py-4 font-medium">{bill.customer}</td>
+                  <td className="px-4 sm:px-6 py-4 font-medium">{customerNameForBill(bill)}</td>
                   <td className="px-4 sm:px-6 py-4 text-[#718078]">{bill.date}</td>
                   <td className="px-4 sm:px-6 py-4 font-semibold text-[#173b32]">
                     Rs. {Number(bill.total || 0).toLocaleString()}
@@ -163,7 +156,7 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
             <div>
               <h2 className="text-[#173b32] text-lg sm:text-xl font-bold">Process return for {selectedBill.number}</h2>
               <p className="text-xs sm:text-sm text-[#718078] mt-0.5">
-                Customer: <strong className="text-[#173b32]">{selectedBill.customer}</strong> · Purchased on {selectedBill.date}
+                Customer: <strong className="text-[#173b32]">{customerNameForBill(selectedBill)}</strong> · Purchased on {selectedBill.date}
               </p>
             </div>
             <button
@@ -298,7 +291,7 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
                     <td className="px-4 sm:px-6 py-4 font-medium">{ret.saleNumber}</td>
                     <td className="px-4 sm:px-6 py-4 text-[#718078]">{ret.date}</td>
                     <td className="px-4 sm:px-6 py-4">
-                      {customers.find((customer) => customer.id === ret.customerId)?.name || 'Walk-in customer'}
+                      {customerNameForId(ret.customerId) || customerNameForBill(bills.find((bill) => bill.id === ret.saleId))}
                     </td>
                     <td className="px-4 sm:px-6 py-4 font-semibold text-[#155b4b]">
                       {ret.refundType === 'khata' ? `Rs. ${Number(ret.amount || 0).toLocaleString()}` : 'Rs. 0'}

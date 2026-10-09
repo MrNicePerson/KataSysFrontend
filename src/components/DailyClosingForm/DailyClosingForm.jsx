@@ -1,18 +1,29 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-export default function DailyClosingForm({ expectedCash, onSave }) {
+export default function DailyClosingForm({ expectedCash, onSave, canSave = true, canEdit = true, existingRecord = null }) {
   const [cashCounted, setCashCounted] = useState('')
   const [cashRemoved, setCashRemoved] = useState('0')
   const [note, setNote] = useState('')
+  const [correctionReason, setCorrectionReason] = useState('')
+  useEffect(() => {
+    setCashCounted(existingRecord?.counted == null ? '' : String(existingRecord.counted))
+    setNote(existingRecord?.note || '')
+    setCorrectionReason('')
+  }, [existingRecord?.id, existingRecord?.updatedAt])
   const expectedAfterDeposit = Math.max(0, expectedCash - Number(cashRemoved || 0))
   const difference = cashCounted === '' ? null : Number(cashCounted) - expectedAfterDeposit
+  const correctionRequired = Boolean(existingRecord?.finalized && (
+    Number(expectedAfterDeposit) !== Number(existingRecord.amount || 0) ||
+    Number(cashCounted) !== Number(existingRecord.counted ?? existingRecord.amount ?? 0) ||
+    note !== String(existingRecord.note || '')
+  ))
 
   return (
     <section data-keyboard-scope className="p-5 sm:p-7 rounded-2xl bg-white border border-[#e2e6df] shadow-panel space-y-4">
       <div className="flex items-center justify-between pb-3 border-b border-[#edf0eb]">
         <h2 className="text-[#173b32] text-lg sm:text-xl font-bold">3. Daily closing</h2>
         <span className="px-2.5 py-1 rounded-md bg-[#f6f8f1] text-[#718078] text-xs font-semibold">
-          {cashCounted === '' ? 'Open' : 'Ready to save'}
+          {existingRecord ? 'Finalized' : cashCounted === '' ? 'Open' : 'Ready to save'}
         </span>
       </div>
       <p className="text-xs sm:text-sm text-[#718078]">
@@ -26,6 +37,7 @@ export default function DailyClosingForm({ expectedCash, onSave }) {
           min="0"
           placeholder="Enter counted amount"
           value={cashCounted}
+          disabled={!canEdit}
           onChange={(event) => setCashCounted(event.target.value)}
           className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
         />
@@ -36,6 +48,7 @@ export default function DailyClosingForm({ expectedCash, onSave }) {
         <input
           type="number"
           value={cashRemoved}
+          disabled={!canEdit}
           onChange={(event) => setCashRemoved(event.target.value)}
           min="0"
           className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
@@ -46,11 +59,17 @@ export default function DailyClosingForm({ expectedCash, onSave }) {
         Closing note / difference reason (optional)
         <textarea
           value={note}
+          disabled={!canEdit}
           onChange={(event) => setNote(event.target.value)}
           rows="2"
           className="w-full p-3 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
         />
       </label>
+
+      {existingRecord?.finalized && <label className="flex flex-col gap-1.5 text-xs sm:text-sm font-semibold text-[#173b32]">
+        Correction reason
+        <textarea value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} rows="2" required={correctionRequired} disabled={!canEdit} className="w-full p-3 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]" placeholder="Required when changing a finalized closing" />
+      </label>}
 
       <div className="p-4 rounded-xl bg-[#fafbf8] border border-[#edf0eb] space-y-2 text-xs sm:text-sm">
         <div className="flex justify-between">
@@ -69,11 +88,12 @@ export default function DailyClosingForm({ expectedCash, onSave }) {
         data-enter-next
         type="button"
         className="w-full h-12 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] disabled:opacity-50 text-white text-sm sm:text-base font-bold transition-all shadow-sm cursor-pointer active:scale-98"
-        disabled={cashCounted === ''}
-        onClick={() => onSave({ actual: Number(cashCounted), expected: expectedAfterDeposit, difference, note })}
+        disabled={cashCounted === '' || !canSave || correctionRequired && !correctionReason.trim()}
+        onClick={() => onSave({ actual: Number(cashCounted), expected: expectedAfterDeposit, difference, note, correctionReason })}
       >
-        Save daily closing
+        {existingRecord ? 'Update daily closing' : 'Save daily closing'}
       </button>
+      {!canSave && <p className="text-xs text-amber-800" role="status">A complete monthly stock review is required before this closing can be saved.</p>}
     </section>
   )
 }

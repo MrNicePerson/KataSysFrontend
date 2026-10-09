@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import BillReceipt from '../../pages/bill-receipt/BillReceipt.jsx'
 
-export default function BillsTable({ bills = [], onReturn, onViewBill, onEditBill, onEditLines }) {
+export default function BillsTable({ bills = [], onReturn, onReviewBill }) {
   const [localViewingBill, setLocalViewingBill] = useState(null)
 
   const displayedBills = bills
@@ -51,15 +51,14 @@ export default function BillsTable({ bills = [], onReturn, onViewBill, onEditBil
                     <div className="flex items-center justify-end gap-2">
                       <button
                         data-keyboard-primary
+                        data-keyboard-review-edit
                         type="button"
                         className="px-3 py-1.5 rounded-lg border border-[#e2e6df] bg-white hover:bg-[#f6f8f1] text-[#173b32] text-xs font-semibold transition-all cursor-pointer shadow-2xs"
-                        onClick={() => handleView(bill)}
-                        title="View & print sales receipt"
+                        onClick={() => onReviewBill ? onReviewBill(bill) : handleView(bill)}
+                        title="Review and edit bill and receipt details"
                       >
-                        View
+                        Review and edit bill
                       </button>
-                      {onEditLines && bill.items?.length > 0 && bill.items.every((item) => item.lineId && !item.isReturn) && <button type="button" className="px-3 py-1.5 rounded-lg border border-[#e2e6df] bg-white hover:bg-[#f6f8f1] text-[#173b32] text-xs font-semibold" onClick={() => onEditLines(bill)}>Edit bill</button>}
-                      {onEditBill && <button type="button" className="px-3 py-1.5 rounded-lg border border-[#e2e6df] bg-white hover:bg-[#f6f8f1] text-[#173b32] text-xs font-semibold" onClick={() => onEditBill(bill)}>Edit receipt</button>}
                       <button
                         type="button"
                         className="px-3 py-1.5 rounded-lg border border-[#e2e6df] bg-white hover:bg-[#eaf3e7] hover:text-[#155b4b] text-[#718078] text-xs font-semibold transition-all cursor-pointer shadow-2xs"

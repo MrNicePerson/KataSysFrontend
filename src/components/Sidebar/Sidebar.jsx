@@ -4,6 +4,7 @@ import PrimaryNavigation from './PrimaryNavigation.jsx'
 import BusinessNavigation from './BusinessNavigation.jsx'
 import ShopNavigation from './ShopNavigation.jsx'
 import { handleSidebarKeyDown } from '../../keyboard/sidebarNavigation.js'
+import { hasModuleView } from '../../permissions.js'
 
 const pageForLabel = {
   'New customer': 'new-customer',
@@ -51,14 +52,14 @@ const permissionByLabel = {
   'Customer returns': 'returns',
   'Orders & held bills': 'orders',
   'Stock & products': 'stock',
-  'Receive stock': 'stock',
+  'Receive stock': 'purchases',
   'Supplier returns': 'stock',
   'Defects & claims': 'stock',
   Suppliers: 'suppliers',
   'Customer khata': 'customers',
   'Cheque register': 'cheques',
   'Shop expenses': 'finance',
-  'Daily closing': 'finance',
+  'Daily closing': 'dailyClosing',
   Reports: 'reports',
   Settings: 'settings',
 }
@@ -66,7 +67,7 @@ const permissionByLabel = {
 export default function Sidebar({ activePage, onClose, onNavigate, permissions = {}, role }) {
   const navRef = useRef(null)
   const closeButtonRef = useRef(null)
-  const hasAccess = (label) => role === 'admin' || permissions[permissionByLabel[label]]
+  const hasAccess = (label) => role === 'admin' || hasModuleView(permissions, permissionByLabel[label]) || label === 'Settings' && hasModuleView(permissions, 'activityHistory')
   const selectedPage = activePage === 'bill-receipt' ? 'new-sale' : activePage
   useEffect(() => {
     const active = navRef.current?.querySelector('[data-nav-item][aria-current="page"]')

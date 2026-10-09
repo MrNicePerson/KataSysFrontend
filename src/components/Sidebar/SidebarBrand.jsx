@@ -1,11 +1,11 @@
+import logo from '../../assets/abbas-textile-logo.jpeg'
+
 export default function SidebarBrand({ onClose, closeButtonRef }) {
   return (
     <div className="flex items-center justify-between gap-3 pb-2 border-b border-[#edf0eb]">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 grid place-items-center rounded-xl bg-[#155b4b] text-white font-bold text-xl shadow-xs select-none">
-          K
-        </div>
-        <strong className="text-[#173b32] text-xl font-bold tracking-tight">Kapra Khata</strong>
+        <img src={logo} alt="" aria-hidden="true" className="w-10 h-10 shrink-0 rounded-full object-contain" />
+        <strong className="text-[#173b32] text-xl font-bold tracking-tight">Abbas Textile</strong>
       </div>
       <button
         ref={closeButtonRef}

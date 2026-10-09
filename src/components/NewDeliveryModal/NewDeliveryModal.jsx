@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { Banknote, Landmark, ReceiptText, Split } from 'lucide-react';
 import { receivingBatchPreview } from '../../data/receiving.js';
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js';
+import { BANK_OPTIONS } from '../Payment/Payment.jsx';
 
 const today = () => {
   const date = new Date();
@@ -25,6 +27,9 @@ function Field({
   min,
   step,
   readOnly,
+  required,
+  onFocus,
+  onBlur,
 }) {
   const id = `delivery-${name}`;
   return (
@@ -59,6 +64,12 @@ function Field({
           min={min}
           step={step}
           readOnly={readOnly}
+          required={required}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onKeyDown={(event) => {
+            if (type === "number" && ["PageUp", "PageDown"].includes(event.key)) event.preventDefault()
+          }}
           aria-invalid={Boolean(error)}
           className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] placeholder:text-[#7b857e] focus:outline-none focus:border-[#155b4b]"
         />
@@ -195,7 +206,7 @@ export function AddedStockCard({ items, onRemove, paymentMethod = "cash", amount
             </div>
           ))}
         </dl>
-        {bankPaid > 0 && <p className="mt-3 text-xs text-[#52645c] break-words"><strong className="text-[#173b32]">Bank:</strong> {bankDetails.bankName || "Selected bank"}{bankDetails.accountNumber ? ` · ${bankDetails.accountNumber}` : ""}</p>}
+        {bankPaid > 0 && <p className="mt-3 text-xs text-[#52645c] break-words"><strong className="text-[#173b32]">Bank:</strong> {bankDetails.bankName || "Selected bank"}</p>}
         {cheques.length > 0 && <div className="mt-3 space-y-1.5"><p className="text-xs font-semibold text-[#173b32]">Cheques</p>{cheques.map((cheque) => <p key={cheque.id || `${cheque.number}-${cheque.bank}`} className="flex justify-between gap-2 text-xs text-[#52645c]"><span className="min-w-0 break-words">{cheque.number || "Cheque"} · {cheque.bank || "Bank"}</span><span className="shrink-0 tabular-nums">{money(cheque.amount)}</span></p>)}</div>}
       </section>
     </aside>
@@ -274,7 +285,7 @@ export function prepareStockPayment(items, amountPaid, method, bankDetails = {},
     if (bank > 0 && !String(bankDetails.bankName || "").trim()) return { error: "Select a bank/account or enter a bank name for the bank payment." };
     if (cheques.length) { const validation = prepareStockPayment(items, cheque, "cheque", {}, cheques); if (validation.error) return validation; }
     if (cash + bank + cheque > total + 0.005) return { error: "Total paid cannot exceed the total stock cost." };
-    return { payments: { cash, bank, cheque }, bankDetails: bank > 0 ? { ...bankDetails, amount: bank } : null, cheques };
+    return { payments: { cash, bank, cheque }, bankDetails: bank > 0 ? { bankName: String(bankDetails.bankName || "").trim(), amount: bank } : null, cheques };
   }
   if (method === "cheque") {
     if (!cheques.length) return { error: "Add at least one cheque." };
@@ -295,9 +306,8 @@ export function prepareStockPayment(items, amountPaid, method, bankDetails = {},
   if (summary.error) return { error: summary.error };
   if (method === "bank") {
     const bankName = String(bankDetails.bankName || "").trim();
-    const accountNumber = String(bankDetails.accountNumber || "").trim();
-    if (!bankName) return { error: "Select a bank/account or enter a bank name." };
-    return { payments: { cash: 0, bank: summary.paid, cheque: 0 }, bankDetails: { bankName, accountNumber, amount: summary.paid } };
+    if (!bankName) return { error: "Select a bank." };
+    return { payments: { cash: 0, bank: summary.paid, cheque: 0 }, bankDetails: { bankName, amount: summary.paid } };
   }
   if (method !== "cash" && summary.paid > 0)
     return { error: "This payment method is preview-only. Choose Cash or Bank to record a payment, or enter 0 to save the delivery unpaid." };
@@ -316,7 +326,7 @@ export function getReceivingBanks(purchases = []) {
   return [...banks.values()];
 }
 
-export function PaymentDetails({ items, method, amountPaid, onMethodChange, onAmountChange, error, banks = [], selectedBank = "new", bankDetails = {}, onBankSelect, onBankDetailsChange, cheques = [], onChequesChange, splitCash = "0", splitBank = "0", onSplitCashChange, onSplitBankChange }) {
+export function PaymentDetails({ items, method, amountPaid, onMethodChange, onAmountChange, error, bankDetails = {}, onBankDetailsChange, cheques = [], onChequesChange, splitCash = "0", splitBank = "0", onSplitCashChange, onSplitBankChange }) {
   const splitTotal = Number(splitCash || 0) + Number(splitBank || 0) + totalChequeAmount(cheques);
   const summary = calculateStockPayment(items, method === "cheque" ? 0 : method === "split" ? splitTotal : amountPaid);
   const paymentError = summary.error || (method === "cheque" && totalChequeAmount(cheques) > summary.total + 0.005 ? "Total cheque amount cannot exceed the total stock cost." : "") || error;
@@ -335,37 +345,64 @@ export function PaymentDetails({ items, method, amountPaid, onMethodChange, onAm
       <fieldset disabled={!items.length}>
         <legend className="text-xs sm:text-sm font-semibold text-[#173b32] mb-2">Payment method</legend>
         <div className="grid grid-cols-2 gap-2">
-          {[["cash", "Cash"], ["bank", "Bank"], ["cheque", "Cheque"], ["split", "Split Payment"]].map(([value, label]) => (
-            <label key={value} className={`flex items-center gap-2 p-3 rounded-xl border text-sm cursor-pointer ${method === value ? "border-[#155b4b] bg-[#e8f2e3] text-[#155b4b] font-semibold" : "border-[#dfe4dc] bg-white text-[#173b32]"}`}>
-              <input type="radio" name="delivery-payment-method" value={value} checked={method === value} onChange={() => onMethodChange(value)} className="accent-[#155b4b]" />
-              {label}
+          {[["cash", "Cash", Banknote], ["bank", "Bank", Landmark], ["cheque", "Cheque", ReceiptText], ["split", "Split Payment", Split]].map(([value, label, Icon]) => (
+            <label key={value} className={`flex items-center gap-3 p-3 rounded-xl border text-sm cursor-pointer transition-colors ${method === value ? "border-[#155b4b] bg-[#e8f2e3] text-[#155b4b] font-semibold" : "border-[#dfe4dc] bg-white text-[#173b32] hover:border-[#155b4b]/50"}`}>
+              <input type="radio" name="delivery-payment-method" value={value} checked={method === value} onChange={() => onMethodChange(value)} onKeyDown={(event) => {
+                if (event.key !== "Enter" || event.isComposing || event.repeat || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || !["bank", "split"].includes(value)) return
+                event.preventDefault()
+                const scope = event.currentTarget.closest("[data-keyboard-scope]")
+                onMethodChange(value)
+                requestAnimationFrame(() => {
+                  const group = scope?.querySelector('[aria-label="Bank logos"]')
+                  const selected = group?.querySelector('button[aria-pressed="true"]')
+                  ;(selected || group?.querySelector("button"))?.focus()
+                })
+              }} className="accent-[#155b4b]" />
+              <Icon aria-hidden="true" size={20} strokeWidth={1.8} />
+              <span>{label}</span>
             </label>
           ))}
         </div>
       </fieldset>
       {(method === "bank" || method === "split") && (
         <fieldset disabled={!items.length} className="space-y-3">
-          <Field label="Pay from bank / account" name="bankAccount" value={selectedBank} onChange={(event) => onBankSelect(event.target.value)} options={[
-            ["new", "Enter bank / account details"],
-            ...banks.map((bank) => [bank.key, `${bank.bankName}${bank.accountNumber ? ` · ${bank.accountNumber}` : ""}`]),
-          ]} />
-          {selectedBank === "new" ? (
-            <>
-              <Field label="Bank Name" name="bankName" value={bankDetails.bankName || ""} onChange={(event) => onBankDetailsChange({ ...bankDetails, bankName: event.target.value })} placeholder="Enter bank name" />
-              <Field label="Account (optional)" name="bankAccountNumber" value={bankDetails.accountNumber || ""} onChange={(event) => onBankDetailsChange({ ...bankDetails, accountNumber: event.target.value })} placeholder="Account number or account name" />
-            </>
-          ) : (
-            <dl className="text-sm text-[#173b32] space-y-2 break-words">
-              <div><dt className="text-xs text-[#718078]">Bank Name</dt><dd className="font-semibold">{bankDetails.bankName}</dd></div>
-              <div><dt className="text-xs text-[#718078]">Account</dt><dd className="font-semibold">{bankDetails.accountNumber || "Not provided"}</dd></div>
-            </dl>
-          )}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" role="group" aria-label="Bank logos" onKeyDown={(event) => {
+            if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return
+            const directions = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }
+            const direction = directions[event.key]
+            if (!direction) return
+            const buttons = [...event.currentTarget.querySelectorAll("button")]
+            const index = buttons.indexOf(event.target)
+            if (index < 0) return
+            event.preventDefault()
+            buttons[(index + direction + buttons.length) % buttons.length]?.focus()
+          }}>
+            {BANK_OPTIONS.map((bank) => (
+              <button
+                key={bank.name}
+                type="button"
+                aria-pressed={bankDetails.bankName?.toLowerCase() === bank.name.toLowerCase()}
+                onClick={() => {
+                  onBankDetailsChange({ bankName: bank.name })
+                  requestAnimationFrame(() => {
+                    const nextField = method === "split" ? document.getElementById("delivery-splitBank") : document.getElementById("delivery-amount-paid")
+                    nextField?.focus()
+                  })
+                }}
+                className={`min-h-24 p-3 flex flex-col items-center justify-center gap-2 rounded-xl border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#155b4b] ${bankDetails.bankName?.toLowerCase() === bank.name.toLowerCase() ? "border-[#155b4b] bg-[#e8f2e3]" : "border-[#dfe4dc] bg-white hover:border-[#155b4b]/50"}`}
+              >
+                <img src={bank.logo} alt="" className="h-10 w-full object-contain" />
+                <span className="text-xs font-semibold text-[#173b32]">{bank.name}</span>
+              </button>
+            ))}
+          </div>
+          {bankDetails.bankName && <p className="text-sm font-semibold text-[#173b32]">Bank Name: {bankDetails.bankName}</p>}
         </fieldset>
       )}
-      {method === "split" && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><Field label="Cash" name="splitCash" type="number" min="0" step="0.01" value={splitCash} onChange={(event) => onSplitCashChange(event.target.value)} /><Field label="Bank" name="splitBank" type="number" min="0" step="0.01" value={splitBank} onChange={(event) => onSplitBankChange(event.target.value)} /></div>}
+      {method === "split" && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><Field label="Cash" name="splitCash" type="number" min="0" step="0.01" value={splitCash} onChange={(event) => onSplitCashChange(event.target.value)} onFocus={() => { if (Number(splitCash) === 0) onSplitCashChange("") }} onBlur={() => { if (splitCash === "") onSplitCashChange("0") }} /><Field label="Bank" name="splitBank" type="number" min="0" step="0.01" value={splitBank} onChange={(event) => onSplitBankChange(event.target.value)} onFocus={() => { if (Number(splitBank) === 0) onSplitBankChange("") }} onBlur={() => { if (splitBank === "") onSplitBankChange("0") }} /></div>}
       {method === "cheque" || method === "split" ? <ChequeDetails cheques={cheques} onChange={onChequesChange} disabled={!items.length} /> : <label className="flex flex-col gap-1.5 text-xs sm:text-sm font-semibold text-[#173b32]" htmlFor="delivery-amount-paid">
         {method === "bank" ? "Payment Amount" : "Amount Paid"}
-        <input id="delivery-amount-paid" name="amountPaid" type="number" min="0" max={summary.total} step="0.01" value={amountPaid} disabled={!items.length} onChange={(event) => onAmountChange(event.target.value)} aria-invalid={Boolean(paymentError)} aria-describedby={paymentError ? "delivery-payment-error" : undefined} className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b] disabled:opacity-50" />
+        <input id="delivery-amount-paid" name="amountPaid" type="number" min="0" max={summary.total} step="0.01" value={amountPaid} disabled={!items.length} onFocus={() => { if (Number(amountPaid) === 0) onAmountChange("") }} onBlur={() => { if (amountPaid === "") onAmountChange("0") }} onKeyDown={(event) => { if (["PageUp", "PageDown"].includes(event.key)) event.preventDefault() }} onChange={(event) => onAmountChange(event.target.value)} aria-invalid={Boolean(paymentError)} aria-describedby={paymentError ? "delivery-payment-error" : undefined} className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b] disabled:opacity-50" />
       </label>}
       {!items.length && <p className="text-xs text-[#718078]">Add stock items to enter payment details.</p>}
       {method === "split" && <p className="text-xs text-[#718078]">This method is available for preview. Saving a payment with this method will be available when its details are added. You can still save this delivery unpaid with Amount Paid set to 0.</p>}
@@ -383,6 +420,7 @@ export default function NewDeliveryModal({
   const [supplier, setSupplier] = useState("");
   const [arrivalDate, setArrivalDate] = useState(today());
   const batchNumber = receivingBatchNumber(suppliers.find((entry) => entry.id === supplier), arrivalDate, purchases);
+  const [padNumber, setPadNumber] = useState("");
   const [productName, setProductName] = useState("");
   const [articleNumber, setArticleNumber] = useState("");
   const [quantity, setQuantity] = useState("1");
@@ -395,9 +433,7 @@ export default function NewDeliveryModal({
   const [splitCash, setSplitCash] = useState("0");
   const [splitBank, setSplitBank] = useState("0");
   const [cheques, setCheques] = useState(() => [newCheque()]);
-  const [selectedBank, setSelectedBank] = useState("new");
-  const [bankDetails, setBankDetails] = useState({ bankName: "", accountNumber: "" });
-  const banks = getReceivingBanks(purchases);
+  const [bankDetails, setBankDetails] = useState({ bankName: "" });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -418,8 +454,8 @@ export default function NewDeliveryModal({
     const nextErrors = {};
     const trimmedBatch = batchNumber.trim();
     if (!trimmedBatch) nextErrors.batchNumber = "Choose a supplier with a Supplier Code to generate the batch number.";
-    if (!productName.trim() && !articleNumber.trim())
-      nextErrors.productName = "Enter a product name or article number.";
+    if (!articleNumber.trim())
+      nextErrors.articleNumber = "Please enter the article name or design number.";
     if (!season) nextErrors.season = "Choose a season.";
     if (!Number.isInteger(Number(quantity)) || Number(quantity) <= 0)
       nextErrors.quantity = "Quantity must be greater than 0.";
@@ -465,6 +501,7 @@ export default function NewDeliveryModal({
       await onSave({
       supplierId: supplier,
       arrivalDate,
+      padNumber: padNumber.trim(),
       items: items.map((item) => ({ ...item, batchNumber })),
       payments: payment.payments,
       bankDetails: payment.bankDetails,
@@ -482,7 +519,11 @@ export default function NewDeliveryModal({
     <div className="fixed inset-0 z-50 bg-[#203832]/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
       <section
         ref={keyboard.ref}
+        onKeyDownCapture={(event) => {
+          if (event.target instanceof HTMLInputElement && event.target.type === "number" && ["PageUp", "PageDown"].includes(event.key)) event.preventDefault()
+        }}
         onKeyDown={keyboard.onKeyDown}
+        data-keyboard-scope
         className="w-full max-w-4xl p-5 sm:p-7 rounded-2xl bg-white border border-[#e2e6df] shadow-2xl max-h-[92vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"
@@ -534,24 +575,30 @@ export default function NewDeliveryModal({
                 Item details
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Full width */}
-                <div className="sm:col-span-2">
-                  <Field
-                    label="Batch number (automatic)"
-                    name="batchNumber"
-                    value={batchNumber}
-                    placeholder="Select supplier and bill date"
-                    readOnly
-                    error={errors.batchNumber}
-                  />
-                </div>
+                <Field
+                  label="Batch number (automatic)"
+                  name="batchNumber"
+                  value={batchNumber}
+                  placeholder="Select supplier and bill date"
+                  readOnly
+                  error={errors.batchNumber}
+                />
+                <Field
+                  label="Pad number (optional)"
+                  name="padNumber"
+                  value={padNumber}
+                  onChange={(event) => setPadNumber(event.target.value)}
+                  placeholder="Enter supplier pad number"
+                />
 
                 <Field
                   label="Article / design number"
                   name="articleNumber"
                   value={articleNumber}
                   onChange={(event) => setArticleNumber(event.target.value)}
-                  placeholder="Leave blank if unavailable"
+                  placeholder="Please enter the article name or design number"
+                  required
+                  error={errors.articleNumber}
                 />
                 <Field
                   label="Brand Name"
@@ -576,6 +623,8 @@ export default function NewDeliveryModal({
                   min="1"
                   value={quantity}
                   onChange={(event) => setQuantity(event.target.value)}
+                  onFocus={() => { if (Number(quantity) === 0) setQuantity("") }}
+                  onBlur={() => { if (quantity === "") setQuantity("1") }}
                   error={errors.quantity}
                 />
                 <Field
@@ -585,6 +634,8 @@ export default function NewDeliveryModal({
                   min="0"
                   value={unitCost}
                   onChange={(event) => setUnitCost(event.target.value)}
+                  onFocus={() => { if (Number(unitCost) === 0) setUnitCost("") }}
+                  onBlur={() => { if (unitCost === "") setUnitCost("0") }}
                 />
                 <Field
                   label="Sale price"
@@ -593,6 +644,8 @@ export default function NewDeliveryModal({
                   min="0"
                   value={salePrice}
                   onChange={(event) => setSalePrice(event.target.value)}
+                  onFocus={() => { if (Number(salePrice) === 0) setSalePrice("") }}
+                  onBlur={() => { if (salePrice === "") setSalePrice("0") }}
                 />
               </div>
 
@@ -624,15 +677,7 @@ export default function NewDeliveryModal({
                 setCheques(entries);
                 setErrors((current) => ({ ...current, payment: undefined }));
               }}
-              banks={banks}
-              selectedBank={selectedBank}
               bankDetails={bankDetails}
-              onBankSelect={(key) => {
-                setSelectedBank(key);
-                const bank = banks.find((entry) => entry.key === key);
-                setBankDetails(bank ? { bankName: bank.bankName, accountNumber: bank.accountNumber } : { bankName: "", accountNumber: "" });
-                setErrors((current) => ({ ...current, payment: undefined }));
-              }}
               onBankDetailsChange={(details) => {
                 setBankDetails(details);
                 setErrors((current) => ({ ...current, payment: undefined }));

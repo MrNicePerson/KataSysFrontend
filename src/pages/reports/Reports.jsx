@@ -5,8 +5,10 @@ import SalesBySupplier from '../../components/SalesBySupplier/SalesBySupplier.js
 import IncomeSpending from '../../components/IncomeSpending/IncomeSpending.jsx'
 import StockMovements from '../../components/StockMovements/StockMovements.jsx'
 import { localDateString } from '../../data/businessLogic.js'
+import { hasModulePermission } from '../../permissions.js'
 
-export default function Reports({ bills = [], database, token }) {
+export default function Reports({ bills = [], customers = [], database, token, permissions = {} }) {
+  const canFinancialReports = hasModulePermission(permissions, 'reports', 'financialView')
   const [audit, setAudit] = useState(null)
   const [auditError, setAuditError] = useState('')
   const [period, setPeriod] = useState('monthly')
@@ -29,8 +31,13 @@ export default function Reports({ bills = [], database, token }) {
     datedCollections.has(key) && Array.isArray(value) ? value.filter(inRange) : value,
   ]))
   const reportBills = reportDatabase.sales || bills
+  const customerName = (bill) => bill.customer?.trim()
+    || bill.customerDetails?.name
+    || customers.find((customer) => customer.id === bill.customerId)?.name
+    || 'Walk-in customer'
 
   useEffect(() => {
+    if (!canFinancialReports) return undefined
     let active = true
     Promise.all([
       apiRequest('reports/stock-audit', { token }),
@@ -41,15 +48,15 @@ export default function Reports({ bills = [], database, token }) {
       if (active) setAuditError(error.message)
     })
     return () => { active = false }
-  }, [token])
+  }, [token, canFinancialReports])
 
   const exportSales = () => {
-    const rows = [['Invoice', 'Date', 'Customer', 'Total', 'Paid', 'Due'], ...reportBills.map((bill) => [bill.number, bill.date, bill.customer, bill.total, bill.paid, bill.due])]
+    const rows = [['Invoice', 'Date', 'Customer', 'Total', 'Paid', 'Due'], ...reportBills.map((bill) => [bill.number, bill.date, customerName(bill), bill.total, bill.paid, bill.due])]
     const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
     link.href = url
-    link.download = 'kapra-khata-sales.csv'
+    link.download = 'abbas-textile-sales.csv'
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -68,13 +75,13 @@ export default function Reports({ bills = [], database, token }) {
             A clear picture of how the shop is doing.
           </p>
         </div>
-        <button
+        {canFinancialReports && <button
           type="button"
           className="h-11 sm:h-12 px-5 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] text-white text-xs sm:text-sm font-semibold transition-all shadow-sm cursor-pointer whitespace-nowrap active:scale-98"
           onClick={exportSales}
         >
           Export sales CSV
-        </button>
+        </button>}
       </div>
 
       <div className="flex flex-wrap items-end gap-3 mb-5">
@@ -93,16 +100,17 @@ export default function Reports({ bills = [], database, token }) {
         <span className="text-xs text-[#718078]">{from || 'All dates'} to {to || 'Today'}</span>
       </div>
 
-      <ReportStats database={reportDatabase} />
+      {!canFinancialReports && <p className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Financial report details are restricted for this account.</p>}
+      {canFinancialReports && <ReportStats database={reportDatabase} />}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-6">
+      {canFinancialReports && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-6">
         <SalesBySupplier database={reportDatabase} />
         <IncomeSpending database={reportDatabase} />
-      </div>
+      </div>}
 
-      <StockMovements movements={reportDatabase.stockMovements} products={database.products} purchases={database.purchases} supplierReturns={database.supplierReturns} />
+      {permissions.stock && <StockMovements movements={reportDatabase.stockMovements} products={database.products} purchases={database.purchases} supplierReturns={database.supplierReturns} />}
       {auditError && <p className="mt-4 text-sm text-red-700" role="alert">Audit data could not be loaded: {auditError}</p>}
-      {audit && <div className="mt-6 space-y-6">
+      {canFinancialReports && audit && <div className="mt-6 space-y-6">
         <section className="overflow-x-auto rounded-xl border border-[#e2e6df] bg-white">
           <h2 className="p-4 text-lg font-bold text-[#173b32]">Stock audit</h2>
           <table className="w-full min-w-[760px] text-left text-xs sm:text-sm">

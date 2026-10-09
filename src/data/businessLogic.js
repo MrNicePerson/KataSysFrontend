@@ -19,6 +19,7 @@ export function createEmptyDatabase() {
     heldOrders: [],
     claims: [],
     stockMovements: [],
+    stockAudits: [],
     dailyClosings: [],
     settings: {},
     business: {},
@@ -26,6 +27,9 @@ export function createEmptyDatabase() {
     auditHistory: [],
     financeEntries: [],
     installments: [],
+    bankAccounts: [],
+    bankTransactions: [],
+    bankBalanceRecords: [],
   }
 }
 
@@ -146,7 +150,7 @@ export function createSale(database, input) {
     number: input.number,
     date: dateOf(input.date),
     customerId: input.customerId || null,
-    customer: input.customer || '',
+    customer: input.customer || database.customers.find((entry) => entry.id === input.customerId)?.name || '',
     customerDetails: input.customerDetails || null,
     customerPhone: input.customerPhone || '',
     customerAddress: input.customerAddress || '',
@@ -222,6 +226,7 @@ export function receivePurchase(database, input) {
   const purchase = record('purchase', {
     batchNumber,
     supplierBillNumber: Number(batchNumber.split('-').at(-1)),
+    padNumber: String(input.padNumber ?? '').trim(),
     supplierId: supplier.id,
     supplier: supplier.name,
     date: dateOf(input.date ?? input.arrivalDate),
@@ -329,6 +334,9 @@ export function adjustStock(database, input) {
 export function saveDailyRecord(database, input) {
   const date = dateOf(input.date)
   const type = input.type === 'opening' ? 'opening' : 'closing'
+  if (type === 'closing' && !database.dailyClosings.some((entry) => entry.date === date && entry.type === 'opening')) {
+    throw new Error('Save the daily opening before recording the daily closing.')
+  }
   const amount = amountOf(input.amount)
   const existing = database.dailyClosings.find((entry) => entry.date === date && entry.type === type)
   const dailyRecord = existing
@@ -337,6 +345,20 @@ export function saveDailyRecord(database, input) {
   const dailyClosings = existing ? database.dailyClosings.map((entry) => entry.id === existing.id ? dailyRecord : entry) : [dailyRecord, ...database.dailyClosings]
   const next = { ...database, dailyClosings, auditHistory: addAudit(database, `daily-${type}`, dailyRecord.id, `Daily ${type} saved for ${date}`) }
   return { database: next, record: dailyRecord }
+}
+
+export function deleteDailyRecord(database, recordId) {
+  const existing = database.dailyClosings.find((entry) => entry.id === recordId)
+  if (!existing) throw new Error('Daily record could not be found.')
+  if (existing.type === 'opening' && database.dailyClosings.some((entry) => entry.date === existing.date && entry.type === 'closing')) {
+    throw new Error('Delete the daily closing before deleting its opening.')
+  }
+  const next = {
+    ...database,
+    dailyClosings: database.dailyClosings.filter((entry) => entry.id !== recordId),
+    auditHistory: addAudit(database, 'daily-record-deleted', existing.id, `Daily ${existing.type} deleted for ${existing.date}`),
+  }
+  return { database: next, record: existing }
 }
 
 export function saveSettings(database, settings) {
@@ -406,6 +428,7 @@ export function runDatabaseCommand(database, command, input = {}) {
     case 'create-product': return createProduct(database, input)
     case 'adjust-stock': return adjustStock(database, input)
     case 'daily-record': return saveDailyRecord(database, input)
+    case 'delete-daily-record': return deleteDailyRecord(database, input.recordId)
     case 'save-settings': return saveSettings(database, input)
     case 'create-claim': return createClaim(database, input)
     case 'claim-status': return updateClaimStatus(database, input.claimId, input.status, input.resolution)
@@ -555,8 +578,47 @@ export function calculateDailyClosing(database, date) {
   const supplierPayments = sumPayment((entry) => entry.type === 'supplier-payment' && entry.method === 'cash')
   const cashExpenses = database.expenses.filter((entry) => sameDate(entry) && entry.method === 'cash').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
   const cashRefunds = sumPayment((entry) => entry.type === 'customer-refund' && entry.method === 'cash')
-  const expectedCash = opening + cashSales + customerPayments - supplierPayments - cashExpenses - cashRefunds
-  return { date, opening, cashSales, customerPayments, supplierPayments, cashExpenses, cashRefunds, expectedCash }
+  const cashOtherReceipts = (database.financeEntries || []).filter((entry) => sameDate(entry) && entry.type === 'capital' && entry.method === 'cash').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+  const bankTransactions = (database.bankTransactions || []).filter((entry) => sameDate(entry))
+  const cashWithdrawals = bankTransactions.filter((entry) => entry.type === 'withdrawal' && entry.destination === 'cash').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+  const cashDeposits = bankTransactions.filter((entry) => entry.type === 'deposit' && entry.source === 'cash').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+  const expectedCash = Math.round((opening + cashSales + customerPayments + cashOtherReceipts + cashWithdrawals - supplierPayments - cashExpenses - cashRefunds - cashDeposits + Number.EPSILON) * 100) / 100
+  return { date, opening, cashSales, customerPayments, cashOtherReceipts, supplierPayments, cashExpenses, cashRefunds, cashWithdrawals, cashDeposits, expectedCash }
+}
+
+export function calculateBankBalanceSummary(database, date) {
+  const records = database.bankBalanceRecords || []
+  const transactions = database.bankTransactions || []
+  const accounts = (database.bankAccounts || []).map((account) => {
+    const previous = records.filter((entry) => entry.accountId === account.id && entry.date < date)
+      .sort((left, right) => right.date.localeCompare(left.date) || String(right.createdAt).localeCompare(String(left.createdAt)))[0]
+    let expectedBalance = Number(previous?.closingBalance ?? account.openingBalance ?? 0)
+    for (const transaction of transactions) {
+      if (transaction.date > date || transaction.date <= (previous?.date || '')) continue
+      if (transaction.accountId === account.id) {
+        if (transaction.type === 'withdrawal' || transaction.type === 'transfer') expectedBalance -= Number(transaction.amount || 0)
+        if (transaction.type === 'deposit') expectedBalance += Number(transaction.amount || 0)
+      }
+      if (['transfer', 'withdrawal'].includes(transaction.type) && transaction.destination === 'account' && transaction.destinationAccountId === account.id) expectedBalance += Number(transaction.amount || 0)
+    }
+    expectedBalance = Math.round((expectedBalance + Number.EPSILON) * 100) / 100
+    const dayRecord = records.filter((entry) => entry.accountId === account.id && entry.date === date)
+      .sort((left, right) => Number(right.revision || 0) - Number(left.revision || 0) || String(right.createdAt).localeCompare(String(left.createdAt)))[0]
+    const currentBalance = Math.round((Number(dayRecord?.closingBalance ?? expectedBalance) + Number.EPSILON) * 100) / 100
+    return {
+      accountId: account.id,
+      name: account.name,
+      active: account.active !== false,
+      previousBalance: Number(previous?.closingBalance ?? account.openingBalance ?? 0),
+      expectedBalance,
+      currentBalance,
+      difference: dayRecord ? Math.round((currentBalance - Number(dayRecord.expectedBalance ?? expectedBalance) + Number.EPSILON) * 100) / 100 : 0,
+      note: dayRecord?.note || '',
+      lastUpdatedAt: dayRecord?.createdAt || null,
+    }
+  })
+  const total = (key) => Math.round((accounts.filter((account) => account.active).reduce((sum, account) => sum + Number(account[key] || 0), 0) + Number.EPSILON) * 100) / 100
+  return { date, accounts, previousTotal: total('previousBalance'), expectedTotal: total('expectedBalance'), currentTotal: total('currentBalance') }
 }
 
 export function calculateBusinessTotals(database) {
@@ -630,15 +692,17 @@ export function validateBackup(data) {
   }
   if (!data || typeof data !== 'object' || data.version !== APP_DB_VERSION) throw new Error('Unsupported or invalid application backup.')
   const database = createEmptyDatabase()
+  const additiveCollections = new Set(['bankAccounts', 'bankTransactions', 'bankBalanceRecords'])
   for (const key of Object.keys(database)) {
     if (Array.isArray(database[key])) {
-      if (!Array.isArray(data[key])) throw new Error(`Backup is missing a valid ${key} collection.`)
+      if (!Array.isArray(data[key]) && !additiveCollections.has(key)) throw new Error(`Backup is missing a valid ${key} collection.`)
+      const rows = data[key] || []
       const ids = new Set()
-      for (const item of data[key]) {
+      for (const item of rows) {
         if (!item || typeof item !== 'object' || !item.id || ids.has(item.id)) throw new Error(`The ${key} collection contains an invalid or duplicate ID.`)
         ids.add(item.id)
       }
-      database[key] = data[key]
+      database[key] = rows
     } else if (key === 'version') {
       database.version = APP_DB_VERSION
     } else if (data[key] && typeof data[key] === 'object' && !Array.isArray(data[key])) {
