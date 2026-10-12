@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 
-export default function SignIn({ onSignIn, allowRegistration = false, loading = false }) {
-  const [creatingAdmin, setCreatingAdmin] = useState(false)
+export default function SignIn({ onSignIn, loading = false }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -16,9 +15,8 @@ export default function SignIn({ onSignIn, allowRegistration = false, loading = 
     submissionRef.current = true
     setSubmitting(true)
     setError('')
-    const name = new FormData(event.currentTarget).get('name')
     try {
-      await onSignIn({ name, email, password, registration: creatingAdmin })
+      await onSignIn({ email, password })
     } catch (issue) {
       setError(issue.message || 'Could not sign in.')
     } finally {
@@ -31,12 +29,8 @@ export default function SignIn({ onSignIn, allowRegistration = false, loading = 
     <main className="min-h-screen grid place-items-center px-4 py-10 bg-[#f3f6f0]">
       <section className="w-full max-w-md p-6 sm:p-8 bg-white border border-[#e2e6df] rounded-2xl shadow-panel">
         <p className="text-[#70847b] text-xs font-bold tracking-[3px] uppercase mb-2">KataSys</p>
-        <h1 className="text-[#173b32] text-2xl sm:text-3xl font-bold">{creatingAdmin ? 'Create administrator' : 'Sign in'}</h1>
+        <h1 className="text-[#173b32] text-2xl sm:text-3xl font-bold">Sign in</h1>
         <form className="mt-6 space-y-4" onSubmit={submit}>
-          {creatingAdmin && <label className="block text-sm font-semibold text-[#173b32]">
-            Name
-            <input name="name" autoComplete="name" className="mt-1.5 w-full h-11 px-3.5 rounded-lg border border-[#dfe4dc] bg-white text-sm focus:outline-none focus:border-[#155b4b]" required />
-          </label>}
           <label className="block text-sm font-semibold text-[#173b32]">
             Email
             <input
@@ -54,7 +48,6 @@ export default function SignIn({ onSignIn, allowRegistration = false, loading = 
               <input
                 autoComplete="current-password"
                 type={showPassword ? 'text' : 'password'}
-                minLength={creatingAdmin ? 12 : undefined}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 className="w-full h-11 px-3.5 pr-11 rounded-lg border border-[#dfe4dc] bg-white text-sm focus:outline-none focus:border-[#155b4b]"
@@ -77,12 +70,10 @@ export default function SignIn({ onSignIn, allowRegistration = false, loading = 
             disabled={loading || submitting}
             className="w-full h-11 rounded-lg bg-[#155b4b] hover:bg-[#104b3e] disabled:opacity-60 text-white text-sm font-bold"
           >
-            {loading || submitting ? 'Please wait…' : creatingAdmin ? 'Create administrator' : 'Sign in'}
+            {loading || submitting ? 'Please wait…' : 'Sign in'}
           </button>
         </form>
-        {allowRegistration && <button type="button" onClick={() => { setCreatingAdmin((value) => !value); setError('') }} className="mt-4 text-sm font-semibold text-[#155b4b] hover:underline">
-          {creatingAdmin ? 'Back to sign in' : 'Set up first administrator'}
-        </button>}
+
       </section>
     </main>
   )

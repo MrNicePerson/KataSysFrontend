@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { apiRequest, getBootstrapStatus, getCurrentUser, getWorkspace, registerFirstAdmin, signIn } from './src/api/client.js'
+import { apiRequest, getBootstrapStatus, getCurrentUser, getWorkspace, registerAccount, signIn } from './src/api/client.js'
 import AccountStatement from './src/components/AccountStatement/AccountStatement.jsx'
 import Header from './src/components/Header/Header.jsx'
 import NotificationsPage from './src/components/Notifications/Notifications.jsx'
@@ -58,7 +58,6 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [database, setDatabase] = useState(createEmptyDatabase)
   const [authLoading, setAuthLoading] = useState(() => Boolean(sessionStorage.getItem('katasys-token')))
-  const [registrationAvailable, setRegistrationAvailable] = useState(false)
   const [language, setLanguage] = useState(() => localStorage.getItem('katasys-language') === 'ur' ? 'ur' : 'en')
   const [operationError, setOperationError] = useState('')
   const [isSidebarOpen, setSidebarOpen] = useState(false)
@@ -134,9 +133,8 @@ export default function App() {
   useEffect(() => {
     if (!token) {
       getBootstrapStatus().then((status) => {
-        setRegistrationAvailable(status.registrationAvailable)
         setLanguage(status.language === 'ur' ? 'ur' : 'en')
-      }).catch(() => setRegistrationAvailable(false))
+      }).catch(() => {})
       setAuthLoading(false)
       return undefined
     }
@@ -168,7 +166,7 @@ export default function App() {
 
   const handleSignIn = async (credentials) => {
     const result = credentials.registration
-      ? await registerFirstAdmin(credentials)
+      ? await registerAccount(credentials)
       : await signIn(credentials)
     sessionStorage.setItem('katasys-token', result.token)
     setUser(result.user)
@@ -303,7 +301,7 @@ export default function App() {
   }
 
   if (authLoading) return <main className="min-h-screen grid place-items-center text-[#52645c]">Connecting to KataSys…</main>
-  if (!token || !user) return <SignIn onSignIn={handleSignIn} allowRegistration={registrationAvailable} />
+  if (!token || !user) return <SignIn onSignIn={handleSignIn} />
 
   return <>
     <Header user={user} token={token} showNotifications={can('notifications')} canManageNotifications={can('notifications', 'manage')} menuButtonRef={menuButtonRef} onMenuClick={openNavigation} onSignOut={signOut} onViewAllNotifications={() => setCurrentPage('notifications')} onOpenNotification={openNotification} />

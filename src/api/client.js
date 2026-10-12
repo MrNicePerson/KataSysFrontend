@@ -46,7 +46,7 @@ export const signIn = (credentials) =>
     body: credentials,
   })
 
-export const registerFirstAdmin = (credentials) =>
+export const registerAccount = (credentials) =>
   apiRequest('auth/register', {
     method: 'POST',
     body: credentials,
