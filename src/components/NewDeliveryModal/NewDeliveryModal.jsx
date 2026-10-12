@@ -467,7 +467,7 @@ export default function NewDeliveryModal({
       {
         id: `${Date.now()}-${Math.random()}`,
         batchNumber: trimmedBatch,
-        productName: productName.trim(),
+        productName: productName.trim() || articleNumber.trim(),
         articleNumber: articleNumber.trim(),
         quantity: Number(quantity),
         unitCost: Number(unitCost) || 0,

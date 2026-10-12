@@ -7,6 +7,7 @@ import Footer from './src/components/Footer/Footer.jsx'
 import Sidebar from './src/components/Sidebar/Sidebar.jsx'
 import SignIn from './src/components/SignIn/SignIn.jsx'
 import { createEmptyDatabase } from './src/data/businessLogic.js'
+import { planStockAdjustments } from './src/data/stockAudit.js'
 import NewSale from './src/pages/new-sale/NewSale.jsx'
 import NewCustomer from './src/pages/new-customer/NewCustomer.jsx'
 import BillsReceipts from './src/pages/bills-receipts/BillsReceipts.jsx'
@@ -312,6 +313,26 @@ export default function App() {
     }
   }
 
+  const saveStockAudit = async (audit) => {
+    const adjustments = planStockAdjustments(audit.items || [], database.products)
+
+    try {
+      for (const adjustment of adjustments) {
+        await mutate(`products/${adjustment.productId}/adjust-stock`, {
+          body: { ...adjustment, reason: `${audit.period || 'Stock'} count`, date: audit.date },
+          refresh: false,
+          throwOnError: true,
+        })
+      }
+    } catch (error) {
+      await refreshWorkspace(token).catch(() => {})
+      throw error
+    }
+
+    if (adjustments.length) await refreshWorkspace(token)
+    return true
+  }
+
   if (authLoading) return <main className="min-h-screen grid place-items-center text-[#52645c]">Connecting to KataSys…</main>
   if (!token || !user) return <SignIn onSignIn={handleSignIn} />
 
@@ -324,7 +345,7 @@ export default function App() {
       : activePage === 'bills' ? <BillsReceipts bills={savedBills} customers={customers} products={database.products} onNewSale={() => navigateTo('New sale')} onReturn={() => navigateTo('Customer returns')} onViewInvoice={(sale) => showInvoice(sale, 'bills')} onUpdateReceipt={(id, details) => mutate(`sales/${id}/receipt`, { method: 'PATCH', body: details, throwOnError: true })} onUpdateBill={(id, details) => mutate(`sales/${id}`, { method: 'PATCH', body: details, throwOnError: true })} />
       : activePage === 'returns' ? <CustomerReturns bills={savedBills} customers={customers} returns={database.returns} onReturnProcessed={(input) => mutate('returns/customers', { body: input })} />
       : activePage === 'orders' ? <OrdersHeld bills={heldBills} customers={customers} onResume={async (bill) => { const resumed = await mutate(`orders/${bill.id}/resume`); if (resumed) { setResumeDraft(resumed); setCurrentPage('new-sale') } }} onDiscard={(id) => mutate(`orders/${id}/cancel`)} onDeliver={(id, delivery) => mutate(`orders/${id}/deliver`, { body: delivery })} onComplete={async (bill) => { const sale = await mutate(`orders/${bill.id}/complete`); if (sale?.id) await showInvoice(sale, 'orders') }} />
-      : activePage === 'stock' ? <StockProducts products={database.products} suppliers={suppliers} onReceiveStock={() => navigateTo('Receive stock')} onSaveAudit={(audit) => mutate('products/stock-audit', { body: audit })} />
+      : activePage === 'stock' ? <StockProducts products={database.products} suppliers={suppliers} onReceiveStock={() => navigateTo('Receive stock')} onSaveAudit={saveStockAudit} />
       : activePage === 'receive' ? <ReceiveStock suppliers={suppliers} purchases={database.purchases} cheques={database.cheques} onSave={(delivery) => mutate('purchases', { body: delivery })} />
       : activePage === 'supplier-returns' ? <SupplierReturns purchases={database.purchases} returns={database.supplierReturns} onSubmit={(input) => mutate('returns/suppliers', { body: input })} />
       : activePage === 'claims' ? <Claims claims={database.claims} products={database.products} suppliers={suppliers} onCreate={(input) => mutate('claims', { body: input })} onStatusChange={(id, status) => changeStatus(`claims/${id}/status`, status)} onUpdateDetails={(id, details) => mutate(`claims/${id}`, { method: 'PATCH', body: details })} />

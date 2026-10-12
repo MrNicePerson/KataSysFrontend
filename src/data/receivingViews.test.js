@@ -120,6 +120,24 @@ test('saved receiving bill resolves to product and renders its original quantiti
   assert.equal(receivingForProduct({ id: 'old-product', batchNumber: 'UNKNOWN' }, [purchase]), null)
 })
 
+test('supplier stock and cheque history can be recovered from receiving bills when old links are missing', () => {
+  const purchase = {
+    ...bill,
+    cheques: [{ number: 'CH-OLD', bank: 'HBL', amount: 75, issued: '2026-10-12' }],
+    items: [{ ...bill.items[0], productId: undefined, code: 'ART-OLD', quantity: 3 }],
+  }
+  const product = { id: 'legacy-product', name: 'Legacy article', code: 'ART-OLD', batchNumber: bill.batchNumber, stockQuantity: 3, reservedQuantity: 0 }
+  const html = render(Suppliers, {
+    suppliers: [{ id: 's1', name: 'Ali Imran', supplierCode: 'AA', balance: 0 }],
+    products: [product],
+    purchases: [purchase],
+  })
+  assert.ok(html.includes('Stock batches (1) · cheques (1 pending / 0 cleared)'))
+  assert.ok(html.includes('Legacy article'))
+  assert.ok(html.includes('Receive Stock history (1)'))
+  assert.ok(html.includes('CH-OLD'))
+})
+
 test('supplier receiving details include a printable itemized bill and payment balance', () => {
   const purchase = { ...bill, total: 200, paid: 50, due: 150, payments: { cash: 50 }, items: [{ ...bill.items[0], productName: 'Brand', articleNumber: 'ART-204', season: 'Winter', quantity: 2, unitCost: 100, salePrice: 150 }] }
   const linkedCheques = [{ id: 'cheque-1', referenceId: purchase.id, number: 'CH-100', bank: 'HBL', amount: 75, issued: '2026-10-12', expectedClearanceDate: '2026-10-20', status: 'Pending' }, { id: 'cheque-2', referenceId: purchase.id, number: 'CH-101', bank: 'UBL', amount: 75, issued: '2026-10-12', status: 'Pending' }]

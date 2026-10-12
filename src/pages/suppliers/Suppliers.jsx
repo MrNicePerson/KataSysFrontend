@@ -3,6 +3,7 @@ import FormDialog from '../../components/FormDialog/FormDialog.jsx'
 import { calculateAccountLedger } from '../../data/businessLogic.js'
 import ReceivingDetails from '../../components/ReceivingDetails/ReceivingDetails.jsx'
 import { receivingLabel } from '../../data/receiving.js'
+import { receivingForProduct } from '../../data/receivingTrace.js'
 
 export default function Suppliers({ suppliers = [], products = [], purchases = [], payments = [], returns = [], claims = [], cheques = [], onCreate, onUpdate, onPayment, onStatement }) {
   const [query, setQuery] = useState('')
@@ -69,9 +70,15 @@ export default function Suppliers({ suppliers = [], products = [], purchases = [
         {filtered.map((supplier) => {
           const balance = Number(supplier.balance || 0)
           const ledger = ledgerFor(supplier)
-          const supplierProducts = products.filter((product) => product.supplierId === supplier.id)
-          const supplierPurchases = purchases.filter((purchase) => purchase.supplierId === supplier.id)
-          const supplierCheques = cheques.filter((cheque) => cheque.partyId === supplier.id)
+          const supplierPurchases = purchases.filter((purchase) => purchase.supplierId === supplier.id || (!purchase.supplierId && (
+            purchase.supplierCode && String(purchase.supplierCode).trim().toLowerCase() === String(supplier.supplierCode || '').trim().toLowerCase() ||
+            purchase.supplier && String(purchase.supplier).trim().toLowerCase() === String(supplier.name || '').trim().toLowerCase()
+          )))
+          const supplierProducts = products.filter((product) => product.supplierId === supplier.id || receivingForProduct(product, purchases)?.purchase.supplierId === supplier.id)
+          const supplierCheques = [
+            ...cheques.filter((cheque) => cheque.partyId === supplier.id || cheque.supplierId === supplier.id || (cheque.partyType === 'supplier' && cheque.party === supplier.name)),
+            ...supplierPurchases.flatMap((purchase) => (purchase.cheques || []).map((cheque) => ({ ...cheque, partyId: supplier.id, referenceId: cheque.referenceId || purchase.id, status: cheque.status || 'Pending' }))),
+          ].filter((cheque, index, all) => all.findIndex((candidate) => candidate.id ? candidate.id === cheque.id : candidate.number === cheque.number && candidate.bank === cheque.bank && Number(candidate.amount) === Number(cheque.amount)) === index)
           const initials = supplier.name.split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase()
 
           return (
