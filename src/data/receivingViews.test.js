@@ -18,7 +18,13 @@ async function componentUrl(url) {
   for (const match of code.matchAll(/from "([^"]+)"/g)) {
     const name = match[1]
     const target = name.startsWith('.') ? new URL(name, path).href : import.meta.resolve(name)
-    resolved = resolved.replace(`from "${name}"`, `from ${JSON.stringify(target.endsWith('.jsx') ? await componentUrl(target) : target)}`)
+    const isImageAsset = /\.(?:png|jpe?g|svg)$/i.test(new URL(target).pathname)
+    const replacement = target.endsWith('.jsx')
+      ? await componentUrl(target)
+      : isImageAsset
+        ? `data:text/javascript;base64,${Buffer.from(`export default ${JSON.stringify(target)}`).toString('base64')}`
+        : target
+    resolved = resolved.replace(`from "${name}"`, `from ${JSON.stringify(replacement)}`)
   }
   return `data:text/javascript;base64,${Buffer.from(resolved).toString('base64')}`
 }
@@ -110,8 +116,16 @@ test('saved receiving bill resolves to product and renders its original quantiti
   assert.ok(!stock.includes('>Details<'))
   assert.ok(!stock.includes('>Adjust<'))
   const history = render(Suppliers, { suppliers: [{ id: 's1', name: 'Ali Imran', supplierCode: 'AA', balance: 400 }], products: [product], purchases: [purchase] })
-  for (const expected of ['Receive Stock history (1)', bill.batchNumber, 'Product', 'Lawn', 'Rs. 400']) assert.ok(history.includes(expected), expected)
+  for (const expected of ['Receive Stock history (1)', bill.batchNumber, 'Item / Article', 'Lawn', 'Rs. 400']) assert.ok(history.includes(expected), expected)
   assert.equal(receivingForProduct({ id: 'old-product', batchNumber: 'UNKNOWN' }, [purchase]), null)
+})
+
+test('supplier receiving details include a printable itemized bill and payment balance', () => {
+  const purchase = { ...bill, total: 200, paid: 50, due: 150, payments: { cash: 50 }, items: [{ ...bill.items[0], productName: 'Brand', articleNumber: 'ART-204', season: 'Winter', quantity: 2, unitCost: 100, salePrice: 150 }] }
+  const linkedCheques = [{ id: 'cheque-1', referenceId: purchase.id, number: 'CH-100', bank: 'HBL', amount: 75, issued: '2026-10-12', expectedClearanceDate: '2026-10-20', status: 'Pending' }, { id: 'cheque-2', referenceId: purchase.id, number: 'CH-101', bank: 'UBL', amount: 75, issued: '2026-10-12', status: 'Pending' }]
+  const html = render(ReceivingDetails, { purchase, supplier: { id: 's1', name: 'Ali Imran', supplierCode: 'AA' }, cheques: linkedCheques })
+  for (const expected of ['Print receiving bill', 'SUPPLIER STOCK RECEIVING BILL', 'ART-204', 'Brand: Brand', 'Winter', 'Total purchase amount', 'Amount paid (cash / bank)', 'Remaining supplier due', 'Cheques (2)', 'CH-100', 'CH-101', 'HBL', 'UBL', '2026-10-20', 'Supplier signature']) assert.ok(html.includes(expected), expected)
+  assert.ok(!html.includes('details not saved'))
 })
 
 test('keyboard sidebar exposes every top-level page and respects permissions', () => {

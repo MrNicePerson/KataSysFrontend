@@ -8,7 +8,7 @@ import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 
 const money = (amount) => `Rs. ${Number(amount || 0).toLocaleString()}`
 
-export default function ReceiveStock({ suppliers = [], purchases = [], onSave }) {
+export default function ReceiveStock({ suppliers = [], purchases = [], cheques = [], onSave }) {
   const [adding, setAdding] = useState(false)
   const [message, setMessage] = useState('')
   const [selectedPurchase, setSelectedPurchase] = useState(null)
@@ -35,7 +35,8 @@ export default function ReceiveStock({ suppliers = [], purchases = [], onSave })
       const saved = await onSave(delivery)
       if (!saved) return
       setAdding(false)
-      setMessage(`Delivery ${receivingLabel(saved)} recorded and stock updated.`)
+      setSelectedPurchase(saved)
+      setMessage(`Delivery ${receivingLabel(saved)} recorded. Receiving bill is ready to print.`)
     } catch (error) {
       setMessage(error.message || 'Could not save delivery.')
     }
@@ -80,7 +81,7 @@ export default function ReceiveStock({ suppliers = [], purchases = [], onSave })
       {selectedPurchase && <div className="fixed inset-0 z-50 bg-[#203832]/40 flex items-center justify-center p-3 sm:p-6" onClick={closeDetails}>
         <div ref={detailsKeyboard.ref} onKeyDown={detailsKeyboard.onKeyDown} role="dialog" aria-modal="true" aria-label="Receive Stock bill details" className="w-full max-w-3xl max-h-[90vh] overflow-y-auto p-5 sm:p-7 rounded-2xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between mb-4"><h2 className="text-[#173b32] text-xl font-bold">Receive Stock bill</h2><button type="button" aria-label="Close bill details" className="text-2xl text-[#718078]" onClick={closeDetails}>×</button></div>
-          <ReceivingDetails purchase={selectedPurchase} supplier={suppliers.find((supplier) => supplier.id === selectedPurchase.supplierId)} />
+          <ReceivingDetails purchase={selectedPurchase} supplier={suppliers.find((supplier) => supplier.id === selectedPurchase.supplierId)} cheques={cheques} />
         </div>
       </div>}
 

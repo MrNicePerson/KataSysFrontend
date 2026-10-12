@@ -128,7 +128,7 @@ export default function Suppliers({ suppliers = [], products = [], purchases = [
                 <div className="mt-3 space-y-2 max-h-96 overflow-y-auto">
                   {supplierPurchases.map((purchase) => <details key={purchase.id} className="rounded-xl border border-[#edf0eb] p-3">
                     <summary className="text-xs font-semibold text-[#173b32] cursor-pointer">{receivingLabel(purchase)} · {purchase.date} · {purchase.items?.length || 0} products · Rs. {Number(purchase.total || 0).toLocaleString()}</summary>
-                    <div className="mt-3"><ReceivingDetails purchase={purchase} supplier={supplier} /></div>
+                    <div className="mt-3"><ReceivingDetails purchase={purchase} supplier={supplier} cheques={supplierCheques.filter((cheque) => cheque.referenceId === purchase.id || cheque.purchaseId === purchase.id)} /></div>
                   </details>)}
                   {!supplierPurchases.length && <p className="text-xs text-[#718078]">No receiving bills linked.</p>}
                 </div>

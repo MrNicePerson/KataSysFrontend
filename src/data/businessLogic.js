@@ -203,6 +203,8 @@ export function receivePurchase(database, input) {
     lineId: item.lineId || makeId('purchase-line'),
     productId: item.productId || null,
     productName: String(item.productName ?? item.name ?? item.code ?? item.articleNumber ?? '').trim(),
+    articleNumber: String(item.articleNumber ?? item.article ?? item.code ?? '').trim(),
+    season: String(item.season ?? '').trim(),
     code: String(item.code ?? item.articleNumber ?? '').trim(),
     batchNumber,
     size: String(item.size ?? '').trim(),

@@ -45,6 +45,14 @@ test('purchase adds stock and supplier due; supplier payment clears the due', ()
   assert.equal(payment.database.suppliers[0].balance, 80)
 })
 
+test('receiving bill keeps each delivered item article and season', () => {
+  const { db, supplier } = seed()
+  const purchase = receivePurchase(db, { supplierId: supplier.id, items: [{ productName: 'Lawn', articleNumber: 'ART-204', season: 'Winter', quantity: 2, unitCost: 100, salePrice: 150 }] })
+  assert.equal(purchase.record.items[0].articleNumber, 'ART-204')
+  assert.equal(purchase.record.items[0].season, 'Winter')
+  assert.equal(purchase.record.items[0].code, 'ART-204')
+})
+
 test('separate deliveries with the same article code retain distinct batch stock and supplier links', () => {
   const { db: seeded, supplier } = seed()
   const db = { ...seeded, products: [] }
