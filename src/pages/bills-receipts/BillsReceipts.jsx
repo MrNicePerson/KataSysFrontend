@@ -248,6 +248,7 @@ export default function BillsReceipts({ bills = [], customers = [], products = [
       <BillsTable
         bills={filteredBills}
         onReturn={onReturn}
+        onViewBill={onViewInvoice || setViewingBill}
         onReviewBill={(bill) => {
           if (onUpdateReceipt || onUpdateBill) setReviewingBill(bill)
           else if (onViewInvoice) onViewInvoice(bill)

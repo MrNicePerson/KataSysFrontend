@@ -1,17 +1,15 @@
 import { useState } from 'react'
+import { Printer } from 'lucide-react'
 import BillReceipt from '../../pages/bill-receipt/BillReceipt.jsx'
 
-export default function BillsTable({ bills = [], onReturn, onReviewBill }) {
+export default function BillsTable({ bills = [], onReturn, onReviewBill, onViewBill }) {
   const [localViewingBill, setLocalViewingBill] = useState(null)
 
   const displayedBills = bills
 
   const handleView = (bill) => {
-    if (onViewBill) {
-      onViewBill(bill)
-    } else {
-      setLocalViewingBill(bill)
-    }
+    if (onViewBill) onViewBill(bill)
+    else setLocalViewingBill(bill)
   }
 
   return (
@@ -58,6 +56,14 @@ export default function BillsTable({ bills = [], onReturn, onReviewBill }) {
                         title="Review and edit bill and receipt details"
                       >
                         Review and edit bill
+                      </button>
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 rounded-lg border border-[#e2e6df] bg-white hover:bg-[#f6f8f1] text-[#173b32] text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+                        onClick={() => handleView(bill)}
+                        title="Reprint sales receipt"
+                      >
+                        <span className="inline-flex items-center gap-1.5"><Printer size={14} /> Reprint</span>
                       </button>
                       <button
                         type="button"

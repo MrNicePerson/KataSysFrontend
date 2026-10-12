@@ -28,6 +28,7 @@ const { default: SupplierReturns } = await loadComponent('../pages/supplier-retu
 const { default: StockMovements } = await loadComponent('../components/StockMovements/StockMovements.jsx')
 const { default: Suppliers } = await loadComponent('../pages/suppliers/Suppliers.jsx')
 const { default: ReceivingDetails } = await loadComponent('../components/ReceivingDetails/ReceivingDetails.jsx')
+const { default: BillReceipt } = await loadComponent('../pages/bill-receipt/BillReceipt.jsx')
 const { default: StockProducts } = await loadComponent('../pages/stock-products/StockProducts.jsx')
 const { default: Sidebar } = await loadComponent('../components/Sidebar/Sidebar.jsx')
 const { default: BillsReceipts } = await loadComponent('../pages/bills-receipts/BillsReceipts.jsx')
@@ -131,6 +132,13 @@ test('saved bills expose keyboard-selectable rows with one review-and-edit actio
   assert.ok(html.includes('data-keyboard-row'))
   assert.ok(html.includes('data-keyboard-primary'))
   assert.ok(html.includes('Review and edit bill'))
+  assert.ok(html.includes('Reprint'))
   assert.ok(!html.includes('Edit receipt'))
   assert.ok(!html.includes('>View<'))
+})
+
+test('receipt prints the saved article name instead of the product brand name', () => {
+  const html = render(BillReceipt, { bill: { number: 'INV-001', date: '2026-10-03', customer: 'Ali', items: [{ name: 'Brand Name', articleName: 'ART-204', quantity: 1, price: 100 }], total: 100, paid: 100 } })
+  assert.ok(html.includes('ART-204'))
+  assert.ok(!html.includes('Brand Name'))
 })

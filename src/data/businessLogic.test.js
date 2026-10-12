@@ -20,6 +20,15 @@ test('sale updates stock, customer due and cash ledger as one transaction', () =
   assert.equal(next.payments[0].amount, 50)
 })
 
+test('sale line uses article name for display while retaining the product name', () => {
+  const { db, customer } = seed()
+  const products = [{ ...db.products[0], article: 'ART-204' }]
+  const { record: sale } = createSale({ ...db, products }, { items: [{ productId: 'p1', name: 'Lawn', productName: 'Lawn', quantity: 1, price: 100 }], customerId: customer.id, payments: { cash: 100 } })
+  assert.equal(sale.items[0].name, 'ART-204')
+  assert.equal(sale.items[0].articleName, 'ART-204')
+  assert.equal(sale.items[0].productName, 'Lawn')
+})
+
 test('sale rejects aggregate overdraw and leaves the source unchanged', () => {
   const { db } = seed()
   assert.throws(() => createSale(db, { items: [{ productId: 'p1', quantity: 3 }, { productId: 'p1', quantity: 3 }] }), /Not enough available stock/)

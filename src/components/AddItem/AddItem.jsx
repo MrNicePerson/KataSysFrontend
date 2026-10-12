@@ -13,6 +13,8 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
   const fieldRef = useRef(null)
   const productRecords = products
 
+  const articleLabel = (product) => product.articleName || product.articleNumber || product.article || product.code || product.name
+
   const productDetails = (product) => [
     product.shade || product.colour || product.color,
     product.batchNumber,
@@ -28,6 +30,8 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
     product.color,
     product.code,
     product.articleNumber,
+    product.article,
+    product.articleName,
     product.batchNumber,
     product.size,
   ].filter(Boolean).some((value) => String(value).toLowerCase().includes(query))
@@ -45,7 +49,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
 
   const selectProduct = (product) => {
     setSelectedProduct(product)
-    setName(product.name)
+    setName(articleLabel(product))
     setPrice(String(product.salePrice || 0))
     setSuggestionsOpen(false)
     setActiveSuggestion(-1)
@@ -79,7 +83,9 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
     onAddItem({
       productId: product?.id,
       code: product?.code || product?.articleNumber || name.trim(),
-      name: product?.name || name.trim(),
+      name: product ? articleLabel(product) : name.trim(),
+      articleNumber: product?.articleNumber || product?.article || product?.code || '',
+      productName: product?.name || name.trim(),
       quantity: Number(quantity) || 1,
       price: Number(price) || 0,
     })
@@ -156,7 +162,9 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
               const match = productRecords.find(
                 (product) =>
                   product.name?.trim().toLowerCase() === normalized ||
-                  product.code?.trim().toLowerCase() === normalized
+                  product.code?.trim().toLowerCase() === normalized ||
+                  product.articleNumber?.trim().toLowerCase() === normalized ||
+                  product.article?.trim().toLowerCase() === normalized
               )
               setPrice(match ? String(match.salePrice || 0) : '')
             }}

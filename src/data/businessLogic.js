@@ -114,7 +114,9 @@ export function createSale(database, input) {
     const unitPrice = amountOf(item.price ?? item.unitPrice ?? product.salePrice)
     const reserved = Number(product.reservedQuantity || 0)
     if (Number(product.stockQuantity || 0) - reserved < quantity) throw new Error(`Not enough available stock for ${product.name}.`)
-    return { lineId: makeId('line'), productId: product.id, code: product.code ?? '', name: product.name, quantity, price: unitPrice, unitPrice, unitCostAtSale: Number(product.averageCost || 0), lineTotal: quantity * unitPrice }
+    const articleNumber = item.articleNumber || item.article || product.articleNumber || product.article || product.code || ''
+    const itemName = item.articleName || item.articleNumber || item.article || product.articleNumber || product.article || item.name || product.code || product.name
+    return { lineId: makeId('line'), productId: product.id, code: product.code ?? '', name: itemName, articleName: articleNumber || itemName, articleNumber, productName: product.name, quantity, price: unitPrice, unitPrice, unitCostAtSale: Number(product.averageCost || 0), lineTotal: quantity * unitPrice }
   })
   const subtotal = saleItems.reduce((sum, item) => sum + item.lineTotal, 0)
   for (const product of database.products) {
