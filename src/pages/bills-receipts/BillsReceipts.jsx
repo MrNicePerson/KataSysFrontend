@@ -247,6 +247,7 @@ export default function BillsReceipts({ bills = [], customers = [], products = [
 
       <BillsTable
         bills={filteredBills}
+        products={products}
         onReturn={onReturn}
         onViewBill={onViewInvoice || setViewingBill}
         onReviewBill={(bill) => {
@@ -277,7 +278,7 @@ export default function BillsReceipts({ bills = [], customers = [], products = [
             aria-modal="true"
             aria-label={`Receipt ${viewingBill.number}`}
           >
-            <BillReceipt bill={viewingBill} modal onClose={() => setViewingBill(null)} />
+            <BillReceipt bill={viewingBill} products={products} modal onClose={() => setViewingBill(null)} />
           </div>
         </div>
       )}

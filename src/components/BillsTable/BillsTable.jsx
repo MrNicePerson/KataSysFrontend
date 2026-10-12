@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Printer } from 'lucide-react'
 import BillReceipt from '../../pages/bill-receipt/BillReceipt.jsx'
 
-export default function BillsTable({ bills = [], onReturn, onReviewBill, onViewBill }) {
+export default function BillsTable({ bills = [], products = [], onReturn, onReviewBill, onViewBill }) {
   const [localViewingBill, setLocalViewingBill] = useState(null)
 
   const displayedBills = bills
@@ -99,7 +99,7 @@ export default function BillsTable({ bills = [], onReturn, onReviewBill, onViewB
             aria-modal="true"
             aria-label="Bill receipt"
           >
-            <BillReceipt bill={localViewingBill} modal onClose={() => setLocalViewingBill(null)} />
+            <BillReceipt bill={localViewingBill} products={products} modal onClose={() => setLocalViewingBill(null)} />
           </div>
         </div>
       )}

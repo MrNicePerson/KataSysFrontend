@@ -156,3 +156,16 @@ test('receipt prints the saved article name instead of the product brand name', 
   assert.ok(html.includes('ART-204'))
   assert.ok(!html.includes('Brand Name'))
 })
+
+test('receipt resolves article from stock and prints cheque details with the software credit', () => {
+  const html = render(BillReceipt, {
+    products: [{ id: 'product-1', name: 'Brand Name', article: 'ART-310' }],
+    bill: {
+      id: 'sale-1', number: 'INV-002', items: [{ productId: 'product-1', name: 'Brand Name', quantity: 1, price: 500 }],
+      payments: { cash: 200, cheque: 300 }, total: 500,
+      cheques: [{ id: 'ch-1', number: 'CH-22', bank: 'HBL', amount: 300, issued: '2026-10-12', expectedClearanceDate: '2026-10-20', status: 'Pending' }],
+    },
+  })
+  for (const expected of ['ART-310', 'Cheque Details', 'CH-22', 'HBL', '2026-10-20', 'Pending', 'Software by Crown Software House', '03197794021']) assert.ok(html.includes(expected), expected)
+  assert.ok(!html.includes('Brand Name'))
+})

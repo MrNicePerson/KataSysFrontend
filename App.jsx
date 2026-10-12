@@ -233,15 +233,27 @@ export default function App() {
   const showInvoice = async (sale, returnPage = 'bills') => {
     try {
       const invoice = await apiRequest(`sales/${sale.id}/invoice`, { token })
+      const receiptCheques = [
+        ...(invoice.sale.cheques || []),
+        ...(sale.cheques || []),
+        ...database.cheques.filter((entry) => entry.referenceId === invoice.sale.id),
+      ].filter((entry, index, all) => all.findIndex((candidate) => candidate.id ? candidate.id === entry.id : candidate.number === entry.number && candidate.bank === entry.bank && Number(candidate.amount) === Number(entry.amount)) === index)
       setCurrentReceipt({
         ...invoice.sale,
+        payments: {
+          ...sale.payments,
+          ...invoice.sale.payments,
+          chequeDetails: invoice.sale.payments?.chequeDetails || sale.payments?.chequeDetails || sale.chequeDetails,
+        },
+        cheque: invoice.sale.cheque || sale.cheque,
+        cheques: receiptCheques,
         customerDetails: invoice.customer,
         receiptShopName: invoice.shopName,
         receiptFooter: invoice.receiptFooter,
       })
     } catch (error) {
       setOperationError(error.message)
-      setCurrentReceipt(sale)
+      setCurrentReceipt({ ...sale, cheques: database.cheques.filter((entry) => entry.referenceId === sale.id) })
     }
     setReceiptReturnPage(returnPage)
     setCurrentPage('bill-receipt')
@@ -307,7 +319,7 @@ export default function App() {
     <Header user={user} token={token} showNotifications={can('notifications')} canManageNotifications={can('notifications', 'manage')} menuButtonRef={menuButtonRef} onMenuClick={openNavigation} onSignOut={signOut} onViewAllNotifications={() => setCurrentPage('notifications')} onOpenNotification={openNotification} />
     {operationError && <div className="mx-auto max-w-[1680px] px-4 sm:px-6 lg:px-12 pt-4"><p className="p-3 rounded-lg bg-red-50 text-red-700 text-sm" role="alert">{operationError}</p></div>}
     {activePage === 'notifications' ? <NotificationsPage token={token} canManage={can('notifications', 'manage')} onOpenNotification={openNotification} />
-      : activePage === 'bill-receipt' && currentReceipt ? <BillReceipt bill={currentReceipt} onClose={() => navigateTo(receiptReturnPage)} />
+      : activePage === 'bill-receipt' && currentReceipt ? <BillReceipt bill={currentReceipt} products={database.products} onClose={() => navigateTo(receiptReturnPage)} />
       : activePage === 'new-customer' ? <NewCustomer onCancel={() => setCurrentPage(customerReturnPage)} onSave={saveCustomer} />
       : activePage === 'bills' ? <BillsReceipts bills={savedBills} customers={customers} products={database.products} onNewSale={() => navigateTo('New sale')} onReturn={() => navigateTo('Customer returns')} onViewInvoice={(sale) => showInvoice(sale, 'bills')} onUpdateReceipt={(id, details) => mutate(`sales/${id}/receipt`, { method: 'PATCH', body: details, throwOnError: true })} onUpdateBill={(id, details) => mutate(`sales/${id}`, { method: 'PATCH', body: details, throwOnError: true })} />
       : activePage === 'returns' ? <CustomerReturns bills={savedBills} customers={customers} returns={database.returns} onReturnProcessed={(input) => mutate('returns/customers', { body: input })} />

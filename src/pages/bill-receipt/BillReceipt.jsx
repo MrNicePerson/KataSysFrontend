@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 import abbasTextileLogo from '../../assets/abbas-textile-logo.jpeg'
 
-export default function BillReceipt({ bill, onClose, modal = false }) {
+export default function BillReceipt({ bill, products = [], onClose, modal = false }) {
   const keyboard = useKeyboardScope({ onEscape: onClose, trapFocus: modal })
   useEffect(() => { keyboard.ref.current?.querySelector('[aria-label="Close receipt"]')?.focus() }, [])
   useEffect(() => {
@@ -27,13 +27,26 @@ export default function BillReceipt({ bill, onClose, modal = false }) {
   const total = num(bill.total ?? (subtotal - discount))
   const cash = num(bill.payments?.cash ?? bill.paid)
   const bank = num(bill.payments?.bank)
-  const cheque = num(bill.payments?.cheque)
+  const cheque = Math.max(
+    num(bill.payments?.cheque ?? bill.cheque?.amount),
+    (bill.cheques || []).reduce((sum, entry) => sum + num(entry.amount), 0),
+  )
   const paid = cash + bank + cheque
   const due = num(bill.due ?? Math.max(0, total - paid))
   const previousBalance = num(bill.previousBalance ?? bill.customerPreviousBalance ?? bill.openingBalance)
   const remaining = num(bill.totalRemaining ?? bill.remainingBalance ?? (previousBalance + due))
   const totalQty = (bill.items || []).reduce((sum, item) => sum + Math.abs(num(item.quantity)), 0)
   const rows = bill.items?.length ? bill.items : [{ name: `${bill.customer || 'Customer'} purchase`, quantity: 1, price: total }]
+  const articleFor = (item) => {
+    const product = products.find((entry) => entry.id === item.productId)
+    return item.articleName || item.articleNumber || item.article || product?.articleName || product?.articleNumber || product?.article || product?.code || item.code || item.name || product?.name
+  }
+  const chequeDetails = bill.payments?.chequeDetails || bill.chequeDetails || bill.cheque || {}
+  const chequeRows = bill.cheques?.length
+    ? bill.cheques
+    : cheque > 0 && (chequeDetails.chequeNumber || chequeDetails.number || chequeDetails.bankName || chequeDetails.bank)
+      ? [{ number: chequeDetails.chequeNumber || chequeDetails.number, bank: chequeDetails.bankName || chequeDetails.bank, amount: chequeDetails.amount ?? cheque, issued: chequeDetails.chequeDate || chequeDetails.issued, dueDate: chequeDetails.dueDate || chequeDetails.expectedClearanceDate, status: chequeDetails.status || 'Pending' }]
+      : []
   const emptyRows = 3
   const invoiceNo = bill.padInvoiceNumber || bill.paidInvoiceNumber || bill.number || '—'
   const shopName = 'Abbas Textile'
@@ -86,6 +99,12 @@ export default function BillReceipt({ bill, onClose, modal = false }) {
         .summary { display:grid; grid-template-columns:1fr 1.05fr; gap:12px; margin-top:10px; font-size:12px; }
         .summary-row { display:flex; justify-content:space-between; align-items:center; min-height:29px; border-bottom:1px solid #aaa; gap:12px; font-weight:500; }
         .summary-row strong { font-weight:700; white-space:nowrap; }
+        .cheque-details { margin-top:8px; border:1px solid #777; break-inside:avoid; page-break-inside:avoid; font-size:10px; }
+        .cheque-details-title { padding:5px 7px; font-size:11px; font-weight:700; border-bottom:1px solid #777; }
+        .cheque-table { width:100%; border-collapse:collapse; }
+        .cheque-table th,.cheque-table td { border:1px solid #888; padding:4px 5px; text-align:left; }
+        .cheque-table th { font-weight:700; }
+        .software-credit { margin-top:6px; text-align:center; font-size:8px; color:#555; }
         .remaining { margin-top:5px; border:1.5px solid #555; min-height:42px; padding:0 9px; display:flex; align-items:center; justify-content:space-between; font-size:14px; font-weight:700; }
         .invoice-footer { margin-top:68px; border-top:2px solid #111; padding-top:24px; display:flex; justify-content:space-between; align-items:flex-end; font-size:11px; }
         .signature { display:flex; align-items:flex-end; gap:10px; font-weight:700; font-size:13px; }
@@ -110,6 +129,9 @@ export default function BillReceipt({ bill, onClose, modal = false }) {
           .invoice-table { font-size:18px; }
           .invoice-table th { font-size:17px; }
           .summary { font-size:21px; }
+          .cheque-details { font-size:15px; }
+          .cheque-details-title { font-size:16px; }
+          .cheque-table th,.cheque-table td { padding:3px 4px; }
           .remaining { font-size:24px; }
           .invoice-footer { font-size:17px; }
           .signature { font-size:22px; }
@@ -174,7 +196,7 @@ export default function BillReceipt({ bill, onClose, modal = false }) {
               {rows.map((item, index) => (
                 <tr key={item.id || index}>
                   <td className="sr">{index + 1}</td>
-                  <td className="item">{item.articleName || item.articleNumber || item.article || item.name}{(item.shade || item.colour || item.color || item.variant || item.description) ? ` ${item.shade || item.colour || item.color || item.variant || item.description}` : ''}</td>
+                  <td className="item">{articleFor(item)}{(item.shade || item.colour || item.color || item.variant || item.description) ? ` ${item.shade || item.colour || item.color || item.variant || item.description}` : ''}</td>
                   <td className="qty">{Math.abs(num(item.quantity))}</td>
                   <td className="rate">{plainMoney(Math.abs(item.price ?? item.unitPrice))}</td>
                   <td className="amount">{plainMoney(num(item.quantity) * num(item.price ?? item.unitPrice))}</td>
@@ -199,10 +221,21 @@ export default function BillReceipt({ bill, onClose, modal = false }) {
           </div>
         </section>
 
+        {cheque > 0 && <section className="cheque-details">
+          <div className="cheque-details-title">Cheque Details · {chequeRows.length || 'Details unavailable'}</div>
+          {chequeRows.length ? <table className="cheque-table">
+            <thead><tr><th>#</th><th>Cheque No.</th><th>Bank</th><th>Amount</th><th>Cheque Date</th><th>Due Date</th><th>Status</th></tr></thead>
+            <tbody>{chequeRows.map((entry, index) => <tr key={entry.id || `${entry.number || 'cheque'}-${index}`}>
+              <td>{index + 1}</td><td>{entry.number || entry.chequeNumber || '—'}</td><td>{entry.bank || entry.bankName || '—'}</td><td>Rs. {plainMoney(entry.amount ?? (chequeRows.length === 1 ? cheque : 0))}</td><td>{entry.issued || entry.date || entry.chequeDate || '—'}</td><td>{entry.dueDate || entry.expectedClearanceDate || '—'}</td><td>{entry.status || 'Pending'}</td>
+            </tr>)}</tbody>
+          </table> : <div className="p-2">Cheque payment: Rs. {plainMoney(cheque)} · Individual cheque information was not saved.</div>}
+        </section>}
+
         <footer className="invoice-footer">
           <div className="signature"><span>Signature:</span><span className="signature-line" /></div>
           <div className="thanks">Thank you for your business</div>
         </footer>
+        <div className="software-credit">Software by Crown Software House · 03197794021</div>
       </article>
 
       <div className="action-bar receipt-controls">

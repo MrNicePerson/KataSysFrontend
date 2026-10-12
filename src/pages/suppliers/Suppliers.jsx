@@ -175,6 +175,7 @@ export default function Suppliers({ suppliers = [], products = [], purchases = [
             const created = await onCreate?.(data)
             if (!created) return null
             setAdding(false)
+            if (Number(data.openingBalance) !== 0 && created.id) await onStatement?.(created.id)
             return created
           }}
         />
