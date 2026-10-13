@@ -156,6 +156,7 @@ export function createSale(database, input) {
     customerDetails: input.customerDetails || null,
     customerPhone: input.customerPhone || '',
     customerAddress: input.customerAddress || '',
+    previousBalance: Number(input.previousBalance || 0),
     padInvoiceNumber: input.padInvoiceNumber || input.paidInvoiceNumber || '',
     items: [...saleItems, ...returnItems.map(({ originalSale, originalItem, quantity, condition, amount }) => ({ lineId: makeId('line'), productId: originalItem.productId, code: originalItem.code, name: `Return · ${originalItem.name}`, quantity, price: -amount / quantity, unitPrice: -amount / quantity, unitCostAtSale: Number(originalItem.unitCostAtSale || 0), lineTotal: -amount, isReturn: true, returnCondition: condition, originalSaleId: originalSale.id, originalSaleLineId: originalItem.lineId }))],
     subtotal,

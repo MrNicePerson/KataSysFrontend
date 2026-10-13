@@ -300,7 +300,8 @@ export default function NewSale({ customers, products = [], bills = [], selected
     savingRef.current = true
     setSaving(true)
     try {
-      const saved = await onSaveBill({ ...bill, payments: { ...paymentSummary, bankTransfer: paymentSummary.bank, chequeDetails, bankDetails }, bankDetails, cheque: chequeDetails, due: paymentSummary.uncoveredBalance, paymentDue: chequeDetails.dueDate, customerId: selectedCustomerId, paidInvoiceNumber, padInvoiceNumber: paidInvoiceNumber, customerPhone: phone, customerAddress: address })
+      const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId)
+      const saved = await onSaveBill({ ...bill, payments: { ...paymentSummary, bankTransfer: paymentSummary.bank, chequeDetails, bankDetails }, bankDetails, cheque: chequeDetails, due: paymentSummary.uncoveredBalance, paymentDue: chequeDetails.dueDate, previousBalance: Number(selectedCustomer?.balance ?? selectedCustomer?.openingBalance ?? 0), customerId: selectedCustomerId, paidInvoiceNumber, padInvoiceNumber: paidInvoiceNumber, customerPhone: phone, customerAddress: address })
       if (!saved) return
       clearSale()
     } catch (error) {
