@@ -171,7 +171,7 @@ export default function BillReceipt({ bill, products = [], onClose, modal = fals
             </div>
             <div className="invoice-number">
               <div>INVOICE No. {invoiceNo}</div>
-              {padInvoiceNo && <small className="block mt-1 text-[10px] font-semibold">Pad invoice No. {padInvoiceNo}</small>}
+              <small className="block mt-1 text-[10px] font-semibold">Pad invoice No. {padInvoiceNo || '—'}</small>
             </div>
           </div>
           <div className="company-rule" />
