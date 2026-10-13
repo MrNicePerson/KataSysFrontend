@@ -29,8 +29,9 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
     setOpening(openingRecord?.amount == null ? '' : String(openingRecord.amount))
     setNote(openingRecord?.note || '')
   }, [date, openingRecord?.id, openingRecord?.updatedAt])
-  const onDate = (entry) => entry.date === date
-  const bankIn = database.payments.filter((entry) => onDate(entry) && entry.type === 'customer-payment' && ['bank', 'cheque-cleared'].includes(entry.method)).reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+  const onDate = (entry) => String(entry.date || '').slice(0, 10) === date
+  const bankLedgerIn = database.payments.filter((entry) => onDate(entry) && entry.type === 'customer-payment' && ['bank', 'cheque-cleared'].includes(entry.method)).reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+  const bankIn = Math.max(bankLedgerIn, Number(movement.bankSales || 0))
   const bankOut = database.payments.filter((entry) => onDate(entry) && entry.type === 'supplier-payment' && ['bank', 'cheque-cleared'].includes(entry.method)).reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
   const bankTransfers = database.financeEntries.filter((entry) => onDate(entry) && entry.type === 'transfer').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
   const bankCapital = database.financeEntries.filter((entry) => onDate(entry) && entry.type === 'capital').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
@@ -55,6 +56,12 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
     ['Supplier cash paid', -movement.supplierPayments],
     ['Cash refunds', -movement.cashRefunds],
     ['Cash expenses / withdrawals', -movement.cashExpenses],
+  ]
+  const saleBreakdown = [
+    ['Cash sales', movement.cashSales],
+    ['Bank sales', movement.bankSales],
+    ['Cheque sales', movement.chequeSales],
+    ['Credit / khata sales', movement.creditSales],
   ]
 
   return (
@@ -198,6 +205,13 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
               }
             />}
           </div>
+
+          {canViewCash && <section className="mb-6 p-5 sm:p-7 rounded-2xl bg-white border border-[#e2e6df] shadow-panel">
+            <h2 className="text-[#173b32] text-lg sm:text-xl font-bold pb-3 border-b border-[#edf0eb]">Today’s sales by payment type</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4 text-xs sm:text-sm">
+              {saleBreakdown.map(([label, amount]) => <div key={label} className="p-3 rounded-lg bg-[#fafbf8] border border-[#edf0eb]"><span className="block text-[#718078]">{label}</span><strong className="text-[#155b4b]">Rs. {Number(amount || 0).toLocaleString()}</strong></div>)}
+            </div>
+          </section>}
 
           {canDaily('bankBalances') && <section className="mt-6 p-5 sm:p-7 rounded-2xl bg-white border border-[#e2e6df] shadow-panel">
             <h2 className="text-[#173b32] text-lg sm:text-xl font-bold pb-3 border-b border-[#edf0eb]">Bank movement · {date}</h2>

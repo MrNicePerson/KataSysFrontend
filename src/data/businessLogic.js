@@ -581,10 +581,21 @@ function legacyHeldItemMatches(products, item, product) {
 }
 
 export function calculateDailyClosing(database, date) {
-  const sameDate = (entry) => entry.date === date
+  const dateOnly = (value) => String(value || '').slice(0, 10)
+  const sameDate = (entry) => dateOnly(entry.date) === date
   const opening = database.dailyClosings.find((entry) => entry.type === 'opening' && sameDate(entry))?.amount || 0
   const sumPayment = (predicate) => database.payments.filter((entry) => sameDate(entry) && predicate(entry)).reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
-  const cashSales = sumPayment((entry) => entry.type === 'customer-payment' && entry.method === 'cash' && database.sales.some((sale) => sale.id === entry.referenceId))
+  const salesOnDate = database.sales.filter((sale) => dateOnly(sale.date) === date)
+  const salePaymentTotal = (method) => salesOnDate.reduce((sum, sale) => {
+    const payments = sale.payments || {}
+    const value = method === 'bank' ? Number(payments.bank ?? payments.bankTransfer ?? 0) : Number(payments[method] || 0)
+    return sum + value
+  }, 0)
+  const linkedCashSales = sumPayment((entry) => entry.type === 'customer-payment' && entry.method === 'cash' && database.sales.some((sale) => sale.id === entry.referenceId))
+  const cashSales = salesOnDate.some((sale) => sale.payments) ? salePaymentTotal('cash') : linkedCashSales
+  const bankSales = salesOnDate.some((sale) => sale.payments) ? salePaymentTotal('bank') : sumPayment((entry) => entry.type === 'customer-payment' && entry.method === 'bank' && database.sales.some((sale) => sale.id === entry.referenceId))
+  const chequeSales = salesOnDate.some((sale) => sale.payments) ? salePaymentTotal('cheque') : sumPayment((entry) => entry.type === 'customer-payment' && entry.method === 'cheque' && database.sales.some((sale) => sale.id === entry.referenceId))
+  const creditSales = salesOnDate.reduce((sum, sale) => sum + Number(sale.payments?.credit ?? sale.payments?.khata ?? Math.max(0, Number(sale.total || 0) - Number(sale.payments?.cash || 0) - Number(sale.payments?.bank || sale.payments?.bankTransfer || 0) - Number(sale.payments?.cheque || 0))), 0)
   const customerPayments = sumPayment((entry) => entry.type === 'customer-payment' && entry.method === 'cash' && !database.sales.some((sale) => sale.id === entry.referenceId))
   const supplierPayments = sumPayment((entry) => entry.type === 'supplier-payment' && entry.method === 'cash')
   const cashExpenses = database.expenses.filter((entry) => sameDate(entry) && entry.method === 'cash').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
@@ -594,7 +605,7 @@ export function calculateDailyClosing(database, date) {
   const cashWithdrawals = bankTransactions.filter((entry) => entry.type === 'withdrawal' && entry.destination === 'cash').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
   const cashDeposits = bankTransactions.filter((entry) => entry.type === 'deposit' && entry.source === 'cash').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
   const expectedCash = Math.round((opening + cashSales + customerPayments + cashOtherReceipts + cashWithdrawals - supplierPayments - cashExpenses - cashRefunds - cashDeposits + Number.EPSILON) * 100) / 100
-  return { date, opening, cashSales, customerPayments, cashOtherReceipts, supplierPayments, cashExpenses, cashRefunds, cashWithdrawals, cashDeposits, expectedCash }
+  return { date, opening, cashSales, bankSales, chequeSales, creditSales, customerPayments, cashOtherReceipts, supplierPayments, cashExpenses, cashRefunds, cashWithdrawals, cashDeposits, expectedCash }
 }
 
 export function calculateBankBalanceSummary(database, date) {
