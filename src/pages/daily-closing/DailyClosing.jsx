@@ -35,7 +35,7 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
   const bankOut = database.payments.filter((entry) => onDate(entry) && entry.type === 'supplier-payment' && ['bank', 'cheque-cleared'].includes(entry.method)).reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
   const bankTransfers = database.financeEntries.filter((entry) => onDate(entry) && entry.type === 'transfer').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
   const bankCapital = database.financeEntries.filter((entry) => onDate(entry) && entry.type === 'capital').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
-  const bankNet = bankIn + bankCapital - bankOut - bankTransfers
+  const bankNet = bankIn + bankCapital - bankOut - bankTransfers - Number(movement.bankExpenses || 0)
   const closingRecords = database.dailyClosings.map((entry) => ({
     id: entry.id,
     date: entry.date,
@@ -62,6 +62,12 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
     ['Bank sales', movement.bankSales],
     ['Cheque sales', movement.chequeSales],
     ['Credit / khata sales', movement.creditSales],
+  ]
+  const expenseBreakdown = [
+    ['Total expenses', movement.expenseTotal],
+    ['Cash expenses', movement.cashExpenses],
+    ['Bank expenses', movement.bankExpenses],
+    ['Cheque expenses', movement.chequeExpenses],
   ]
 
   return (
@@ -210,6 +216,13 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
             <h2 className="text-[#173b32] text-lg sm:text-xl font-bold pb-3 border-b border-[#edf0eb]">Today’s sales by payment type</h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4 text-xs sm:text-sm">
               {saleBreakdown.map(([label, amount]) => <div key={label} className="p-3 rounded-lg bg-[#fafbf8] border border-[#edf0eb]"><span className="block text-[#718078]">{label}</span><strong className="text-[#155b4b]">Rs. {Number(amount || 0).toLocaleString()}</strong></div>)}
+            </div>
+          </section>}
+
+          {canViewCash && <section className="mb-6 p-5 sm:p-7 rounded-2xl bg-white border border-[#e2e6df] shadow-panel">
+            <h2 className="text-[#173b32] text-lg sm:text-xl font-bold pb-3 border-b border-[#edf0eb]">Today’s expenses</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4 text-xs sm:text-sm">
+              {expenseBreakdown.map(([label, amount]) => <div key={label} className="p-3 rounded-lg bg-[#fffaf8] border border-[#f0e3df]"><span className="block text-[#718078]">{label}</span><strong className="text-red-700">Rs. {Number(amount || 0).toLocaleString()}</strong></div>)}
             </div>
           </section>}
 

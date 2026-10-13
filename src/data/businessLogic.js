@@ -598,14 +598,18 @@ export function calculateDailyClosing(database, date) {
   const creditSales = salesOnDate.reduce((sum, sale) => sum + Number(sale.payments?.credit ?? sale.payments?.khata ?? Math.max(0, Number(sale.total || 0) - Number(sale.payments?.cash || 0) - Number(sale.payments?.bank || sale.payments?.bankTransfer || 0) - Number(sale.payments?.cheque || 0))), 0)
   const customerPayments = sumPayment((entry) => entry.type === 'customer-payment' && entry.method === 'cash' && !database.sales.some((sale) => sale.id === entry.referenceId))
   const supplierPayments = sumPayment((entry) => entry.type === 'supplier-payment' && entry.method === 'cash')
-  const cashExpenses = database.expenses.filter((entry) => sameDate(entry) && entry.method === 'cash').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+  const expensesOnDate = (database.expenses || []).filter((entry) => sameDate(entry))
+  const expenseTotal = expensesOnDate.reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+  const cashExpenses = expensesOnDate.filter((entry) => entry.method === 'cash').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+  const bankExpenses = expensesOnDate.filter((entry) => entry.method === 'bank').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+  const chequeExpenses = expensesOnDate.filter((entry) => entry.method === 'cheque').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
   const cashRefunds = sumPayment((entry) => entry.type === 'customer-refund' && entry.method === 'cash')
   const cashOtherReceipts = (database.financeEntries || []).filter((entry) => sameDate(entry) && entry.type === 'capital' && entry.method === 'cash').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
   const bankTransactions = (database.bankTransactions || []).filter((entry) => sameDate(entry))
   const cashWithdrawals = bankTransactions.filter((entry) => entry.type === 'withdrawal' && entry.destination === 'cash').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
   const cashDeposits = bankTransactions.filter((entry) => entry.type === 'deposit' && entry.source === 'cash').reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
   const expectedCash = Math.round((opening + cashSales + customerPayments + cashOtherReceipts + cashWithdrawals - supplierPayments - cashExpenses - cashRefunds - cashDeposits + Number.EPSILON) * 100) / 100
-  return { date, opening, cashSales, bankSales, chequeSales, creditSales, customerPayments, cashOtherReceipts, supplierPayments, cashExpenses, cashRefunds, cashWithdrawals, cashDeposits, expectedCash }
+  return { date, opening, cashSales, bankSales, chequeSales, creditSales, customerPayments, cashOtherReceipts, supplierPayments, expenseTotal, cashExpenses, bankExpenses, chequeExpenses, cashRefunds, cashWithdrawals, cashDeposits, expectedCash }
 }
 
 export function calculateBankBalanceSummary(database, date) {
