@@ -65,13 +65,13 @@ export default function BillsTable({ bills = [], products = [], onReturn, onRevi
                       >
                         <span className="inline-flex items-center gap-1.5"><Printer size={14} /> Reprint</span>
                       </button>
-                      <button
+                      {onReturn && <button
                         type="button"
                         className="px-3 py-1.5 rounded-lg border border-[#e2e6df] bg-white hover:bg-[#eaf3e7] hover:text-[#155b4b] text-[#718078] text-xs font-semibold transition-all cursor-pointer shadow-2xs"
                         onClick={onReturn}
                       >
                         Return
-                      </button>
+                      </button>}
                     </div>
                   </td>
                 </tr>
