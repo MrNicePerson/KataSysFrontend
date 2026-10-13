@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { localDateString } from '../../data/businessLogic.js'
 
 export default function CustomerReturns({ bills = [], customers = [], returns = [], onReturnProcessed }) {
@@ -9,6 +9,11 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
   const [condition, setCondition] = useState('sellable')
   const [refundType, setRefundType] = useState('khata')
   const [successMessage, setSuccessMessage] = useState('')
+  const selectedBillRef = useRef(null)
+
+  useEffect(() => {
+    if (selectedBill) selectedBillRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [selectedBill])
 
   const customerNameForId = (customerId) => customers.find((customer) => customer.id === customerId)?.name
   const customerNameForBill = (bill) => bill?.customer?.trim()
@@ -151,7 +156,7 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
 
       {/* Selected Bill Return Processor Card */}
       {selectedBill && (
-        <section className="p-4 sm:p-6 lg:p-7 rounded-2xl bg-white border border-[#155b4b]/30 shadow-panel mb-6">
+        <section ref={selectedBillRef} className="p-4 sm:p-6 lg:p-7 rounded-2xl bg-white border border-[#155b4b]/30 shadow-panel mb-6 scroll-mt-24">
           <div className="flex items-start justify-between gap-3 pb-4 border-b border-[#edf0eb] mb-5">
             <div>
               <h2 className="text-[#173b32] text-lg sm:text-xl font-bold">Process return for {selectedBill.number}</h2>
