@@ -173,6 +173,22 @@ export default function NewSale({ customers, products = [], bills = [], selected
 
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0)
   const total = Math.max(0, subtotal - discount)
+  const customerProducts = (() => {
+    if (!selectedCustomerId || selectedCustomerId === 'walk-in') return []
+    const purchased = bills
+      .filter((bill) => bill.customerId === selectedCustomerId)
+      .flatMap((bill) => (bill.items || []).filter((item) => !item.isReturn).map((item) => ({ ...item, purchasedAt: bill.date })))
+      .sort((left, right) => String(right.purchasedAt || '').localeCompare(String(left.purchasedAt || '')))
+    const seen = new Set()
+    return purchased.reduce((result, item) => {
+      const key = item.productId || item.code || item.articleNumber || item.name
+      if (!key || seen.has(key)) return result
+      seen.add(key)
+      const product = products.find((entry) => entry.id === item.productId || entry.code === item.code || entry.articleNumber === item.articleNumber)
+      result.push({ ...(product || {}), ...item, salePrice: Number(item.unitPrice ?? item.price ?? product?.salePrice ?? 0) })
+      return result
+    }, [])
+  })()
 
   const clearSale = () => {
     setItems([])
@@ -351,7 +367,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
           />
           </div>
           <div data-sale-step="article">
-          <AddItem products={products} onAddItem={addItem} onSkipEmptyItem={focusDiscount} />
+          <AddItem products={customerProducts} onAddItem={addItem} onSkipEmptyItem={focusDiscount} />
           </div>
           <div data-sale-step="payment">
           <Payment
