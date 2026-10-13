@@ -293,6 +293,10 @@ export default function NewSale({ customers, products = [], bills = [], selected
       setSaleMessage('Enter a bank name for the bank payment.')
       return
     }
+    if (paymentSummary.cheque > 0 && (!chequeDetails.chequeNumber.trim() || !chequeDetails.bankName.trim() || !chequeDetails.chequeDate)) {
+      setSaleMessage('Enter cheque number, cheque bank, and cheque date before saving the bill.')
+      return
+    }
     savingRef.current = true
     setSaving(true)
     try {
