@@ -32,6 +32,7 @@ export default function BillReceipt({ bill, products = [], onClose, modal = fals
     (bill.cheques || []).reduce((sum, entry) => sum + num(entry.amount), 0),
   )
   const paid = cash + bank + cheque
+  const paymentRows = [['Cash', cash], ['Bank', bank], ['Cheque', cheque]].filter(([, amount]) => amount > 0)
   const due = num(bill.due ?? Math.max(0, total - paid))
   const previousBalance = num(bill.previousBalance ?? bill.customerPreviousBalance ?? bill.openingBalance)
   const remaining = num(bill.totalRemaining ?? bill.remainingBalance ?? (previousBalance + due))
@@ -215,7 +216,7 @@ export default function BillReceipt({ bill, products = [], onClose, modal = fals
         <section className="summary">
           <div>
             <div className="summary-row"><span>Total Suit</span><strong>{totalQty}</strong></div>
-            <div className="summary-row"><span>Cash / Bank / Cheque / JV</span><strong>{plainMoney(paid)}</strong></div>
+            {paymentRows.length ? paymentRows.map(([method, amount]) => <div className="summary-row" key={method}><span>{method}</span><strong>Rs. {plainMoney(amount)}</strong></div>) : <div className="summary-row"><span>Paid</span><strong>Rs. {plainMoney(paid)}</strong></div>}
           </div>
           <div>
             <div className="summary-row"><span>Gross Total</span><strong>Rs. {plainMoney(total)}</strong></div>
