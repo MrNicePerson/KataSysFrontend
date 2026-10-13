@@ -252,7 +252,8 @@ export default function BillsReceipts({ bills = [], customers = [], products = [
         onReturn={onReturn}
         onViewBill={onViewInvoice || setViewingBill}
         onReviewBill={(bill) => {
-          if (onUpdateReceipt || onUpdateBill || onEditBill) setReviewingBill(bill)
+          if (onEditBill) setViewingBill(bill)
+          else if (onUpdateReceipt || onUpdateBill) setReviewingBill(bill)
           else if (onViewInvoice) onViewInvoice(bill)
           else setViewingBill(bill)
         }}
@@ -280,7 +281,7 @@ export default function BillsReceipts({ bills = [], customers = [], products = [
             aria-modal="true"
             aria-label={`Receipt ${viewingBill.number}`}
           >
-            <BillReceipt bill={viewingBill} products={products} modal onClose={() => setViewingBill(null)} />
+            <BillReceipt bill={viewingBill} products={products} modal onClose={() => setViewingBill(null)} onEdit={onEditBill} />
           </div>
         </div>
       )}

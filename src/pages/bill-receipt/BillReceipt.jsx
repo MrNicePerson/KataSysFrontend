@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 import abbasTextileLogo from '../../assets/abbas-textile-logo.jpeg'
 
-export default function BillReceipt({ bill, products = [], onClose, modal = false }) {
+export default function BillReceipt({ bill, products = [], onClose, onEdit, modal = false }) {
   const keyboard = useKeyboardScope({ onEscape: onClose, trapFocus: modal })
   useEffect(() => { keyboard.ref.current?.querySelector('[aria-label="Close receipt"]')?.focus() }, [])
   useEffect(() => {
@@ -238,6 +238,7 @@ export default function BillReceipt({ bill, products = [], onClose, modal = fals
 
       <div className="action-bar receipt-controls">
         <button type="button" onClick={onClose}>Close</button>
+        {onEdit && <button type="button" className="edit-btn" onClick={() => { onClose?.(); onEdit(bill) }}>Edit in New Sale</button>}
         <button type="button" className="print-btn" onClick={() => window.print()}>Print receipt</button>
       </div>
     </main>
