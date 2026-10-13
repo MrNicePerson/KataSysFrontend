@@ -143,8 +143,8 @@ export function createSale(database, input) {
   const discount = amountOf(input.discount ?? 0)
   if (discount > subtotal) throw new Error('Discount cannot exceed the subtotal.')
   const returnTotal = returnItems.reduce((sum, item) => sum + item.amount, 0)
-  const total = subtotal - discount - returnTotal
-  if (total < 0) throw new Error('Returns cannot exceed the new sale total. Process a cash or khata refund from Customer returns instead.')
+  const total = saleItems.length ? subtotal - discount - returnTotal : 0
+  if (saleItems.length && total < 0) throw new Error('Returns cannot exceed the new sale total. Process a cash or khata refund from Customer returns instead.')
   const split = validateSplits(total, input.payments)
   if (split.cash + split.bank + split.cheque > total + 0.005) throw new Error('Combined cash, bank and cheque payments cannot exceed the bill total.')
   if (split.credit > 0 && !input.customerId) throw new Error('Choose a customer before saving a sale with an unpaid balance.')
@@ -178,12 +178,13 @@ export function createSale(database, input) {
   for (const item of saleItems) stockMovements = addMovement({ ...database, stockMovements }, { productId: item.productId, type: 'sale', quantity: -item.quantity, referenceId: sale.id, date: sale.date, note: sale.number || 'Sale' })
   let returnRecords = []
   for (const item of returnItems) {
-    const returnRecord = record('return', { saleId: item.originalSale.id, saleNumber: item.originalSale.number, adjustmentSaleId: sale.id, customerId: item.originalSale.customerId, productId: item.originalItem.productId, lineId: item.originalItem.lineId, code: item.originalItem.code, itemName: item.originalItem.name, quantity: item.quantity, unitPrice: item.amount / item.quantity, amount: item.amount, condition: item.condition, refundType: 'sale-adjustment', date: sale.date })
+    const returnRecord = record('return', { saleId: item.originalSale.id, saleNumber: item.originalSale.number, adjustmentSaleId: sale.id, customerId: item.originalSale.customerId, productId: item.originalItem.productId, lineId: item.originalItem.lineId, code: item.originalItem.code, itemName: item.originalItem.name, quantity: item.quantity, unitPrice: item.amount / item.quantity, amount: item.amount, condition: item.condition, refundType: 'sale-adjustment', date: item.originalSale.date || sale.date })
     returnRecords.push(returnRecord)
     stockMovements = addMovement({ ...database, stockMovements }, { productId: item.originalItem.productId, type: item.condition === 'sellable' ? 'customer-return' : 'customer-return-defective', quantity: item.quantity, referenceId: returnRecord.id, date: sale.date, note: item.originalSale.number })
   }
   let customers = database.customers
   if (sale.customerId && split.credit > 0) customers = updateBalance(customers, sale.customerId, split.credit)
+  if (sale.customerId && !saleItems.length && returnTotal > 0) customers = updateBalance(customers, sale.customerId, -returnTotal)
   let next = { ...database, products, customers, sales: [sale, ...database.sales], returns: [...returnRecords, ...database.returns], stockMovements }
   if (split.cash > 0) next = { ...next, payments: addPayment(next, { type: 'customer-payment', method: 'cash', amount: split.cash, customerId: sale.customerId, referenceId: sale.id, date: sale.date }) }
   if (split.bank > 0) next = { ...next, payments: addPayment(next, { type: 'customer-payment', method: 'bank', amount: split.bank, customerId: sale.customerId, referenceId: sale.id, date: sale.date }) }
