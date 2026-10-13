@@ -401,6 +401,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
             onSaveBill={(bill) => saveBill({ ...bill, paidInvoiceNumber, customerPhone: phone, customerAddress: address })}
             onHoldBill={holdBill}
             onClear={handleClear}
+            purchasedItems={customerProducts}
           />
         </div>
       </div>

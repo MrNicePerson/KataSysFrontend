@@ -1,7 +1,7 @@
 import { ChevronDown, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
-export default function CurrentCart({ items, discount, onDiscountChange, onAddReturn, onReturnAdded, onRemoveItem, onUpdateItem, onSaveBill, onHoldBill, onClear, saving = false }) {
+export default function CurrentCart({ items, discount, onDiscountChange, onAddReturn, onReturnAdded, onRemoveItem, onUpdateItem, onSaveBill, onHoldBill, onClear, purchasedItems = [], saving = false }) {
   const [returnItem, setReturnItem] = useState({ itemCode: '', quantity: 1, condition: 'Return' })
   const [returnError, setReturnError] = useState('')
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0)
@@ -135,10 +135,17 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
                 type="text"
                 autoComplete="off"
                 placeholder="Scan / type code"
+                list="customer-purchased-item-codes"
                 className="w-full h-10 px-3 rounded-lg border border-[#d9e0d9] bg-white text-xs sm:text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
                 value={returnItem.itemCode}
                 onChange={(event) => handleChange('itemCode', event.target.value)}
               />
+              <datalist id="customer-purchased-item-codes">
+                {purchasedItems.map((item) => {
+                  const code = item.code || item.articleNumber || item.article || item.name
+                  return code ? <option key={`${item.productId || code}-${code}`} value={code}>{item.name || code}</option> : null
+                })}
+              </datalist>
             </label>
             <label className="flex flex-col gap-1 text-xs font-semibold text-[#173b32]">
               Quantity
