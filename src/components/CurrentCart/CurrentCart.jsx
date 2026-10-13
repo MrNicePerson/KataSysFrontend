@@ -211,7 +211,7 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
               <div>
                 <strong className="block font-semibold">{item.returnCode || item.name}</strong>
                 <small className="text-[#718078]">
-                  {item.quantity} {item.quantity === 1 ? 'item' : 'items'} · {item.returnCondition}
+                  {item.quantity} {item.quantity === 1 ? 'item' : 'items'} · {item.returnLabel || (item.returnCondition === 'sellable' ? 'Return' : item.returnCondition === 'damaged' ? 'Defective' : 'Replace')}
                 </small>
               </div>
               <div className="flex items-center gap-3">

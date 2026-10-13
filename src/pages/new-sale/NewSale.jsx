@@ -262,6 +262,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
       id: `${Date.now()}-${Math.random()}`,
       name: `Return · ${code} (${condition})`,
       returnCode: code,
+      returnLabel: condition,
       returnCondition,
       productId: billedItem.productId,
       originalSaleId: originalSale.id,
