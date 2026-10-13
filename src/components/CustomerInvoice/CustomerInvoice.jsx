@@ -56,7 +56,8 @@ export default function CustomerInvoice({
 
         <div className="flex flex-col">
           <label htmlFor="pad-invoice" className="text-[#173b32] text-sm sm:text-base font-semibold mb-2">
-            Pad invoice number (optional)
+            Invoice number
+            <span className="block mt-0.5 text-xs font-medium text-[#718078]">Pad invoice number (optional)</span>
           </label>
           <input
             id="pad-invoice"
