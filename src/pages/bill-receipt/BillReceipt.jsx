@@ -238,7 +238,7 @@ export default function BillReceipt({ bill, products = [], onClose, onEdit, moda
 
       <div className="action-bar receipt-controls">
         <button type="button" onClick={onClose}>Close</button>
-        {onEdit && <button type="button" className="edit-btn" onClick={() => { onClose?.(); onEdit(bill) }}>Edit in New Sale</button>}
+        {onEdit && <button type="button" className="edit-btn" onClick={() => { onClose?.(); onEdit(bill) }}>Edit</button>}
         <button type="button" className="print-btn" onClick={() => window.print()}>Print receipt</button>
       </div>
     </main>
