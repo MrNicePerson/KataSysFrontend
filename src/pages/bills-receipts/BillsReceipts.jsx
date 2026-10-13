@@ -3,7 +3,7 @@ import BillsTable from '../../components/BillsTable/BillsTable.jsx'
 import BillReceipt from '../bill-receipt/BillReceipt.jsx'
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 
-function ReviewEditBillDialog({ bill, products, onClose, onUpdateBill, onUpdateReceipt }) {
+function ReviewEditBillDialog({ bill, products, onClose, onUpdateBill, onUpdateReceipt, onEditBill }) {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const submittingRef = useRef(false)
@@ -149,6 +149,7 @@ function ReviewEditBillDialog({ bill, products, onClose, onUpdateBill, onUpdateR
           {!canEditItems && <p className="text-xs text-[#718078]">This bill’s item lines are shown for review; only its receipt details can be edited.</p>}
           <div className="flex justify-end gap-3 pt-4 border-t border-[#e2e6df]">
             <button type="button" onClick={onClose} disabled={saving} className="h-10 px-4 rounded-xl border border-[#dfe4dc] bg-white text-sm font-semibold text-[#173b32] disabled:opacity-60">Cancel</button>
+            {onEditBill && <button type="button" onClick={() => { onClose(); onEditBill(bill) }} disabled={saving} className="h-10 px-5 rounded-xl border border-[#155b4b] text-[#155b4b] text-sm font-bold disabled:opacity-60">Edit in New Sale</button>}
             <button type="submit" disabled={saving} className="h-10 px-5 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] text-white text-sm font-bold disabled:opacity-60">{saving ? 'Saving…' : 'Save changes'}</button>
           </div>
         </form>
@@ -251,8 +252,7 @@ export default function BillsReceipts({ bills = [], customers = [], products = [
         onReturn={onReturn}
         onViewBill={onViewInvoice || setViewingBill}
         onReviewBill={(bill) => {
-          if (onEditBill) onEditBill(bill)
-          else if (onUpdateReceipt || onUpdateBill) setReviewingBill(bill)
+          if (onUpdateReceipt || onUpdateBill || onEditBill) setReviewingBill(bill)
           else if (onViewInvoice) onViewInvoice(bill)
           else setViewingBill(bill)
         }}
@@ -264,6 +264,7 @@ export default function BillsReceipts({ bills = [], customers = [], products = [
         onClose={() => setReviewingBill(null)}
         onUpdateBill={onUpdateBill}
         onUpdateReceipt={onUpdateReceipt}
+        onEditBill={onEditBill}
       />}
 
       {/* Bill Receipt Preview Modal */}
