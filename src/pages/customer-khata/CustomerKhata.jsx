@@ -105,9 +105,12 @@ export default function CustomerKhata({ customers = [], payments = [], sales = [
                   {initials}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <strong className="block text-[#173b32] text-base sm:text-lg font-bold truncate">{customer.name}</strong>
+                  <div className="flex items-center justify-between gap-2">
+                    <strong className="block text-[#173b32] text-base sm:text-lg font-bold truncate">{customer.name}</strong>
+                    {customer.phone && <small className="shrink-0 text-[#718078] text-[11px] font-medium">{customer.phone}</small>}
+                  </div>
                   <small className="text-[#718078] text-xs truncate block">
-                    {[customer.phone, customer.city].filter(Boolean).join(' · ') || 'Contact details not provided'}
+                    {customer.city || (!customer.phone ? 'Contact details not provided' : '')}
                   </small>
                 </div>
               </div>
