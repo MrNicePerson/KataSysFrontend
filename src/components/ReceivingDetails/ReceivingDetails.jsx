@@ -27,14 +27,17 @@ export default function ReceivingDetails({ purchase, supplier, cheques = [] }) {
   ]
   return <>
     <style>{`@media print {
-      @page { size: A4 portrait; margin: 12mm; }
+      @page { size: A4 portrait; margin: 7mm; }
       body * { visibility: hidden !important; }
       #receiving-stock-bill, #receiving-stock-bill * { visibility: visible !important; }
-      #receiving-stock-bill { position: absolute !important; inset: 0 auto auto 0 !important; width: 100% !important; padding: 0 !important; color: #111 !important; font: 10pt Arial, sans-serif !important; }
+      #receiving-stock-bill { position: absolute !important; inset: 0 auto auto 0 !important; width: 100% !important; padding: 0 !important; color: #111 !important; font: 8pt Arial, sans-serif !important; }
+      #receiving-stock-bill > * { margin-top: 4px !important; margin-bottom: 4px !important; }
+      #receiving-stock-bill .receiving-print-box { padding: 4px !important; }
+      #receiving-stock-bill footer { padding-top: 12px !important; }
       #receiving-stock-bill .receiving-print-controls { display: none !important; }
       #receiving-stock-bill .receiving-print-box { background: #fff !important; border-color: #999 !important; border-radius: 0 !important; }
       #receiving-stock-bill table { min-width: 0 !important; width: 100% !important; border-collapse: collapse !important; }
-      #receiving-stock-bill th, #receiving-stock-bill td { border: 1px solid #777 !important; padding: 6px !important; color: #111 !important; }
+      #receiving-stock-bill th, #receiving-stock-bill td { border: 1px solid #777 !important; padding: 3px !important; color: #111 !important; }
       #receiving-stock-bill tr { break-inside: avoid; page-break-inside: avoid; }
     }`}</style>
     <div id="receiving-stock-bill" className="space-y-4 text-sm bg-white">
