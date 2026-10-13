@@ -157,7 +157,7 @@ function ReviewEditBillDialog({ bill, products, onClose, onUpdateBill, onUpdateR
   )
 }
 
-export default function BillsReceipts({ bills = [], customers = [], products = [], onNewSale, onReturn, onViewInvoice, onUpdateReceipt, onUpdateBill }) {
+export default function BillsReceipts({ bills = [], customers = [], products = [], onNewSale, onReturn, onViewInvoice, onUpdateReceipt, onUpdateBill, onEditBill }) {
   const [query, setQuery] = useState('')
   const [viewingBill, setViewingBill] = useState(null)
   const [reviewingBill, setReviewingBill] = useState(null)
@@ -251,7 +251,8 @@ export default function BillsReceipts({ bills = [], customers = [], products = [
         onReturn={onReturn}
         onViewBill={onViewInvoice || setViewingBill}
         onReviewBill={(bill) => {
-          if (onUpdateReceipt || onUpdateBill) setReviewingBill(bill)
+          if (onEditBill) onEditBill(bill)
+          else if (onUpdateReceipt || onUpdateBill) setReviewingBill(bill)
           else if (onViewInvoice) onViewInvoice(bill)
           else setViewingBill(bill)
         }}

@@ -69,6 +69,7 @@ export default function App() {
   const [receiptReturnPage, setReceiptReturnPage] = useState('new-sale')
   const [currentStatement, setCurrentStatement] = useState(null)
   const [resumeDraft, setResumeDraft] = useState(null)
+  const [editingBillId, setEditingBillId] = useState(null)
   const menuButtonRef = useRef(null)
   const navigationOpenerRef = useRef(null)
   const pendingMutationRef = useRef(new Set())
@@ -261,6 +262,13 @@ export default function App() {
   }
 
   const saveBill = async (bill) => {
+    if (editingBillId) {
+      const saved = await mutate(`sales/${editingBillId}`, { method: 'PATCH', body: { items: bill.items.map((item) => ({ lineId: item.lineId, quantity: item.quantity, price: item.price })), discount: bill.discount, padInvoiceNumber: bill.padInvoiceNumber, customerPhone: bill.customerPhone, customerAddress: bill.customerAddress }, refresh: false })
+      setEditingBillId(null)
+      setResumeDraft(null)
+      if (saved) await showInvoice(saved, 'bills')
+      return saved
+    }
     const saved = await mutate('sales', { body: bill, refresh: false })
     if (!saved) return null
     // Load the preview while workspace data refreshes in the background.
@@ -269,6 +277,13 @@ export default function App() {
     })
     await showInvoice(saved, 'new-sale')
     return saved
+  }
+
+  const editBill = (bill) => {
+    setEditingBillId(bill.id)
+    setResumeDraft(bill)
+    setSelectedCustomerId(bill.customerId || 'walk-in')
+    setCurrentPage('new-sale')
   }
 
   const changeStatus = (path, status) => mutate(path, { method: 'PATCH', body: { status } })
@@ -342,7 +357,7 @@ export default function App() {
     {activePage === 'notifications' ? <NotificationsPage token={token} canManage={can('notifications', 'manage')} onOpenNotification={openNotification} />
       : activePage === 'bill-receipt' && currentReceipt ? <BillReceipt bill={currentReceipt} products={database.products} onClose={() => navigateTo(receiptReturnPage)} />
       : activePage === 'new-customer' ? <NewCustomer onCancel={() => setCurrentPage(customerReturnPage)} onSave={saveCustomer} />
-      : activePage === 'bills' ? <BillsReceipts bills={savedBills} customers={customers} products={database.products} onNewSale={() => navigateTo('New sale')} onViewInvoice={(sale) => showInvoice(sale, 'bills')} onUpdateReceipt={(id, details) => mutate(`sales/${id}/receipt`, { method: 'PATCH', body: details, throwOnError: true })} onUpdateBill={(id, details) => mutate(`sales/${id}`, { method: 'PATCH', body: details, throwOnError: true })} />
+      : activePage === 'bills' ? <BillsReceipts bills={savedBills} customers={customers} products={database.products} onNewSale={() => navigateTo('New sale')} onEditBill={editBill} onViewInvoice={(sale) => showInvoice(sale, 'bills')} onUpdateReceipt={(id, details) => mutate(`sales/${id}/receipt`, { method: 'PATCH', body: details, throwOnError: true })} onUpdateBill={(id, details) => mutate(`sales/${id}`, { method: 'PATCH', body: details, throwOnError: true })} />
       : activePage === 'returns' ? <CustomerReturns bills={savedBills} customers={customers} returns={database.returns} onReturnProcessed={(input) => mutate('returns/customers', { body: input })} />
       : activePage === 'orders' ? <OrdersHeld bills={heldBills} customers={customers} onResume={async (bill) => { const resumed = await mutate(`orders/${bill.id}/resume`); if (resumed) { setResumeDraft(resumed); setCurrentPage('new-sale') } }} onDiscard={(id) => mutate(`orders/${id}/cancel`)} onDeliver={(id, delivery) => mutate(`orders/${id}/deliver`, { body: delivery })} onComplete={async (bill) => { const sale = await mutate(`orders/${bill.id}/complete`); if (sale?.id) await showInvoice(sale, 'orders') }} />
       : activePage === 'stock' ? <StockProducts products={database.products} suppliers={suppliers} onReceiveStock={() => navigateTo('Receive stock')} onSaveAudit={saveStockAudit} />
