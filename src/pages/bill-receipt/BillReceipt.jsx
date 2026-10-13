@@ -99,7 +99,7 @@ export default function BillReceipt({ bill, products = [], onClose, onEdit, moda
         .cheque-table { width:100%; border-collapse:collapse; }
         .cheque-table th,.cheque-table td { border:1px solid #888; padding:4px 5px; text-align:left; }
         .cheque-table th { font-weight:700; }
-        .footer-meta { margin-top:6px; display:flex; justify-content:space-between; align-items:center; gap:18px; font-size:8px; color:#555; }
+        .footer-meta { position:fixed; left:10mm; right:10mm; bottom:6mm; z-index:5; display:flex; justify-content:space-between; align-items:center; gap:18px; padding:2px 0; background:#fff; font-size:8px; color:#555; }
         .remaining { margin-top:5px; border:1.5px solid #555; min-height:42px; padding:0 9px; display:flex; align-items:center; justify-content:space-between; font-size:14px; font-weight:700; }
         .invoice-footer { margin-top:68px; border-top:2px solid #111; padding-top:24px; display:flex; justify-content:space-between; align-items:flex-end; font-size:11px; }
         .signature { display:flex; align-items:flex-end; gap:10px; font-weight:700; font-size:13px; }
