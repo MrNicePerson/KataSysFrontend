@@ -107,7 +107,7 @@ export default function CustomerKhata({ customers = [], payments = [], sales = [
                 <div className="flex-1 min-w-0">
                   <strong className="block text-[#173b32] text-base sm:text-lg font-bold truncate">{customer.name}</strong>
                   <small className="text-[#718078] text-xs truncate block">
-                    {[customer.city, customer.phone].filter(Boolean).join(' · ') || 'Contact details not provided'}
+                    {[customer.phone, customer.city].filter(Boolean).join(' · ') || 'Contact details not provided'}
                   </small>
                 </div>
               </div>
