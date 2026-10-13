@@ -99,7 +99,7 @@ export default function BillReceipt({ bill, products = [], onClose, modal = fals
         .cheque-table { width:100%; border-collapse:collapse; }
         .cheque-table th,.cheque-table td { border:1px solid #888; padding:4px 5px; text-align:left; }
         .cheque-table th { font-weight:700; }
-        .footer-meta { margin-top:6px; display:flex; justify-content:center; align-items:center; gap:18px; font-size:8px; color:#555; }
+        .footer-meta { margin-top:6px; display:flex; justify-content:space-between; align-items:center; gap:18px; font-size:8px; color:#555; }
         .remaining { margin-top:5px; border:1.5px solid #555; min-height:42px; padding:0 9px; display:flex; align-items:center; justify-content:space-between; font-size:14px; font-weight:700; }
         .invoice-footer { margin-top:68px; border-top:2px solid #111; padding-top:24px; display:flex; justify-content:space-between; align-items:flex-end; font-size:11px; }
         .signature { display:flex; align-items:flex-end; gap:10px; font-weight:700; font-size:13px; }
@@ -233,7 +233,7 @@ export default function BillReceipt({ bill, products = [], onClose, modal = fals
           <div className="signature"><span>Signature:</span><span className="signature-line" /></div>
           <div className="thanks">Thank you for your business</div>
         </footer>
-        <div className="footer-meta"><span>Page 1</span><span>Software by Crown Software House · 03197794021</span></div>
+        <div className="footer-meta"><span>Software by Crown Software House · 03197794021</span><span>Page 1</span></div>
       </article>
 
       <div className="action-bar receipt-controls">
