@@ -17,8 +17,9 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
   }
   const itemSuggestions = purchasedItems.filter((item) => {
     const query = returnItem.itemCode.trim().toLowerCase()
+    if (!query) return false
     const code = item.code || item.articleNumber || item.article || item.name || ''
-    return !query || `${code} ${item.name || ''}`.toLowerCase().includes(query)
+    return `${code} ${item.name || ''}`.toLowerCase().includes(query)
   }).slice(0, 8)
   const handleReturn = (event) => {
     event.preventDefault()
@@ -143,7 +144,6 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
                 placeholder="Scan / type code"
                 className="w-full h-10 px-3 rounded-lg border border-[#d9e0d9] bg-white text-xs sm:text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
                 value={returnItem.itemCode}
-                onFocus={() => setSuggestionsOpen(true)}
                 onChange={(event) => { handleChange('itemCode', event.target.value); setSuggestionsOpen(true) }}
               />
               {suggestionsOpen && itemSuggestions.length > 0 && <div className="absolute z-40 left-0 right-0 top-full mt-1 max-h-44 overflow-y-auto rounded-lg border border-[#dfe4dc] bg-white shadow-lg">
