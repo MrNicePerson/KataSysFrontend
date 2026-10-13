@@ -4,6 +4,7 @@ import { useState } from 'react'
 export default function CurrentCart({ items, discount, onDiscountChange, onAddReturn, onReturnAdded, onRemoveItem, onUpdateItem, onSaveBill, onHoldBill, onClear, purchasedItems = [], saving = false }) {
   const [returnItem, setReturnItem] = useState({ itemCode: '', quantity: 1, condition: 'Return' })
   const [returnError, setReturnError] = useState('')
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0)
   const total = Math.max(0, subtotal - discount)
   const saleItems = items.filter((item) => !item.isReturn && !item.returnQuantity)
@@ -14,6 +15,11 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
     setReturnItem((previous) => ({ ...previous, [field]: value }))
     if (returnError) setReturnError('')
   }
+  const itemSuggestions = purchasedItems.filter((item) => {
+    const query = returnItem.itemCode.trim().toLowerCase()
+    const code = item.code || item.articleNumber || item.article || item.name || ''
+    return !query || `${code} ${item.name || ''}`.toLowerCase().includes(query)
+  }).slice(0, 8)
   const handleReturn = (event) => {
     event.preventDefault()
     const code = returnItem.itemCode.trim()
@@ -127,7 +133,7 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
 
         <form className="space-y-3" onSubmit={handleReturn}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <label className="flex flex-col gap-1 text-xs font-semibold text-[#173b32]">
+            <label className="relative flex flex-col gap-1 text-xs font-semibold text-[#173b32]">
               Item code
               <input
                 id="sale-return-code"
@@ -135,17 +141,17 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
                 type="text"
                 autoComplete="off"
                 placeholder="Scan / type code"
-                list="customer-purchased-item-codes"
                 className="w-full h-10 px-3 rounded-lg border border-[#d9e0d9] bg-white text-xs sm:text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
                 value={returnItem.itemCode}
-                onChange={(event) => handleChange('itemCode', event.target.value)}
+                onFocus={() => setSuggestionsOpen(true)}
+                onChange={(event) => { handleChange('itemCode', event.target.value); setSuggestionsOpen(true) }}
               />
-              <datalist id="customer-purchased-item-codes">
-                {purchasedItems.map((item) => {
+              {suggestionsOpen && itemSuggestions.length > 0 && <div className="absolute z-40 left-0 right-0 top-full mt-1 max-h-44 overflow-y-auto rounded-lg border border-[#dfe4dc] bg-white shadow-lg">
+                {itemSuggestions.map((item) => {
                   const code = item.code || item.articleNumber || item.article || item.name
-                  return code ? <option key={`${item.productId || code}-${code}`} value={code}>{item.name || code}</option> : null
+                  return code ? <button key={`${item.productId || code}-${code}`} type="button" className="block w-full px-3 py-2 text-left text-xs text-[#173b32] hover:bg-[#e8f2e3]" onMouseDown={(event) => event.preventDefault()} onClick={() => { handleChange('itemCode', code); setSuggestionsOpen(false) }}><strong>{code}</strong>{item.name && item.name !== code ? <span className="ml-2 text-[#718078]">{item.name}</span> : null}</button> : null
                 })}
-              </datalist>
+              </div>}
             </label>
             <label className="flex flex-col gap-1 text-xs font-semibold text-[#173b32]">
               Quantity
