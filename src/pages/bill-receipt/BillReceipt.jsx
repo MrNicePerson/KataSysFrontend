@@ -48,7 +48,8 @@ export default function BillReceipt({ bill, products = [], onClose, modal = fals
       ? [{ number: chequeDetails.chequeNumber || chequeDetails.number, bank: chequeDetails.bankName || chequeDetails.bank, amount: chequeDetails.amount ?? cheque, issued: chequeDetails.chequeDate || chequeDetails.issued, dueDate: chequeDetails.dueDate || chequeDetails.expectedClearanceDate, status: chequeDetails.status || 'Pending' }]
       : []
   const emptyRows = 3
-  const invoiceNo = bill.padInvoiceNumber || bill.paidInvoiceNumber || bill.number || '—'
+  const invoiceNo = bill.number || '—'
+  const padInvoiceNo = bill.padInvoiceNumber || bill.paidInvoiceNumber || ''
   const shopName = 'Abbas Textile'
   const address = bill.receiptAddress || 'New Road, Shangai Market, Sohrab Khan Chowk, Mingora, Swat'
   const phones = bill.receiptPhones || 'Riaz 0300-5745719 · Arsalan 0348-1958108 · Anees 0345-6553785'
@@ -168,7 +169,10 @@ export default function BillReceipt({ bill, products = [], onClose, modal = fals
               <img className="logo-image" src={abbasTextileLogo} alt="Abbas Textile logo" />
               <div className="brand-name">{shopName}<span className="since">SINCE 2001</span></div>
             </div>
-            <div className="invoice-number">INVOICE No. {invoiceNo}</div>
+            <div className="invoice-number">
+              <div>INVOICE No. {invoiceNo}</div>
+              {padInvoiceNo && <small className="block mt-1 text-[10px] font-semibold">Pad invoice No. {padInvoiceNo}</small>}
+            </div>
           </div>
           <div className="company-rule" />
           <div className="company-contact">
