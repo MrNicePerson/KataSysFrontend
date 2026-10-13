@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 import abbasTextileLogo from '../../assets/abbas-textile-logo.jpeg'
 
-export default function BillReceipt({ bill, products = [], onClose, onEdit, modal = false }) {
+export default function BillReceipt({ bill, products = [], onClose, onEdit, closeLabel = 'Close', secondaryActionLabel, onSecondaryAction, hidePrint = false, modal = false }) {
   const keyboard = useKeyboardScope({ onEscape: onClose, trapFocus: modal })
   useEffect(() => { keyboard.ref.current?.querySelector('[aria-label="Close receipt"]')?.focus() }, [])
   useEffect(() => {
@@ -237,9 +237,10 @@ export default function BillReceipt({ bill, products = [], onClose, onEdit, moda
       </article>
 
       <div className="action-bar receipt-controls">
-        <button type="button" onClick={onClose}>Close</button>
+        <button type="button" onClick={onClose}>{closeLabel}</button>
+        {onSecondaryAction && <button type="button" onClick={onSecondaryAction}>{secondaryActionLabel || 'Cancel'}</button>}
         {onEdit && <button type="button" className="edit-btn" onClick={() => { onClose?.(); onEdit(bill) }}>Edit</button>}
-        <button type="button" className="print-btn" onClick={() => window.print()}>Print receipt</button>
+        {!hidePrint && <button type="button" className="print-btn" onClick={() => window.print()}>Print receipt</button>}
       </div>
     </main>
   )

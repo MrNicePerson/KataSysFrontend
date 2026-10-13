@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { localDateString } from '../../data/businessLogic.js'
+import BillReceipt from '../bill-receipt/BillReceipt.jsx'
 
 export default function CustomerReturns({ bills = [], customers = [], returns = [], onReturnProcessed }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -9,6 +10,7 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
   const [condition, setCondition] = useState('sellable')
   const [refundType, setRefundType] = useState('khata')
   const [successMessage, setSuccessMessage] = useState('')
+  const [reviewBill, setReviewBill] = useState(null)
 
   const customerNameForId = (customerId) => customers.find((customer) => customer.id === customerId)?.name
   const customerNameForBill = (bill) => bill?.customer?.trim()
@@ -31,6 +33,7 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
     setSelectedItemIndex(0)
     setReturnQuantity(1)
     setSuccessMessage('')
+    setReviewBill(bill)
   }
 
   const handleProcessReturn = async (e) => {
@@ -148,6 +151,20 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
           <button type="button" className="text-lg leading-none cursor-pointer" onClick={() => setSuccessMessage('')}>×</button>
         </div>
       )}
+
+      {reviewBill && <div className="fixed inset-0 z-50 bg-[#203832]/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto" role="presentation">
+        <div className="w-full max-w-3xl max-h-[92vh] overflow-y-auto" role="dialog" aria-modal="true" aria-label={`Review bill ${reviewBill.number}`}>
+          <BillReceipt
+            bill={reviewBill}
+            modal
+            onClose={() => setReviewBill(null)}
+            closeLabel="Back"
+            secondaryActionLabel="Cancel bill"
+            hidePrint
+            onSecondaryAction={() => { setReviewBill(null); setSelectedBill(null); setSuccessMessage(`Bill ${reviewBill.number} cancelled from return selection.`) }}
+          />
+        </div>
+      </div>}
 
       {/* Selected Bill Return Processor Card */}
       {selectedBill && (
