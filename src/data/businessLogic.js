@@ -178,15 +178,20 @@ export function createSale(database, input) {
   let stockMovements = database.stockMovements
   for (const item of saleItems) stockMovements = addMovement({ ...database, stockMovements }, { productId: item.productId, type: 'sale', quantity: -item.quantity, referenceId: sale.id, date: sale.date, note: sale.number || 'Sale' })
   let returnRecords = []
+  let claimRecords = []
   for (const item of returnItems) {
     const returnRecord = record('return', { saleId: item.originalSale.id, saleNumber: item.originalSale.number, adjustmentSaleId: sale.id, customerId: item.originalSale.customerId, productId: item.originalItem.productId, lineId: item.originalItem.lineId, code: item.originalItem.code, itemName: item.originalItem.name, quantity: item.quantity, unitPrice: item.amount / item.quantity, amount: item.amount, condition: item.condition, refundType: 'sale-adjustment', date: item.originalSale.date || sale.date })
     returnRecords.push(returnRecord)
+    if (item.condition !== 'sellable') {
+      const product = database.products.find((entry) => entry.id === item.originalItem.productId)
+      claimRecords.push(record('claim', { productId: item.originalItem.productId, supplierId: product?.supplierId || '', quantity: item.quantity, description: `Customer defective return · ${item.originalItem.name}`, amount: item.quantity * Number(product?.averageCost || item.originalItem.unitCostAtSale || 0), status: 'Pending', date: item.originalSale.date || sale.date, sourceSaleId: item.originalSale.id, sourceReturnId: returnRecord.id }))
+    }
     stockMovements = addMovement({ ...database, stockMovements }, { productId: item.originalItem.productId, type: item.condition === 'sellable' ? 'customer-return' : 'customer-return-defective', quantity: item.quantity, referenceId: returnRecord.id, date: sale.date, note: item.originalSale.number })
   }
   let customers = database.customers
   if (sale.customerId && split.credit > 0) customers = updateBalance(customers, sale.customerId, split.credit)
   if (sale.customerId && !saleItems.length && returnTotal > 0) customers = updateBalance(customers, sale.customerId, -returnTotal)
-  let next = { ...database, products, customers, sales: [sale, ...database.sales], returns: [...returnRecords, ...database.returns], stockMovements }
+  let next = { ...database, products, customers, sales: [sale, ...database.sales], returns: [...returnRecords, ...database.returns], claims: [...claimRecords, ...(database.claims || [])], stockMovements }
   if (split.cash > 0) next = { ...next, payments: addPayment(next, { type: 'customer-payment', method: 'cash', amount: split.cash, customerId: sale.customerId, referenceId: sale.id, date: sale.date }) }
   if (split.bank > 0) next = { ...next, payments: addPayment(next, { type: 'customer-payment', method: 'bank', amount: split.bank, customerId: sale.customerId, referenceId: sale.id, date: sale.date }) }
   if (split.cheque > 0) next = { ...next, cheques: [record('cheque', { direction: 'received', partyType: 'customer', partyId: sale.customerId, party: sale.customer, amount: split.cheque, issued: sale.date, bank: input.cheque?.bank || '', number: input.cheque?.number || '', referenceId: sale.id, status: 'Pending' }), ...next.cheques] }
