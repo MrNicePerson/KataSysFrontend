@@ -601,7 +601,7 @@ export default function NewDeliveryModal({
                   error={errors.articleNumber}
                 />
                 <Field
-                  label="Brand Name"
+                  label="Brand Name (optional)"
                   name="productName"
                   value={productName}
                   onChange={(event) => setProductName(event.target.value)}
