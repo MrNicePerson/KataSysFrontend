@@ -240,12 +240,13 @@ export default function NewSale({ customers, products = [], bills = [], selected
       return false
     }
     const amount = Math.abs(Number(billedItem.price ?? billedItem.unitPrice ?? 0))
+    const returnCondition = condition === 'Return' ? 'sellable' : condition === 'Defective' ? 'damaged' : 'replace'
 
     setItems((currentItems) => [...currentItems, {
       id: `${Date.now()}-${Math.random()}`,
       name: `Return · ${code} (${condition})`,
       returnCode: code,
-      returnCondition: condition,
+      returnCondition,
       productId: billedItem.productId,
       originalSaleId: originalSale.id,
       originalSaleLineId: billedItem.lineId,

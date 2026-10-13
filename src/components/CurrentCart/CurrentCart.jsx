@@ -2,7 +2,7 @@ import { ChevronDown, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
 export default function CurrentCart({ items, discount, onDiscountChange, onAddReturn, onReturnAdded, onRemoveItem, onUpdateItem, onSaveBill, onHoldBill, onClear, saving = false }) {
-  const [returnItem, setReturnItem] = useState({ itemCode: '', quantity: 1, condition: 'Sellable stock' })
+  const [returnItem, setReturnItem] = useState({ itemCode: '', quantity: 1, condition: 'Return' })
   const [returnError, setReturnError] = useState('')
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0)
   const total = Math.max(0, subtotal - discount)
@@ -167,9 +167,9 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
                   value={returnItem.condition}
                   onChange={(event) => handleChange('condition', event.target.value)}
                 >
-                  <option>Sellable stock</option>
-                  <option>Damaged</option>
+                  <option>Replace</option>
                   <option>Defective</option>
+                  <option>Return</option>
                 </select>
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#718078] pointer-events-none" />
               </div>

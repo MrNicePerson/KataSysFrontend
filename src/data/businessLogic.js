@@ -455,7 +455,7 @@ export function processCustomerReturn(database, input) {
   const result = record('return', { saleId: sale.id, saleNumber: sale.number, customerId: sale.customerId, productId: originalItem.productId, lineId: originalItem.lineId, code: originalItem.code, itemName: originalItem.name, quantity, unitPrice: originalItem.unitPrice, unitCostAtSale: Number(originalItem.unitCostAtSale || 0), amount, condition, refundType: input.refundType || 'khata', date: dateOf(input.date) })
   let products = database.products
   let stockMovements = database.stockMovements
-  if (condition === 'sellable' || condition === 'Sellable stock') {
+  if (condition === 'sellable' || condition === 'Sellable stock' || condition === 'Return') {
     products = products.map((product) => product.id === originalItem.productId ? { ...product, stockQuantity: Number(product.stockQuantity || 0) + quantity } : product)
     stockMovements = addMovement({ ...database, stockMovements }, { productId: originalItem.productId, type: 'customer-return', quantity, referenceId: result.id, date: result.date, note: sale.number })
   } else {
