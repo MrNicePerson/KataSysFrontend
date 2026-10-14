@@ -13,11 +13,13 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
   const fieldRef = useRef(null)
   const productRecords = products
 
-  const articleLabel = (product) => product.articleName || product.articleNumber || product.article || product.code || product.productName || product.name
+  const articleLabel = (product) => product.articleName || product.articleNumber || product.article || product.itemCode || product.code || product.productName || product.itemName || product.name
 
   const productDetails = (product) => [
     product.shade || product.colour || product.color,
     product.productName,
+    product.itemName,
+    product.itemCode,
     product.batchNumber,
     `${Number(product.stockQuantity || 0).toLocaleString()} available`,
     `Rs. ${Number(product.salePrice || 0).toLocaleString()}`,
@@ -84,9 +86,9 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
     const product = selectedProduct || productRecords.find((entry) => entry.name?.trim().toLowerCase() === name.trim().toLowerCase())
     onAddItem({
       productId: product?.id,
-      code: product?.code || product?.articleNumber || name.trim(),
+      code: product?.code || product?.articleNumber || product?.itemCode || name.trim(),
       name: product ? (product.name || product.productName || articleLabel(product)) : name.trim(),
-      articleNumber: product?.articleNumber || product?.article || product?.code || '',
+      articleNumber: product?.articleNumber || product?.article || product?.itemCode || product?.code || '',
       productName: product?.productName || product?.name || name.trim(),
       quantity: Number(quantity) || 1,
       price: Number(price) || 0,
@@ -165,6 +167,8 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
                 (product) =>
                   product.name?.trim().toLowerCase() === normalized ||
                   product.productName?.trim().toLowerCase() === normalized ||
+                  product.itemName?.trim().toLowerCase() === normalized ||
+                  product.itemCode?.trim().toLowerCase() === normalized ||
                   product.code?.trim().toLowerCase() === normalized ||
                   product.articleNumber?.trim().toLowerCase() === normalized ||
                   product.article?.trim().toLowerCase() === normalized
