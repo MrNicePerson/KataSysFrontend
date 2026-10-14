@@ -173,13 +173,14 @@ export default function NewSale({ customers, products = [], bills = [], selected
 
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0)
   const total = Math.max(0, subtotal - discount)
+  const availableProducts = products.filter((product) => product.active !== false)
   const customerProducts = (() => {
-    if (!selectedCustomerId || selectedCustomerId === 'walk-in') return products.filter((product) => product.active !== false)
+    if (!selectedCustomerId || selectedCustomerId === 'walk-in') return []
     const selectedCustomer = customers.find((customer) => String(customer.id) === String(selectedCustomerId))
     const selectedCustomerName = String(selectedCustomer?.name || '').trim().toLowerCase()
     const customerBills = bills.filter((bill) => {
       const idMatches = String(bill.customerId || '') === String(selectedCustomerId)
-      const nameMatches = selectedCustomerName && String(bill.customer || bill.customerName || '').trim().toLowerCase() === selectedCustomerName
+      const nameMatches = !bill.customerId && selectedCustomerName && String(bill.customer || bill.customerName || '').trim().toLowerCase() === selectedCustomerName
       return idMatches || nameMatches
     })
     const purchased = customerBills
@@ -194,7 +195,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
       result.push({ ...(product || {}), ...item, salePrice: Number(item.unitPrice ?? item.price ?? product?.salePrice ?? 0) })
       return result
     }, [])
-    return customerBills.length ? purchasedProducts : products.filter((product) => product.active !== false)
+    return purchasedProducts
   })()
 
   const clearSale = () => {
@@ -380,7 +381,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
           />
           </div>
           <div data-sale-step="article">
-          <AddItem key={`add-item-${selectedCustomerId || 'walk-in'}`} products={customerProducts} onAddItem={addItem} onSkipEmptyItem={focusDiscount} />
+          <AddItem products={availableProducts} onAddItem={addItem} onSkipEmptyItem={focusDiscount} />
           </div>
           <div data-sale-step="payment">
           <Payment
