@@ -167,8 +167,8 @@ export default function NewSale({ customers, products = [], bills = [], selected
 
   useEffect(() => {
     const customer = customers.find((entry) => entry.id === selectedCustomerId)
-    setPhone(customer?.phone ?? customer?.mobile ?? customer?.customerPhone ?? '')
-    setAddress(customer?.address ?? customer?.customerAddress ?? customer?.city ?? '')
+    setPhone(customer?.phone ?? customer?.mobile ?? customer?.mobileNumber ?? customer?.phoneNumber ?? customer?.customerPhone ?? customer?.contact ?? '')
+    setAddress(customer?.address ?? customer?.addressLine ?? customer?.customerAddress ?? customer?.location ?? customer?.city ?? '')
   }, [customers, selectedCustomerId])
 
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0)
