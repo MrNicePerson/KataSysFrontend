@@ -21,7 +21,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
     product.itemName,
     product.itemCode,
     product.batchNumber,
-    `${Number(product.stockQuantity || 0).toLocaleString()} available`,
+    `${Math.max(0, Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0)).toLocaleString()} available`,
     `Rs. ${Number(product.salePrice || 0).toLocaleString()}`,
   ].filter(Boolean).join(' · ')
   const productArticle = (product) => product.articleNumber || product.article || product.code

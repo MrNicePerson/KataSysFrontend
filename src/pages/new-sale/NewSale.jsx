@@ -173,7 +173,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
 
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0)
   const total = Math.max(0, subtotal - discount)
-  const availableProducts = products.filter((product) => product.active !== false)
+  const availableProducts = products.filter((product) => product.active !== false && Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0) > 0)
   const customerProducts = (() => {
     if (!selectedCustomerId || selectedCustomerId === 'walk-in') return []
     const selectedCustomer = customers.find((customer) => String(customer.id) === String(selectedCustomerId))
