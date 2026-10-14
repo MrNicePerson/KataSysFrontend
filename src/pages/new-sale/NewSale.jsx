@@ -175,8 +175,8 @@ export default function NewSale({ customers, products = [], bills = [], selected
   const total = Math.max(0, subtotal - discount)
   const customerProducts = (() => {
     if (!selectedCustomerId || selectedCustomerId === 'walk-in') return products.filter((product) => product.active !== false)
-    const purchased = bills
-      .filter((bill) => bill.customerId === selectedCustomerId)
+    const customerBills = bills.filter((bill) => String(bill.customerId || '') === String(selectedCustomerId))
+    const purchased = customerBills
       .flatMap((bill) => (bill.items || []).filter((item) => !item.isReturn).map((item) => ({ ...item, purchasedAt: bill.date })))
       .sort((left, right) => String(right.purchasedAt || '').localeCompare(String(left.purchasedAt || '')))
     const seen = new Set()
@@ -188,7 +188,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
       result.push({ ...(product || {}), ...item, salePrice: Number(item.unitPrice ?? item.price ?? product?.salePrice ?? 0) })
       return result
     }, [])
-    return purchasedProducts.length ? purchasedProducts : products.filter((product) => product.active !== false)
+    return customerBills.length ? purchasedProducts : products.filter((product) => product.active !== false)
   })()
 
   const clearSale = () => {
