@@ -45,7 +45,7 @@ export default function CustomerInvoice({
             <option value="walk-in">Walk-in customer</option>
             {customers.map((entry) => (
               <option value={entry.id} key={entry.id}>
-                {entry.name}{entry.phone ? ` · ${entry.phone}` : ''}
+                {entry.name}{entry.address ? ` · ${entry.address}` : ''}
               </option>
             ))}
           </select>

@@ -11,7 +11,7 @@ export default function ReturnSearch({ customers = [] }) {
             <option value="" disabled>Choose retailer</option>
             {customers.map((customer) => (
               <option key={customer.id} value={customer.id}>
-                {customer.name}{customer.phone ? ` · ${customer.phone}` : ''}
+                {customer.name}{customer.address ? ` · ${customer.address}` : ''}
               </option>
             ))}
           </select>
