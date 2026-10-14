@@ -13,10 +13,11 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
   const fieldRef = useRef(null)
   const productRecords = products
 
-  const articleLabel = (product) => product.articleName || product.articleNumber || product.article || product.code || product.name
+  const articleLabel = (product) => product.articleName || product.articleNumber || product.article || product.code || product.productName || product.name
 
   const productDetails = (product) => [
     product.shade || product.colour || product.color,
+    product.productName,
     product.batchNumber,
     `${Number(product.stockQuantity || 0).toLocaleString()} available`,
     `Rs. ${Number(product.salePrice || 0).toLocaleString()}`,
@@ -25,6 +26,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
 
   const matchesQuery = (product, query) => [
     product.name,
+    product.productName,
     product.shade,
     product.colour,
     product.color,
@@ -83,9 +85,9 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
     onAddItem({
       productId: product?.id,
       code: product?.code || product?.articleNumber || name.trim(),
-      name: product ? articleLabel(product) : name.trim(),
+      name: product ? (product.name || product.productName || articleLabel(product)) : name.trim(),
       articleNumber: product?.articleNumber || product?.article || product?.code || '',
-      productName: product?.name || name.trim(),
+      productName: product?.productName || product?.name || name.trim(),
       quantity: Number(quantity) || 1,
       price: Number(price) || 0,
     })
@@ -162,6 +164,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
               const match = productRecords.find(
                 (product) =>
                   product.name?.trim().toLowerCase() === normalized ||
+                  product.productName?.trim().toLowerCase() === normalized ||
                   product.code?.trim().toLowerCase() === normalized ||
                   product.articleNumber?.trim().toLowerCase() === normalized ||
                   product.article?.trim().toLowerCase() === normalized
@@ -199,7 +202,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
                   {productArticle(product) && (
                     <span className="text-sm sm:text-base text-black font-bold">Article: {productArticle(product)}</span>
                   )}
-                  <span className="text-xs sm:text-[13px] font-normal text-[#12332d]">Brand Name: {product.name}</span>
+                  <span className="text-xs sm:text-[13px] font-normal text-[#12332d]">Brand Name: {product.name || product.productName}</span>
                   <span className="text-xs sm:text-[13px] text-[#718078] font-medium">{productDetails(product)}</span>
                 </button>
               ))}
