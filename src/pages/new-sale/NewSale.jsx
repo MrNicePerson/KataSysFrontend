@@ -374,7 +374,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
           />
           </div>
           <div data-sale-step="article">
-          <AddItem products={customerProducts} onAddItem={addItem} onSkipEmptyItem={focusDiscount} />
+          <AddItem key={`add-item-${selectedCustomerId || 'walk-in'}`} products={customerProducts} onAddItem={addItem} onSkipEmptyItem={focusDiscount} />
           </div>
           <div data-sale-step="payment">
           <Payment
@@ -397,7 +397,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
               {saleMessage}
             </p>
           )}
-          <CurrentCart
+        <CurrentCart
             saving={saving}
             items={items}
             discount={discount}
