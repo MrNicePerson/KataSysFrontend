@@ -175,7 +175,13 @@ export default function NewSale({ customers, products = [], bills = [], selected
   const total = Math.max(0, subtotal - discount)
   const customerProducts = (() => {
     if (!selectedCustomerId || selectedCustomerId === 'walk-in') return products.filter((product) => product.active !== false)
-    const customerBills = bills.filter((bill) => String(bill.customerId || '') === String(selectedCustomerId))
+    const selectedCustomer = customers.find((customer) => String(customer.id) === String(selectedCustomerId))
+    const selectedCustomerName = String(selectedCustomer?.name || '').trim().toLowerCase()
+    const customerBills = bills.filter((bill) => {
+      const idMatches = String(bill.customerId || '') === String(selectedCustomerId)
+      const nameMatches = selectedCustomerName && String(bill.customer || bill.customerName || '').trim().toLowerCase() === selectedCustomerName
+      return idMatches || nameMatches
+    })
     const purchased = customerBills
       .flatMap((bill) => (bill.items || []).filter((item) => !item.isReturn).map((item) => ({ ...item, purchasedAt: bill.date })))
       .sort((left, right) => String(right.purchasedAt || '').localeCompare(String(left.purchasedAt || '')))
