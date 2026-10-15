@@ -3,7 +3,6 @@ import { ArrowDownLeft, ArrowUpRight, Banknote, CalendarClock, ChevronDown, Circ
 import { calculateBankBalanceSummary } from '../../data/businessLogic.js'
 import { hasModulePermission } from '../../permissions.js'
 
-const suggestedBanks = ['ABL', 'Faysal Bank', 'Meezan Bank', 'UBL', 'Easypaisa', 'JazzCash']
 const chequeStatuses = ['Pending', 'Deposited / Presented', 'Under Clearing', 'Cleared', 'Bounced / Dishonoured', 'Returned', 'Rescheduled', 'Replaced', 'Cancelled']
 const activeChequeStatuses = new Set(['Pending', 'Deposited / Presented', 'Under Clearing', 'Rescheduled'])
 const money = (value) => `Rs. ${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
@@ -40,8 +39,9 @@ function TabButton({ current, value, onClick, children }) {
   return <button type="button" role="tab" aria-selected={current === value} onClick={() => onClick(value)} className={`shrink-0 px-3.5 py-2.5 border-b-2 text-xs font-bold ${current === value ? 'border-[#176148] text-[#176148]' : 'border-transparent text-[#748078] hover:text-[#36564a]'}`}>{children}</button>
 }
 
-export default function FinanceClosingDashboard({ database, date, movement, user, permissions = {}, onAddBank, onUpdateBank, onSaveBankBalances, onRecordBankTransaction, onUpdateChequeStatus, onUpdateChequeDetails, onCreateCheque }) {
-  const [tab, setTab] = useState('summary')
+export default function FinanceClosingDashboard({ database, date, movement, user, permissions = {}, onAddBank, onUpdateBank, onSaveBankBalances, onRecordBankTransaction, onUpdateChequeStatus, onUpdateChequeDetails, onCreateCheque, externalTab = null }) {
+  const [internalTab, setTab] = useState('summary')
+  const tab = externalTab || internalTab
   const [accountName, setAccountName] = useState('')
   const [openingBalance, setOpeningBalance] = useState('0')
   const [balanceInputs, setBalanceInputs] = useState({})
@@ -72,7 +72,7 @@ export default function FinanceClosingDashboard({ database, date, movement, user
     ...(canHistory ? [{ value: 'history', label: 'Financial history' }] : []),
   ]
   useEffect(() => {
-    if (!tabs.some((entry) => entry.value === tab)) setTab(tabs[0]?.value || '')
+    if (!externalTab && !tabs.some((entry) => entry.value === tab)) setTab(tabs[0]?.value || '')
   }, [tab, canBanks, canCash, canChequeRecords, canChequeUpdates, canWithdrawals, canHistory])
 
   const banks = database.bankAccounts || []
@@ -188,7 +188,7 @@ export default function FinanceClosingDashboard({ database, date, movement, user
       {canCash && <Metric label="Today's payments" value={money(payments)} icon={ArrowUpRight} tone="blue" />}
     </div>
     <div className="flex gap-1 overflow-x-auto border-b border-[#dfe6df] mb-4" role="tablist" aria-label="Daily finance sections">
-      {tabs.map((entry) => <TabButton key={entry.value} current={tab} value={entry.value} onClick={setTab}>{entry.label}</TabButton>)}
+      {!externalTab && tabs.map((entry) => <TabButton key={entry.value} current={tab} value={entry.value} onClick={setTab}>{entry.label}</TabButton>)}
     </div>
     {!tabs.length && <p className="py-8 text-center text-sm text-[#748078]">No additional finance sections are enabled for your account.</p>}
 
@@ -201,10 +201,10 @@ export default function FinanceClosingDashboard({ database, date, movement, user
           const actual = balanceInputs[account.id] === undefined ? row?.currentBalance ?? 0 : Number(balanceInputs[account.id] || 0)
           const difference = Math.round((actual - Number(row?.expectedBalance || 0) + Number.EPSILON) * 100) / 100
           return <tr key={account.id} className="border-t border-[#edf0eb]"><td className="px-3 py-2.5 font-semibold text-[#31473c]">{account.name}<button type="button" aria-label={`Rename ${account.name}`} title="Rename bank" onClick={() => { const name = window.prompt('Bank or wallet name', account.name); if (name?.trim()) void onUpdateBank(account.id, { name: name.trim() }) }} className="ml-2 text-[10px] font-medium text-[#176148] hover:underline">Rename</button></td><td className="px-3 py-2.5 text-[#65736b]">{money(row?.previousBalance)}</td><td className="px-3 py-2.5 text-[#65736b]">{money(row?.expectedBalance)}</td><td className="px-3 py-2"><input aria-label={`${account.name} actual closing balance`} type="number" min="0" step="0.01" value={balanceInputs[account.id] ?? row?.currentBalance ?? 0} onChange={(event) => setBalanceInputs((current) => ({ ...current, [account.id]: event.target.value }))} className="w-28 h-8 px-2 rounded border border-[#dfe6df] text-xs" /></td><td className={`px-3 py-2.5 font-bold ${difference ? 'text-rose-700' : 'text-emerald-700'}`}>{difference ? money(difference) : '—'}</td><td className="px-3 py-2"><button type="button" onClick={() => { if (window.confirm(`Deactivate ${account.name}? Historical balances will be preserved.`)) void onUpdateBank(account.id, { active: false }) }} className="text-[10px] font-semibold text-[#8b5650] hover:underline">Deactivate</button></td></tr>
-        })}</tbody></table><div className="grid grid-cols-1 sm:grid-cols-2 gap-2 px-3 py-3 border-t border-[#edf0eb]">{accounts.map((account) => <input key={account.id} aria-label={`${account.name} balance note`} value={balanceNotes[account.id] || ''} onChange={(event) => setBalanceNotes((current) => ({ ...current, [account.id]: event.target.value }))} placeholder={`${account.name}: difference explanation`} className="h-9 px-2.5 rounded border border-[#dfe6df] text-xs" />)}</div><div className="flex justify-between items-center px-3 py-3 border-t border-[#edf0eb]"><span className="text-xs text-[#748078]">Previous total {money(bankSummary.previousTotal)} · Expected {money(bankSummary.expectedTotal)}</span><button type="button" onClick={saveBalances} className="h-9 px-3 rounded-md bg-[#155b4b] text-white text-xs font-bold hover:bg-[#104b3e]">Save balances</button></div></div> : <div className="p-5"><p className="text-xs text-[#748078]">No bank accounts yet. Add the accounts used by this business.</p><div className="flex flex-wrap gap-2 mt-3">{suggestedBanks.filter((name) => !banks.some((account) => account.name.toLowerCase() === name.toLowerCase())).map((name) => <button key={name} type="button" onClick={() => onAddBank({ name, openingBalance: 0 })} className="h-8 px-3 rounded-md border border-[#dfe6df] text-xs font-semibold text-[#36564a] hover:bg-[#f1f5f0]">+ {name}</button>)}</div></div>}
+        })}</tbody></table><div className="grid grid-cols-1 sm:grid-cols-2 gap-2 px-3 py-3 border-t border-[#edf0eb]">{accounts.map((account) => <input key={account.id} aria-label={`${account.name} balance note`} value={balanceNotes[account.id] || ''} onChange={(event) => setBalanceNotes((current) => ({ ...current, [account.id]: event.target.value }))} placeholder={`${account.name}: difference explanation`} className="h-9 px-2.5 rounded border border-[#dfe6df] text-xs" />)}</div><div className="flex justify-between items-center px-3 py-3 border-t border-[#edf0eb]"><span className="text-xs text-[#748078]">Previous total {money(bankSummary.previousTotal)} · Expected {money(bankSummary.expectedTotal)}</span><button type="button" onClick={saveBalances} className="h-9 px-3 rounded-md bg-[#155b4b] text-white text-xs font-bold hover:bg-[#104b3e]">Save balances</button></div></div> : <div className="p-5"><p className="text-xs text-[#748078]">No bank accounts yet. Add the accounts used by this business.</p></div>}
         <form onSubmit={(event) => { event.preventDefault(); void addBank() }} className="flex flex-wrap gap-2 p-3 border-t border-[#edf0eb] bg-[#fbfcfa]"><input value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="Custom bank or wallet" aria-label="Custom bank or wallet name" className="flex-1 min-w-[150px] h-9 px-3 rounded-md border border-[#dfe6df] text-xs" /><input type="number" min="0" step="0.01" value={openingBalance} onChange={(event) => setOpeningBalance(event.target.value)} aria-label="Opening balance" className="w-32 h-9 px-2.5 rounded-md border border-[#dfe6df] text-xs" /><button type="submit" className="inline-flex items-center gap-1 h-9 px-3 rounded-md bg-[#edf5ee] text-[#176148] text-xs font-bold"><Plus size={14} />Add bank</button></form>
         {banks.some((account) => account.active === false) && <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-t border-[#edf0eb]"><span className="text-[10px] text-[#748078]">Inactive:</span>{banks.filter((account) => account.active === false).map((account) => <button key={account.id} type="button" onClick={() => void onUpdateBank(account.id, { active: true })} className="text-[10px] font-semibold text-[#176148] hover:underline">Reactivate {account.name}</button>)}</div>}
-        {suggestedBanks.filter((name) => !banks.some((account) => account.name.toLowerCase() === name.toLowerCase())).length > 0 && <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-t border-[#edf0eb]"><span className="text-[10px] text-[#748078]">Quick add:</span>{suggestedBanks.filter((name) => !banks.some((account) => account.name.toLowerCase() === name.toLowerCase())).map((name) => <button key={name} type="button" onClick={() => void onAddBank({ name, openingBalance: 0 })} className="text-[10px] font-semibold text-[#176148] hover:underline">{name}</button>)}</div>}
+
       </section>}
 
       {canCash && <section className="border border-[#e2e8e2] rounded-lg bg-white overflow-hidden">

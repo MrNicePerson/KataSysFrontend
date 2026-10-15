@@ -10,7 +10,7 @@ const paymentMethodForDraft = (draft) => {
   return values.length > 1 ? 'split' : values[0] || 'cash'
 }
 
-export default function NewSale({ customers, products = [], bills = [], selectedCustomerId, onCustomerChange, onNewCustomer, onSaveBill, onHoldBill, initialDraft, onDraftLoaded }) {
+export default function NewSale({ customers, products = [], bills = [], selectedCustomerId, onCustomerChange, onNewCustomer, onSaveBill, onHoldBill, initialDraft, onDraftLoaded, businessDate }) {
   const [items, setItems] = useState(() => initialDraft?.items ?? [])
   const [discount, setDiscount] = useState(() => initialDraft?.discount ?? 0)
   const [payments, setPayments] = useState(() => ({
@@ -360,7 +360,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
           </p>
         </div>
         <div className="px-3.5 py-1.5 rounded-full border border-[#e2e6df] bg-white text-[#52645c] text-xs sm:text-sm font-medium shadow-xs select-none">
-          Draft · 2026-09-28
+          Draft · {businessDate}
         </div>
       </div>
 

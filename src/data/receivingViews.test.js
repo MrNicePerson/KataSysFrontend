@@ -164,7 +164,7 @@ test('saved bills expose keyboard-selectable rows with one review-and-edit actio
   assert.ok(html.includes('data-keyboard-row'))
   assert.ok(html.includes('data-keyboard-primary'))
   assert.ok(html.includes('Review and edit bill'))
-  assert.ok(html.includes('Reprint'))
+  assert.ok(!html.includes('Reprint'))
   assert.ok(!html.includes('Edit receipt'))
   assert.ok(!html.includes('>View<'))
 })
@@ -184,6 +184,6 @@ test('receipt resolves article from stock and prints cheque details with the sof
       cheques: [{ id: 'ch-1', number: 'CH-22', bank: 'HBL', amount: 300, issued: '2026-10-12', expectedClearanceDate: '2026-10-20', status: 'Pending' }],
     },
   })
-  for (const expected of ['ART-310', 'Cheque Details', 'CH-22', 'HBL', '2026-10-20', 'Pending', 'Software by Crown Software House', '03197794021']) assert.ok(html.includes(expected), expected)
+  for (const expected of ['ART-310', 'Cheque Details', 'CH-22', 'HBL', '20-10-2026', 'Pending', 'Software by Crown Software House', '03197794021']) assert.ok(html.includes(expected), expected)
   assert.ok(!html.includes('Brand Name'))
 })

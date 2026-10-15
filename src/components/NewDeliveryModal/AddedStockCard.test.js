@@ -4,12 +4,20 @@ import { readFile } from 'node:fs/promises'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { transformSync } from 'rolldown/utils'
-import { createEmptyDatabase, createAccount, receivePurchase } from '../../../../Backend/src/domain/businessLogic.js'
+import { createEmptyDatabase, createAccount, receivePurchase } from '../../../Backend/src/domain/businessLogic.js'
 
-const source = await readFile(new URL('./NewDeliveryModal.jsx', import.meta.url), 'utf8')
-const { code } = transformSync('NewDeliveryModal.jsx', source, { jsx: { runtime: 'automatic' } })
-const resolvedCode = code.replace(/from "([^"]+)"/g, (_, name) => `from ${JSON.stringify(name.startsWith('.') ? new URL(name, new URL('./NewDeliveryModal.jsx', import.meta.url)).href : import.meta.resolve(name))}`)
-const { AddedStockCard, PaymentDetails, calculateStockPayment, prepareStockPayment, getReceivingBanks } = await import(`data:text/javascript;base64,${Buffer.from(resolvedCode).toString('base64')}`)
+async function componentUrl(url) {
+  const path = new URL(url)
+  const { code } = transformSync(path.pathname, await readFile(path, 'utf8'), { jsx: { runtime: 'automatic' } })
+  let resolved = code
+  for (const match of code.matchAll(/from "([^"]+)"/g)) {
+    const name = match[1]
+    const target = name.startsWith('.') ? new URL(name, path).href : import.meta.resolve(name)
+    resolved = resolved.replace(`from "${name}"`, `from ${JSON.stringify(target.endsWith('.jsx') ? await componentUrl(target) : target)}`)
+  }
+  return `data:text/javascript;base64,${Buffer.from(resolved).toString('base64')}`
+}
+const { AddedStockCard, PaymentDetails, calculateStockPayment, prepareStockPayment, getReceivingBanks } = await import(await componentUrl(new URL('./NewDeliveryModal.jsx', import.meta.url).href))
 const render = (items) => renderToStaticMarkup(createElement(AddedStockCard, { items, onRemove() {} }))
 const item = { id: 'one', productName: 'Lawn Suit', articleNumber: 'L-1', batchNumber: 'BATCH-01', season: 'Summer', quantity: 3, unitCost: 1250.25, salePrice: 1700.5 }
 
@@ -89,7 +97,7 @@ test('bank receiving saves only the selected bank name and payment amount', () =
   const payment = prepareStockPayment([item], '1000.25', 'bank', { bankName: ' Sample Bank ', accountNumber: ' 00123 ' })
   assert.deepEqual(payment.payments, { cash: 0, bank: 1000.25, cheque: 0 })
   const { record, database } = receivePurchase(supplier.database, { supplierId: supplier.record.id, items: [item], ...payment })
-  const expected = { bankName: 'Sample Bank', amount: 1000.25 }
+  const expected = { bankName: 'Sample Bank', accountNumber: '', amount: 1000.25 }
   assert.deepEqual(record.bankDetails, expected)
   assert.deepEqual(database.payments[0].bankDetails, expected)
   assert.equal(database.payments[0].method, 'bank')
@@ -157,5 +165,5 @@ test('added stock sidebar keeps a compact payment breakdown beside the items', (
     bankDetails: { bankName: 'Main Bank', accountNumber: '001' },
     cheques: [{ id: 'c1', number: 'CH-1', bank: 'Cheque Bank', amount: 300 }],
   }))
-  for (const text of ['Product', 'Quantity', 'Batch number', 'Cost per suit', 'Sale price per suit', 'Total cost', 'Payment Summary', 'Stock Total', 'Cash Paid', 'Bank Paid', 'Cheque Paid', 'Total Paid', 'Remaining Supplier Balance', 'Rs. 100.00', 'Rs. 200.00', 'Rs. 300.00', 'Rs. 600.00', 'Main Bank', '001', 'CH-1', 'Cheque Bank']) assert.ok(html.includes(text), text)
+  for (const text of ['Product', 'Quantity', 'Batch number', 'Cost per suit', 'Sale price per suit', 'Total cost', 'Payment Summary', 'Stock Total', 'Cash Paid', 'Bank Paid', 'Cheque Paid', 'Total Paid', 'Remaining Supplier Balance', 'Rs. 100.00', 'Rs. 200.00', 'Rs. 300.00', 'Rs. 600.00', 'Main Bank', 'CH-1', 'Cheque Bank']) assert.ok(html.includes(text), text)
 })

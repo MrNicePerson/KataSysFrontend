@@ -65,3 +65,6 @@ export const getWorkspace = (token) =>
   apiRequest('workspace', {
     token,
   })
+
+export const getSaleDayStatus = (token) =>
+  apiRequest('sales/day-status', { token })

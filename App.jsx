@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { apiRequest, getBootstrapStatus, getCurrentUser, getWorkspace, registerAccount, signIn } from './src/api/client.js'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { apiRequest, getBootstrapStatus, getCurrentUser, getSaleDayStatus as fetchSaleDayStatus, getWorkspace, registerAccount, signIn } from './src/api/client.js'
 import AccountStatement from './src/components/AccountStatement/AccountStatement.jsx'
 import Header from './src/components/Header/Header.jsx'
 import NotificationsPage from './src/components/Notifications/Notifications.jsx'
@@ -7,28 +7,31 @@ import Footer from './src/components/Footer/Footer.jsx'
 import Sidebar from './src/components/Sidebar/Sidebar.jsx'
 import SignIn from './src/components/SignIn/SignIn.jsx'
 import { createEmptyDatabase } from './src/data/businessLogic.js'
+import { getSaleDayStatus } from './src/data/saleDayStatus.js'
 import { planStockAdjustments } from './src/data/stockAudit.js'
-import NewSale from './src/pages/new-sale/NewSale.jsx'
-import NewCustomer from './src/pages/new-customer/NewCustomer.jsx'
-import BillsReceipts from './src/pages/bills-receipts/BillsReceipts.jsx'
-import BillReceipt from './src/pages/bill-receipt/BillReceipt.jsx'
-import CustomerReturns from './src/pages/customer-returns/CustomerReturns.jsx'
-import OrdersHeld from './src/pages/orders-held/OrdersHeld.jsx'
-import StockProducts from './src/pages/stock-products/StockProducts.jsx'
-import ReceiveStock from './src/pages/receive-stock/ReceiveStock.jsx'
-import Suppliers from './src/pages/suppliers/Suppliers.jsx'
-import CustomerKhata from './src/pages/customer-khata/CustomerKhata.jsx'
-import ChequeRegister from './src/pages/cheque-register/ChequeRegister.jsx'
-import ShopExpenses from './src/pages/shop-expenses/ShopExpenses.jsx'
-import DailyClosing from './src/pages/daily-closing/DailyClosing.jsx'
-import Reports from './src/pages/reports/Reports.jsx'
-import Settings from './src/pages/settings/Settings.jsx'
-import Claims from './src/pages/claims/Claims.jsx'
-import SupplierReturns from './src/pages/supplier-returns/SupplierReturns.jsx'
+import SaleAccessGate from './src/components/SaleAccessGate/SaleAccessGate.jsx'
 import { useDocumentLanguage } from './src/i18n/urdu.js'
 import { createTripleRightShortcut, navigationReturnTarget } from './src/keyboard/sidebarNavigation.js'
 import { runSingleFlight } from './src/keyboard/singleFlight.js'
 import { hasModulePermission, hasModuleView } from './src/permissions.js'
+
+const NewSale = lazy(() => import('./src/pages/new-sale/NewSale.jsx'))
+const NewCustomer = lazy(() => import('./src/pages/new-customer/NewCustomer.jsx'))
+const BillsReceipts = lazy(() => import('./src/pages/bills-receipts/BillsReceipts.jsx'))
+const BillReceipt = lazy(() => import('./src/pages/bill-receipt/BillReceipt.jsx'))
+const CustomerReturns = lazy(() => import('./src/pages/customer-returns/CustomerReturns.jsx'))
+const OrdersHeld = lazy(() => import('./src/pages/orders-held/OrdersHeld.jsx'))
+const StockProducts = lazy(() => import('./src/pages/stock-products/StockProducts.jsx'))
+const ReceiveStock = lazy(() => import('./src/pages/receive-stock/ReceiveStock.jsx'))
+const Suppliers = lazy(() => import('./src/pages/suppliers/Suppliers.jsx'))
+const CustomerKhata = lazy(() => import('./src/pages/customer-khata/CustomerKhata.jsx'))
+const ChequeRegister = lazy(() => import('./src/pages/cheque-register/ChequeRegister.jsx'))
+const ShopExpenses = lazy(() => import('./src/pages/shop-expenses/ShopExpenses.jsx'))
+const DailyClosing = lazy(() => import('./src/pages/daily-closing/DailyClosing.jsx'))
+const Reports = lazy(() => import('./src/pages/reports/Reports.jsx'))
+const Settings = lazy(() => import('./src/pages/settings/Settings.jsx'))
+const Claims = lazy(() => import('./src/pages/claims/Claims.jsx'))
+const SupplierReturns = lazy(() => import('./src/pages/supplier-returns/SupplierReturns.jsx'))
 
 const pagePermissions = {
   'new-sale': 'sales',
@@ -70,6 +73,8 @@ export default function App() {
   const [currentStatement, setCurrentStatement] = useState(null)
   const [resumeDraft, setResumeDraft] = useState(null)
   const [editingBillId, setEditingBillId] = useState(null)
+  const [serverSaleDayStatus, setServerSaleDayStatus] = useState(null)
+  const [dailyClosingInitialTab, setDailyClosingInitialTab] = useState('overview')
   const menuButtonRef = useRef(null)
   const navigationOpenerRef = useRef(null)
   const pendingMutationRef = useRef(new Set())
@@ -120,6 +125,8 @@ export default function App() {
   const suppliers = database.suppliers || []
   const savedBills = database.sales || []
   const heldBills = database.heldOrders || []
+  const branchId = user?.branchId || database.business?.branchId || 'default'
+  const saleDay = serverSaleDayStatus || getSaleDayStatus(database, { branchId })
   const activePage = currentPage === 'notifications' ? currentPage : can(pagePermissions[currentPage])
     ? currentPage
     : pageOrder.find((page) => can(pagePermissions[page])) || 'new-sale'
@@ -129,6 +136,7 @@ export default function App() {
     setDatabase({ ...createEmptyDatabase(), ...workspace.database })
     setUser(workspace.user)
     setLanguage(workspace.language === 'ur' ? 'ur' : 'en')
+    try { setServerSaleDayStatus(await fetchSaleDayStatus(activeToken)) } catch { setServerSaleDayStatus(null) }
     return workspace.database
   }
 
@@ -148,6 +156,9 @@ export default function App() {
         setUser(current.user)
         setDatabase({ ...createEmptyDatabase(), ...workspace.database })
         setLanguage(workspace.language === 'ur' ? 'ur' : 'en')
+        if (current.user?.role === 'admin' || hasModuleView(current.user?.permissions, 'sales')) {
+          fetchSaleDayStatus(token).then(setServerSaleDayStatus).catch(() => setServerSaleDayStatus(null))
+        }
       })
       .catch((error) => {
         if (!active) return
@@ -170,6 +181,7 @@ export default function App() {
     const result = credentials.registration
       ? await registerAccount(credentials)
       : await signIn(credentials)
+    setOperationError('')
     sessionStorage.setItem('katasys-token', result.token)
     setUser(result.user)
     setToken(result.token)
@@ -221,7 +233,9 @@ export default function App() {
 
   const navigateTo = (page) => {
     const pages = { 'New sale': 'new-sale', 'New customer': 'new-customer', 'Bills & receipts': 'bills', 'Customer returns': 'returns', 'Orders & held bills': 'orders', 'Stock & products': 'stock', 'Receive stock': 'receive', 'Supplier returns': 'supplier-returns', 'Defects & claims': 'claims', Suppliers: 'suppliers', 'Customer khata': 'khata', 'Cheque register': 'cheques', 'Shop expenses': 'expenses', 'Daily closing': 'closing', Reports: 'reports', Settings: 'settings' }
-    setCurrentPage(pages[page] || page || 'new-sale')
+    const nextPage = pages[page] || page || 'new-sale'
+    if (nextPage === 'closing') setDailyClosingInitialTab('overview')
+    setCurrentPage(nextPage)
     setSidebarOpen(false)
   }
 
@@ -284,6 +298,11 @@ export default function App() {
     setResumeDraft(bill)
     setSelectedCustomerId(bill.customerId || 'walk-in')
     setCurrentPage('new-sale')
+  }
+
+  const openDailyOpening = () => {
+    setDailyClosingInitialTab('opening')
+    setCurrentPage('closing')
   }
 
   const changeStatus = (path, status) => mutate(path, { method: 'PATCH', body: { status } })
@@ -354,6 +373,7 @@ export default function App() {
   return <>
     <Header user={user} token={token} showNotifications={can('notifications')} canManageNotifications={can('notifications', 'manage')} menuButtonRef={menuButtonRef} onMenuClick={openNavigation} onSignOut={signOut} onViewAllNotifications={() => setCurrentPage('notifications')} onOpenNotification={openNotification} />
     {operationError && <div className="mx-auto max-w-[1680px] px-4 sm:px-6 lg:px-12 pt-4"><p className="p-3 rounded-lg bg-red-50 text-red-700 text-sm" role="alert">{operationError}</p></div>}
+    <Suspense fallback={<main className="min-h-[55vh] grid place-items-center text-[#52645c]">Loading page…</main>}>
     {activePage === 'notifications' ? <NotificationsPage token={token} canManage={can('notifications', 'manage')} onOpenNotification={openNotification} />
       : activePage === 'bill-receipt' && currentReceipt ? <BillReceipt bill={currentReceipt} products={database.products} onClose={() => navigateTo(receiptReturnPage)} />
       : activePage === 'new-customer' ? <NewCustomer onCancel={() => setCurrentPage(customerReturnPage)} onSave={saveCustomer} />
@@ -368,10 +388,12 @@ export default function App() {
       : activePage === 'khata' ? <CustomerKhata customers={customers} payments={database.payments} sales={savedBills} returns={database.returns} installments={database.installments} onNewCustomer={() => { setCustomerReturnPage('khata'); setCurrentPage('new-customer') }} onPayment={(payment) => mutate(`customers/${payment.accountId}/payments`, { body: payment })} onBulkRecovery={(input) => mutate('customers/recovery/bulk', { body: input })} onInstallmentPayment={(id, payment) => mutate(`customers/installments/${id}/payments`, { body: payment })} onStatement={(id) => showStatement('customer', id)} />
       : activePage === 'cheques' ? <ChequeRegister cheques={database.cheques} customers={customers} suppliers={suppliers} onCreate={(cheque) => mutate('cheques', { body: cheque })} onStatusChange={(id, status) => changeStatus(`cheques/${id}/status`, status)} />
       : activePage === 'expenses' ? <ShopExpenses expenses={database.expenses} financeEntries={database.financeEntries} onCreate={(entry) => mutate('finance/entries', { body: entry })} />
-      : activePage === 'closing' ? <DailyClosing database={database} user={user} onSave={(record) => mutate('finance/daily-closing', { body: record })} onDelete={(id) => mutate(`finance/daily-closing/${id}`, { method: 'DELETE' })} onReviewStock={() => navigateTo('stock')} onAddBank={(account) => mutate('finance/banks', { body: account })} onUpdateBank={(id, changes) => mutate(`finance/banks/${id}`, { method: 'PATCH', body: changes })} onSaveBankBalances={(input) => mutate('finance/banks/balances', { body: input })} onRecordBankTransaction={(id, transaction) => mutate(`finance/banks/${id}/transactions`, { body: transaction })} onCreateCheque={(cheque) => mutate('cheques', { body: cheque })} onUpdateChequeStatus={(id, status, details) => mutate(`cheques/${id}/status`, { method: 'PATCH', body: { status, ...details } })} onUpdateChequeDetails={(id, details) => mutate(`cheques/${id}/details`, { method: 'PATCH', body: details })} />
+      : activePage === 'closing' ? <DailyClosing database={database} user={user} branchId={branchId} initialTab={dailyClosingInitialTab} onSave={(record) => mutate('finance/daily-closing', { body: record })} onDelete={(id) => mutate(`finance/daily-closing/${id}`, { method: 'DELETE' })} onReviewStock={() => navigateTo('stock')} onAddBank={(account) => mutate('finance/banks', { body: account })} onUpdateBank={(id, changes) => mutate(`finance/banks/${id}`, { method: 'PATCH', body: changes })} onSaveBankBalances={(input) => mutate('finance/banks/balances', { body: input })} onRecordBankTransaction={(id, transaction) => mutate(`finance/banks/${id}/transactions`, { body: transaction })} onCreateCheque={(cheque) => mutate('cheques', { body: cheque })} onUpdateChequeStatus={(id, status, details) => mutate(`cheques/${id}/status`, { method: 'PATCH', body: { status, ...details } })} onUpdateChequeDetails={(id, details) => mutate(`cheques/${id}/details`, { method: 'PATCH', body: details })} />
       : activePage === 'reports' ? <Reports bills={savedBills} customers={customers} database={database} token={token} permissions={user.permissions} />
       : activePage === 'settings' ? <Settings backupData={database} products={database.products} settings={database.settings} token={token} currentUserId={user.id} language={language} canManageSettings={user.role === 'admin' || hasModuleView(user.permissions, 'settings')} canEditSettings={user.role === 'admin' || hasModulePermission(user.permissions, 'settings', 'edit')} canManageLanguage={user.role === 'admin'} canViewActivity={can('activityHistory')} canExportActivity={user.role === 'admin' || hasModulePermission(user.permissions, 'activityHistory', 'export')} onSaveLanguage={saveLanguage} canBackup={user.role === 'admin' || user.permissions?.admin} onSaveSettings={(settings) => mutate('admin/settings', { method: 'PATCH', body: settings })} onImport={(backup) => mutate('admin/backup/restore', { body: { backup } })} />
-      : <NewSale customers={customers} products={database.products} bills={savedBills} selectedCustomerId={selectedCustomerId} onCustomerChange={setSelectedCustomerId} onNewCustomer={can('customers') ? () => { setCustomerReturnPage('new-sale'); setCurrentPage('new-customer') } : undefined} onSaveBill={saveBill} onHoldBill={(order) => mutate('orders', { body: order })} initialDraft={resumeDraft} onDraftLoaded={() => setResumeDraft(null)} />}
+      : !editingBillId && !saleDay.canCreateSale ? <SaleAccessGate status={saleDay} onOpenDailyOpening={openDailyOpening} />
+      : <NewSale businessDate={saleDay.date} customers={customers} products={database.products} bills={savedBills} selectedCustomerId={selectedCustomerId} onCustomerChange={setSelectedCustomerId} onNewCustomer={can('customers') ? () => { setCustomerReturnPage('new-sale'); setCurrentPage('new-customer') } : undefined} onSaveBill={saveBill} onHoldBill={(order) => mutate('orders', { body: order })} initialDraft={resumeDraft} onDraftLoaded={() => setResumeDraft(null)} />}
+    </Suspense>
     <Footer />
     {currentStatement && <AccountStatement type={currentStatement.type} statement={currentStatement.statement} onClose={() => setCurrentStatement(null)} />}
     {isSidebarOpen && <Sidebar activePage={activePage} permissions={user.permissions} role={user.role} onClose={() => closeNavigation()} onNavigate={(page) => { navigateTo(page); closeNavigation(true) }} />}

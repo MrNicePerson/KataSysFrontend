@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { calculateAccountLedger, calculateBusinessTotals, calculateDailyClosing, createAccount, createClaim, createEmptyDatabase, createSale, localDateString, processCustomerReturn, processSupplierReturn, receivePurchase, recordAccountPayment, recordExpense, recordHeldOrder, runDatabaseCommand, saveSettings, updateChequeStatus, updateClaimStatus, validateBackup } from './businessLogic.js'
+import { calculateAccountLedger, calculateBankBalanceSummary, calculateBusinessTotals, calculateDailyClosing, calculateDailyProfit, createAccount, createClaim, createEmptyDatabase, createSale, localDateString, processCustomerReturn, processSupplierReturn, receivePurchase, recordAccountPayment, recordExpense, recordHeldOrder, runDatabaseCommand, saveSettings, updateChequeStatus, updateClaimStatus, validateBackup } from './businessLogic.js'
 
 const seed = () => {
   let db = createEmptyDatabase()
@@ -257,4 +257,33 @@ test('customer and supplier ledgers reconcile to stored balances after returns a
   supplierDb = updateChequeStatus(supplierDb, givenCheque.id, 'Returned').database
   const supplierLedger = calculateAccountLedger(supplierDb, 'supplier', supplierResult.record.id)
   assert.equal(supplierLedger.calculatedBalance, supplierDb.suppliers[0].balance)
+})
+
+test('daily closing combines modern sale payments with legacy linked payments', () => {
+  const db = createEmptyDatabase()
+  db.sales = [
+    { id: 'modern', date: '2026-10-14', total: 100, payments: { cash: 60, bank: 40 } },
+    { id: 'legacy', date: '2026-10-14', total: 50 },
+  ]
+  db.payments = [{ id: 'p1', date: '2026-10-14', type: 'customer-payment', method: 'cash', amount: 50, referenceId: 'legacy' }]
+  const result = calculateDailyClosing(db, '2026-10-14')
+  assert.equal(result.cashSales, 110)
+  assert.equal(result.bankSales, 40)
+})
+
+test('daily profit includes returns, restored cost and expenses once', () => {
+  const db = createEmptyDatabase()
+  db.sales = [{ date: '2026-10-14', total: 200, items: [{ quantity: 2, unitCostAtSale: 50 }] }]
+  db.returns = [{ date: '2026-10-14', amount: 100, quantity: 1, unitCostAtSale: 50, condition: 'sellable' }]
+  db.expenses = [{ date: '2026-10-14', amount: 10, method: 'cash' }]
+  assert.deepEqual(calculateDailyProfit(db, '2026-10-14'), { date: '2026-10-14', revenue: 200, returnAmount: 100, netSales: 100, costOfGoods: 50, grossProfit: 50, expenses: 10, netProfit: 40 })
+})
+
+test('bank transfers credit only their selected destination account', () => {
+  const db = createEmptyDatabase()
+  db.bankAccounts = [{ id: 'a', name: 'A', openingBalance: 100, active: true }, { id: 'b', name: 'B', openingBalance: 20, active: true }]
+  db.bankTransactions = [{ date: '2026-10-14', type: 'transfer', accountId: 'a', destinationAccountId: 'b', amount: 30 }]
+  const result = calculateBankBalanceSummary(db, '2026-10-14')
+  assert.equal(result.accounts.find((entry) => entry.accountId === 'a').expectedBalance, 70)
+  assert.equal(result.accounts.find((entry) => entry.accountId === 'b').expectedBalance, 50)
 })

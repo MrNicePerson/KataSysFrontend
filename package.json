@@ -5,8 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:frontend": "vite",
+    "dev:backend": "npm run dev:local --prefix Backend",
     "build": "vite build",
-    "test": "node --test",
+    "test": "node scripts/test-frontend.mjs",
+    "test:frontend": "node scripts/test-frontend.mjs",
+    "test:backend": "npm test --prefix Backend",
+    "setup": "npm install && npm install --prefix Backend",
     "preview": "vite preview"
   },
   "devDependencies": {

@@ -591,10 +591,10 @@ export function calculateDailyClosing(database, date) {
     const value = method === 'bank' ? Number(payments.bank ?? payments.bankTransfer ?? 0) : Number(payments[method] || 0)
     return sum + value
   }, 0)
-  const linkedCashSales = sumPayment((entry) => entry.type === 'customer-payment' && entry.method === 'cash' && database.sales.some((sale) => sale.id === entry.referenceId))
-  const cashSales = salesOnDate.some((sale) => sale.payments) ? salePaymentTotal('cash') : linkedCashSales
-  const bankSales = salesOnDate.some((sale) => sale.payments) ? salePaymentTotal('bank') : sumPayment((entry) => entry.type === 'customer-payment' && entry.method === 'bank' && database.sales.some((sale) => sale.id === entry.referenceId))
-  const chequeSales = salesOnDate.some((sale) => sale.payments) ? salePaymentTotal('cheque') : sumPayment((entry) => entry.type === 'customer-payment' && entry.method === 'cheque' && database.sales.some((sale) => sale.id === entry.referenceId))
+  const linkedSalePaymentTotal = (method) => sumPayment((entry) => entry.type === 'customer-payment' && entry.method === method && salesOnDate.some((sale) => sale.id === entry.referenceId && !sale.payments))
+  const cashSales = salePaymentTotal('cash') + linkedSalePaymentTotal('cash')
+  const bankSales = salePaymentTotal('bank') + linkedSalePaymentTotal('bank')
+  const chequeSales = salePaymentTotal('cheque') + linkedSalePaymentTotal('cheque')
   const creditSales = salesOnDate.reduce((sum, sale) => sum + Number(sale.payments?.credit ?? sale.payments?.khata ?? Math.max(0, Number(sale.total || 0) - Number(sale.payments?.cash || 0) - Number(sale.payments?.bank || sale.payments?.bankTransfer || 0) - Number(sale.payments?.cheque || 0))), 0)
   const customerPayments = sumPayment((entry) => entry.type === 'customer-payment' && entry.method === 'cash' && !database.sales.some((sale) => sale.id === entry.referenceId))
   const supplierPayments = sumPayment((entry) => entry.type === 'supplier-payment' && entry.method === 'cash')
@@ -625,7 +625,7 @@ export function calculateBankBalanceSummary(database, date) {
         if (transaction.type === 'withdrawal' || transaction.type === 'transfer') expectedBalance -= Number(transaction.amount || 0)
         if (transaction.type === 'deposit') expectedBalance += Number(transaction.amount || 0)
       }
-      if (['transfer', 'withdrawal'].includes(transaction.type) && transaction.destination === 'account' && transaction.destinationAccountId === account.id) expectedBalance += Number(transaction.amount || 0)
+      if ((transaction.type === 'transfer' || (transaction.type === 'withdrawal' && transaction.destination === 'account')) && transaction.destinationAccountId === account.id) expectedBalance += Number(transaction.amount || 0)
     }
     expectedBalance = Math.round((expectedBalance + Number.EPSILON) * 100) / 100
     const dayRecord = records.filter((entry) => entry.accountId === account.id && entry.date === date)
@@ -645,6 +645,23 @@ export function calculateBankBalanceSummary(database, date) {
   })
   const total = (key) => Math.round((accounts.filter((account) => account.active).reduce((sum, account) => sum + Number(account[key] || 0), 0) + Number.EPSILON) * 100) / 100
   return { date, accounts, previousTotal: total('previousBalance'), expectedTotal: total('expectedBalance'), currentTotal: total('currentBalance') }
+}
+
+export function calculateDailyProfit(database, date) {
+  const dateOnly = (value) => String(value || '').slice(0, 10)
+  const sales = (database.sales || []).filter((sale) => dateOnly(sale.date) === date)
+  const returns = (database.returns || []).filter((entry) => dateOnly(entry.date) === date && entry.refundType !== 'sale-adjustment')
+  const revenue = sales.reduce((sum, sale) => sum + Number(sale.total ?? sale.totalAmount ?? 0), 0)
+  const saleCost = sales.reduce((sum, sale) => sum + (sale.items || []).reduce((itemSum, item) => {
+    const cost = Number(item.unitCostAtSale ?? item.costPrice ?? 0)
+    return itemSum + (item.isReturn && item.returnCondition === 'sellable' ? -1 : 1) * Number(item.quantity || 0) * cost
+  }, 0), 0)
+  const returnAmount = returns.reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+  const returnedSellableCost = returns.filter((entry) => ['sellable', 'Sellable stock'].includes(entry.condition)).reduce((sum, entry) => sum + Number(entry.quantity || 0) * Number(entry.unitCostAtSale || 0), 0)
+  const expenses = (database.expenses || []).filter((entry) => dateOnly(entry.date) === date).reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+  const netSales = revenue - returnAmount
+  const costOfGoods = saleCost - returnedSellableCost
+  return { date, revenue, returnAmount, netSales, costOfGoods, grossProfit: netSales - costOfGoods, expenses, netProfit: netSales - costOfGoods - expenses }
 }
 
 export function calculateBusinessTotals(database) {

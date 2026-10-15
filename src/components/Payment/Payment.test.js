@@ -30,7 +30,7 @@ const render = (props) => renderToStaticMarkup(createElement(Payment, {
 }))
 
 test('sale payment shows sale-only totals and the four payment methods', () => {
-  const html = render({ total: 1250.5, payments: { cash: '200', bank: '100', cheque: '50' }, method: 'split' })
+  const html = render({ total: 1250.5, payments: { cash: '200', bank: '100', cheque: '50' }, method: 'split', bankDetails: { bankName: 'UBL' } })
   for (const text of ['Payment Details', 'Amounts below apply to this sale only.', 'Total Sale Amount', 'Amount Paid', 'Remaining Customer Balance', 'Rs. 1,250.50', 'Rs. 350.00', 'Rs. 900.50', 'Cash', 'Bank', 'Cheque', 'Split Payment', 'Cash Amount', 'Bank Amount', 'Cheque Amount']) {
     assert.ok(html.includes(text), `Missing sale payment detail: ${text}`)
   }
@@ -40,8 +40,8 @@ test('sale payment shows sale-only totals and the four payment methods', () => {
 
 test('single payment methods expose one Amount Paid input', () => {
   const html = render({ total: 120, payments: { cash: '', bank: '50', cheque: '' }, method: 'bank' })
-  assert.ok(html.includes('Bank / Account Details'))
-  assert.equal((html.match(/name="payment-/g) || []).length, 1)
-  assert.ok(html.includes('value="50"'))
+  assert.ok(html.includes('Select Bank / Account'))
+  assert.equal((html.match(/name="payment-/g) || []).length, 0)
+  assert.ok(html.includes('Bank accounts'))
   assert.ok(!html.includes('Cheque Details'))
 })
