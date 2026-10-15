@@ -288,9 +288,15 @@ export default function App() {
   const saveBill = async (bill) => {
     if (editingBillId) {
       const saved = await mutate(`sales/${editingBillId}`, { method: 'PATCH', body: { items: bill.items.map((item) => ({ lineId: item.lineId, quantity: item.quantity, price: item.price })), discount: bill.discount, padInvoiceNumber: bill.padInvoiceNumber, customerPhone: bill.customerPhone, customerAddress: bill.customerAddress }, refresh: false })
+      if (!saved) return null
+      try {
+        await refreshWorkspace(token)
+      } catch (error) {
+        setOperationError(`Bill updated, but the bill list could not refresh: ${error.message}`)
+      }
       setEditingBillId(null)
       setResumeDraft(null)
-      if (saved) await showInvoice(saved, 'bills')
+      await showInvoice(saved, 'bills')
       return saved
     }
     const saved = await mutate('sales', { body: bill, refresh: false })

@@ -4,6 +4,7 @@ import CurrentCart from '../../components/CurrentCart/CurrentCart.jsx'
 import AddItem from '../../components/AddItem/AddItem.jsx'
 import Payment from '../../components/Payment/Payment.jsx'
 import { calculatePaymentSummary } from '../../data/paymentCalculations.js'
+import { prepareSaleDraft } from '../../data/saleDraft.js'
 
 const paymentMethodForDraft = (draft) => {
   const values = ['cash', 'bank', 'cheque'].filter((method) => Number(draft?.payments?.[method === 'bank' ? 'bankTransfer' : method] ?? draft?.payments?.[method] ?? 0) > 0)
@@ -11,7 +12,7 @@ const paymentMethodForDraft = (draft) => {
 }
 
 export default function NewSale({ customers, products = [], bills = [], selectedCustomerId, onCustomerChange, onNewCustomer, onSaveBill, onHoldBill, initialDraft, onDraftLoaded, businessDate }) {
-  const [items, setItems] = useState(() => initialDraft?.items ?? [])
+  const [items, setItems] = useState(() => prepareSaleDraft(initialDraft).items)
   const [discount, setDiscount] = useState(() => initialDraft?.discount ?? 0)
   const [payments, setPayments] = useState(() => ({
     cash: String(initialDraft?.payments?.cash ?? ''),
@@ -27,9 +28,9 @@ export default function NewSale({ customers, products = [], bills = [], selected
   const [bankDetails, setBankDetails] = useState(() => initialDraft?.payments?.bankDetails ?? initialDraft?.bankDetails ?? { bankName: '', accountNumber: '' })
   const [paymentMethod, setPaymentMethod] = useState(() => paymentMethodForDraft(initialDraft))
   const [saleMessage, setSaleMessage] = useState('')
-  const [paidInvoiceNumber, setPaidInvoiceNumber] = useState('')
-  const [phone, setPhone] = useState('')
-  const [address, setAddress] = useState('')
+  const [paidInvoiceNumber, setPaidInvoiceNumber] = useState(() => initialDraft?.padInvoiceNumber ?? initialDraft?.paidInvoiceNumber ?? '')
+  const [phone, setPhone] = useState(() => initialDraft?.customerPhone ?? '')
+  const [address, setAddress] = useState(() => initialDraft?.customerAddress ?? '')
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
   const sectionEnterRef = useRef(null)
@@ -167,6 +168,11 @@ export default function NewSale({ customers, products = [], bills = [], selected
 
   useEffect(() => {
     const customer = customers.find((entry) => entry.id === selectedCustomerId)
+    if (initialDraft) {
+      setPhone(initialDraft.customerPhone ?? customer?.phone ?? customer?.mobile ?? customer?.mobileNumber ?? customer?.phoneNumber ?? customer?.customerPhone ?? customer?.contact ?? '')
+      setAddress(initialDraft.customerAddress ?? customer?.address ?? customer?.addressLine ?? customer?.customerAddress ?? customer?.location ?? customer?.city ?? '')
+      return
+    }
     setPhone(customer?.phone ?? customer?.mobile ?? customer?.mobileNumber ?? customer?.phoneNumber ?? customer?.customerPhone ?? customer?.contact ?? '')
     setAddress(customer?.address ?? customer?.addressLine ?? customer?.customerAddress ?? customer?.location ?? customer?.city ?? '')
   }, [customers, selectedCustomerId])
