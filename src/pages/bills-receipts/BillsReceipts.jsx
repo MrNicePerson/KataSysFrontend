@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import BillsTable from '../../components/BillsTable/BillsTable.jsx'
 import BillReceipt from '../bill-receipt/BillReceipt.jsx'
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
+import { receiptBill } from '../../data/receiptBill.js'
 
 function ReviewEditBillDialog({ bill, products, onClose, onUpdateBill, onUpdateReceipt, onEditBill }) {
   const [error, setError] = useState('')
@@ -158,7 +159,7 @@ function ReviewEditBillDialog({ bill, products, onClose, onUpdateBill, onUpdateR
   )
 }
 
-export default function BillsReceipts({ bills = [], customers = [], products = [], onNewSale, onReturn, onViewInvoice, onUpdateReceipt, onUpdateBill, onEditBill }) {
+export default function BillsReceipts({ bills = [], customers = [], products = [], cheques = [], onNewSale, onReturn, onViewInvoice, onUpdateReceipt, onUpdateBill, onEditBill }) {
   const [query, setQuery] = useState('')
   const [viewingBill, setViewingBill] = useState(null)
   const [reviewingBill, setReviewingBill] = useState(null)
@@ -281,7 +282,7 @@ export default function BillsReceipts({ bills = [], customers = [], products = [
             aria-modal="true"
             aria-label={`Receipt ${viewingBill.number}`}
           >
-            <BillReceipt bill={viewingBill} products={products} modal onClose={() => setViewingBill(null)} onEdit={onEditBill} />
+            <BillReceipt bill={receiptBill(bills.find((bill) => bill.id === viewingBill.id) || viewingBill, cheques)} products={products} modal onClose={() => setViewingBill(null)} onEdit={onEditBill} />
           </div>
         </div>
       )}

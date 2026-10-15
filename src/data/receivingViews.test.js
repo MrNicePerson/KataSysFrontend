@@ -175,6 +175,16 @@ test('receipt prints the saved article name instead of the product brand name', 
   assert.ok(!html.includes('Brand Name'))
 })
 
+test('reopened invoice renders separately persisted cheque details after a workspace reload', async () => {
+  const { receiptBill } = await import('./receiptBill.js')
+  const saved = JSON.parse(JSON.stringify({ id: 'sale-67', number: 'INV-0067', total: 500, due: 470, payments: { cash: 10, bank: 20, cheque: 19.8 }, items: [{ name: 'Article', quantity: 10, price: 50 }] }))
+  const register = [{ id: 'ch-67', referenceId: saved.id, number: 'CH-REGRESSION', bank: 'Test Bank', amount: 19.8, issued: '2026-10-15', status: 'Pending' }]
+  const html = render(BillReceipt, { bill: receiptBill(saved, register) })
+  for (const expected of ['INV-0067', 'CH-REGRESSION', 'Test Bank', '15-10-2026', '19.8', '470']) assert.ok(html.includes(expected), expected)
+  assert.ok(!html.includes('Details unavailable'))
+  assert.ok(!html.includes('Individual cheque information was not saved'))
+})
+
 test('receipt resolves article from stock and prints cheque details with the software credit', () => {
   const html = render(BillReceipt, {
     products: [{ id: 'product-1', name: 'Brand Name', article: 'ART-310' }],
