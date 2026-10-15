@@ -260,6 +260,7 @@ export default function App() {
     try {
       const invoice = await apiRequest(`sales/${sale.id}/invoice`, { token })
       const receiptCheques = [
+        ...(invoice.cheques || []),
         ...(invoice.sale.cheques || []),
         ...(sale.cheques || []),
         ...database.cheques.filter((entry) => entry.referenceId === invoice.sale.id),
@@ -287,7 +288,7 @@ export default function App() {
 
   const saveBill = async (bill) => {
     if (editingBillId) {
-      const saved = await mutate(`sales/${editingBillId}`, { method: 'PATCH', body: { items: bill.items.map((item) => ({ lineId: item.lineId, quantity: item.quantity, price: item.price })), discount: bill.discount, padInvoiceNumber: bill.padInvoiceNumber, customerPhone: bill.customerPhone, customerAddress: bill.customerAddress }, refresh: false })
+      const saved = await mutate(`sales/${editingBillId}`, { method: 'PATCH', body: { items: bill.items.map((item) => ({ lineId: item.lineId, quantity: item.quantity, price: item.price })), discount: bill.discount, payments: { cash: bill.payments?.cash, bank: bill.payments?.bank ?? bill.payments?.bankTransfer, cheque: bill.payments?.cheque }, bankDetails: bill.bankDetails, cheque: bill.cheque, padInvoiceNumber: bill.padInvoiceNumber, customerPhone: bill.customerPhone, customerAddress: bill.customerAddress }, refresh: false })
       if (!saved) return null
       try {
         await refreshWorkspace(token)
@@ -310,8 +311,9 @@ export default function App() {
   }
 
   const editBill = (bill) => {
+    const linkedCheques = database.cheques.filter((entry) => entry.referenceId === bill.id && entry.sourceType === 'sale')
     setEditingBillId(bill.id)
-    setResumeDraft(bill)
+    setResumeDraft({ ...bill, cheques: linkedCheques, cheque: linkedCheques.find((entry) => entry.status !== 'Cancelled') || null })
     setSelectedCustomerId(bill.customerId || 'walk-in')
     setCurrentPage('new-sale')
   }

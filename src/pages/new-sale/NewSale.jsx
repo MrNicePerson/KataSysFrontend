@@ -20,10 +20,10 @@ export default function NewSale({ customers, products = [], bills = [], selected
     cheque: String(initialDraft?.payments?.cheque ?? ''),
   }))
   const [chequeDetails, setChequeDetails] = useState(() => ({
-    chequeNumber: initialDraft?.payments?.chequeDetails?.chequeNumber ?? initialDraft?.chequeDetails?.chequeNumber ?? '',
-    bankName: initialDraft?.payments?.chequeDetails?.bankName ?? initialDraft?.chequeDetails?.bankName ?? '',
-    chequeDate: initialDraft?.payments?.chequeDetails?.chequeDate ?? initialDraft?.chequeDetails?.chequeDate ?? '',
-    dueDate: initialDraft?.payments?.chequeDetails?.dueDate ?? initialDraft?.chequeDetails?.dueDate ?? '',
+    chequeNumber: initialDraft?.payments?.chequeDetails?.chequeNumber ?? initialDraft?.chequeDetails?.chequeNumber ?? initialDraft?.cheque?.chequeNumber ?? initialDraft?.cheque?.number ?? '',
+    bankName: initialDraft?.payments?.chequeDetails?.bankName ?? initialDraft?.chequeDetails?.bankName ?? initialDraft?.cheque?.bankName ?? initialDraft?.cheque?.bank ?? '',
+    chequeDate: initialDraft?.payments?.chequeDetails?.chequeDate ?? initialDraft?.chequeDetails?.chequeDate ?? initialDraft?.cheque?.chequeDate ?? initialDraft?.cheque?.issued ?? '',
+    dueDate: initialDraft?.payments?.chequeDetails?.dueDate ?? initialDraft?.chequeDetails?.dueDate ?? initialDraft?.cheque?.dueDate ?? initialDraft?.cheque?.expectedClearanceDate ?? '',
   }))
   const [bankDetails, setBankDetails] = useState(() => initialDraft?.payments?.bankDetails ?? initialDraft?.bankDetails ?? { bankName: '', accountNumber: '' })
   const [paymentMethod, setPaymentMethod] = useState(() => paymentMethodForDraft(initialDraft))
