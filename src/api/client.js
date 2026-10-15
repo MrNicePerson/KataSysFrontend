@@ -4,13 +4,14 @@ const API_BASE_URL = (
 
 export async function apiRequest(
   path,
-  { token, method = 'GET', body, signal } = {}
+  { token, method = 'GET', body, signal, cache } = {}
 ) {
   const response = await fetch(
     `${API_BASE_URL}/${String(path).replace(/^\//, '')}`,
     {
       method,
       signal,
+      ...(cache ? { cache } : {}),
 
       headers: {
         ...(body === undefined

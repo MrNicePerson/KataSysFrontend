@@ -258,7 +258,7 @@ export default function App() {
 
   const showInvoice = async (sale, returnPage = 'bills') => {
     try {
-      const invoice = await apiRequest(`sales/${sale.id}/invoice`, { token })
+      const invoice = await apiRequest(`sales/${sale.id}/invoice`, { token, cache: 'no-store' })
       const receiptCheques = [
         ...(invoice.cheques || []),
         ...(invoice.sale.cheques || []),
