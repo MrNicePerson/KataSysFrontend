@@ -10,7 +10,9 @@ export function calculatePaymentSummary(totalBill, payment = {}) {
   const totalReceived = cash + bank + cheque
   const cashAndBankReceived = cash + bank
   const pendingCheque = cheque
-  const uncoveredBalance = Math.max(0, totalBill - cashAndBankReceived - pendingCheque)
+  // A received cheque remains pending until it clears, so it does not reduce
+  // the customer's khata balance yet.
+  const uncoveredBalance = Math.max(0, totalBill - cashAndBankReceived)
   const excessPayment = Math.max(0, totalReceived - totalBill)
   return { cash, bank, cheque, totalReceived, cashAndBankReceived, pendingCheque, uncoveredBalance, excessPayment }
 }

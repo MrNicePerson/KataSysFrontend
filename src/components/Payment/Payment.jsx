@@ -13,7 +13,7 @@ export const BANK_OPTIONS = [
 const money = (value) => `Rs. ${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 export default function Payment({ total, payments, chequeDetails, bankDetails = {}, method = 'cash', onMethodChange, onChange, onChequeDetailsChange, onBankDetailsChange }) {
-  const { totalReceived, uncoveredBalance, excessPayment } = calculatePaymentSummary(total, payments)
+  const { cashAndBankReceived, uncoveredBalance, excessPayment } = calculatePaymentSummary(total, payments)
   const updateChequeDetails = (field, value) => onChequeDetailsChange({ ...chequeDetails, [field]: value })
   const updateBankDetails = (field, value) => onBankDetailsChange({ ...bankDetails, [field]: value })
   const preventDateStepping = (event) => {
@@ -51,7 +51,7 @@ export default function Payment({ total, payments, chequeDetails, bankDetails = 
       <h2 className="text-[#173b32] text-lg sm:text-xl lg:text-2xl font-semibold leading-tight">Payment Details</h2>
       <p className="text-xs text-[#718078]">Amounts below apply to this sale only.</p>
       <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3" aria-live="polite">
-        {[["Total Sale Amount", total], ["Amount Paid", totalReceived], ["Remaining Customer Balance", uncoveredBalance]].map(([label, value]) => (
+        {[["Total Sale Amount", total], ["Amount Paid", cashAndBankReceived], ["Remaining Customer Balance", uncoveredBalance]].map(([label, value]) => (
           <div key={label} className="min-w-0 p-3 rounded-xl bg-[#e8f2e3]">
             <dt className="text-xs text-[#557250]">{label}</dt>
             <dd className="mt-1 text-sm font-bold text-[#155b4b] tabular-nums break-words">{money(value)}</dd>

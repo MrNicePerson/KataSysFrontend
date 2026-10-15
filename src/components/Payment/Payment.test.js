@@ -31,11 +31,20 @@ const render = (props) => renderToStaticMarkup(createElement(Payment, {
 
 test('sale payment shows sale-only totals and the four payment methods', () => {
   const html = render({ total: 1250.5, payments: { cash: '200', bank: '100', cheque: '50' }, method: 'split', bankDetails: { bankName: 'UBL' } })
-  for (const text of ['Payment Details', 'Amounts below apply to this sale only.', 'Total Sale Amount', 'Amount Paid', 'Remaining Customer Balance', 'Rs. 1,250.50', 'Rs. 350.00', 'Rs. 900.50', 'Cash', 'Bank', 'Cheque', 'Split Payment', 'Cash Amount', 'Bank Amount', 'Cheque Amount']) {
+  for (const text of ['Payment Details', 'Amounts below apply to this sale only.', 'Total Sale Amount', 'Amount Paid', 'Remaining Customer Balance', 'Rs. 1,250.50', 'Rs. 300.00', 'Rs. 950.50', 'Cash', 'Bank', 'Cheque', 'Split Payment', 'Cash Amount', 'Bank Amount', 'Cheque Amount']) {
     assert.ok(html.includes(text), `Missing sale payment detail: ${text}`)
   }
   assert.equal((html.match(/type="radio"/g) || []).length, 4)
   assert.equal((html.match(/checked=""/g) || []).length, 1)
+})
+
+test('pending cheque is excluded from amount paid and customer balance settlement', async () => {
+  const { calculatePaymentSummary } = await import('../../data/paymentCalculations.js')
+  const summary = calculatePaymentSummary(500, { cash: 10, bank: 20, cheque: 19.8 })
+  assert.equal(summary.totalReceived, 49.8)
+  assert.equal(summary.cashAndBankReceived, 30)
+  assert.equal(summary.uncoveredBalance, 470)
+  assert.equal(summary.excessPayment, 0)
 })
 
 test('single payment methods expose one Amount Paid input', () => {
