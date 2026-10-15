@@ -6,6 +6,7 @@ import SavedDailyRecords from '../../components/SavedDailyRecords/SavedDailyReco
 import FinanceClosingDashboard from './FinanceClosingDashboard.jsx'
 import { calculateDailyClosing, localDateString } from '../../data/businessLogic.js'
 import { hasModulePermission } from '../../permissions.js'
+import { canEditDailyOpening, resolveDailyClosingTab } from '../../data/dailyClosingAccess.js'
 
 export default function DailyClosing({ database, onSave, onDelete, onReviewStock, user, branchId = 'default', initialTab = 'overview', onAddBank, onUpdateBank, onSaveBankBalances, onRecordBankTransaction, onCreateCheque, onUpdateChequeStatus, onUpdateChequeDetails }) {
   const [date, setDate] = useState(localDateString())
@@ -21,6 +22,7 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
   const openingRecord = database.dailyClosings.find((entry) => entry.date === date && entry.type === 'opening' && matchesBranch(entry))
   const closingRecord = database.dailyClosings.find((entry) => entry.date === date && entry.type === 'closing' && matchesBranch(entry))
   const canDaily = (action) => user?.role === 'admin' || hasModulePermission(user?.permissions, 'dailyClosing', action)
+  const canEditOpening = canEditDailyOpening(user)
   const canViewCash = ['cashManagement', 'dailyOpeningCreate', 'dailyOpeningEdit', 'dailyClosingCreate', 'dailyClosingEdit', 'dailyHistory'].some((action) => canDaily(action))
   const [year, month, day] = date.split('-').map(Number)
   const monthEndDate = Number.isInteger(day) && day === new Date(year, month, 0).getDate()
@@ -30,13 +32,16 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
     && auditedCounts.size === database.products.length
     && database.products.every((product) => auditedCounts.get(product.id) === Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0))
   const canSaveClosing = !monthEndDate || stockAuditDone
-  const selectedTab = activeTab
+  const selectedTab = resolveDailyClosingTab(activeTab, openingRecord)
   useEffect(() => {
-    setActiveTab(initialTab)
+    setActiveTab(initialTab === 'closing' && !openingRecord ? 'opening' : initialTab)
     setEditingOpening(false)
     setOpening(openingRecord?.amount == null ? '' : String(openingRecord.amount))
     setNote(openingRecord?.note || '')
   }, [date, openingRecord?.id, openingRecord?.updatedAt, initialTab])
+  useEffect(() => {
+    if (activeTab === 'closing' && !openingRecord) setActiveTab('opening')
+  }, [activeTab, openingRecord?.id])
   const onDate = (entry) => String(entry.date || '').slice(0, 10) === date
   const bankLedgerIn = database.payments.filter((entry) => onDate(entry) && entry.type === 'customer-payment' && ['bank', 'cheque-cleared'].includes(entry.method)).reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
   const bankIn = Number(movement.bankSales || 0) + database.payments.filter((entry) => onDate(entry) && entry.type === 'customer-payment' && ['bank', 'cheque-cleared'].includes(entry.method) && !(database.sales || []).some((sale) => sale.id === entry.referenceId)).reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
@@ -57,7 +62,7 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
   const openingRecords = closingRecords.filter((entry) => entry.type === 'opening')
   const savedClosingRecords = closingRecords.filter((entry) => entry.type === 'closing')
   const saveOpening = () => {
-    if (openingRecord && !canDaily('dailyOpeningEdit')) return
+    if (openingRecord && !canEditOpening) return
     if (!Number.isFinite(Number(opening)) || Number(opening) < 0 || opening === '') return
     return onSave({ type: 'opening', date, branchId, amount: Number(opening), note })
   }
@@ -119,10 +124,14 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
       </div>
 
       <nav className="flex items-center gap-1.5 overflow-x-auto border-b border-[#e0e9e3] mb-7 pb-px" aria-label="Financial management pages">
-        {navTabs.map(([value, label, Icon]) => <button key={value} type="button" onClick={() => setActiveTab(value)} aria-current={selectedTab === value ? 'page' : undefined}
-          className={`inline-flex shrink-0 items-center gap-2 px-4 py-3 text-xs sm:text-sm font-semibold border-b-[3px] transition-colors ${selectedTab === value ? 'border-emerald-700 text-emerald-800 bg-white rounded-t-lg' : 'border-transparent text-[#718078] hover:text-emerald-800'}`}>
-          <Icon size={16} />{label}</button>)}
+        {navTabs.map(([value, label, Icon]) => {
+          const blockedClosing = value === 'closing' && !openingRecord
+          return <button key={value} type="button" disabled={blockedClosing} title={blockedClosing ? 'Complete Daily Opening first' : undefined} onClick={() => setActiveTab(value)} aria-current={selectedTab === value ? 'page' : undefined}
+            className={`inline-flex shrink-0 items-center gap-2 px-4 py-3 text-xs sm:text-sm font-semibold border-b-[3px] transition-colors ${selectedTab === value ? 'border-emerald-700 text-emerald-800 bg-white rounded-t-lg' : blockedClosing ? 'border-transparent text-[#a7b1aa] cursor-not-allowed' : 'border-transparent text-[#718078] hover:text-emerald-800'}`}>
+            <Icon size={16} />{label}</button>
+        })}
       </nav>
+      {!openingRecord && <p role="status" className="-mt-5 mb-6 text-sm text-amber-800">Complete Daily Opening for {date} before Daily Closing becomes available.</p>}
       {selectedTab === 'overview' && <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-bold">Financial Overview</h2><p className="text-sm text-[#75857b] mt-1">Live figures from saved financial records · {date}</p></div><span className={`rounded-full px-3 py-1.5 text-xs font-bold ${openingRecord ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{openingRecord ? '● Opening completed' : '● Opening pending'}</span></div>
         <section className="grid grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4" aria-label="Daily finance overview">
@@ -168,8 +177,9 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
             <p className="mt-2 text-sm text-[#173b32]">Opening cash: <strong>{formatMoney(openingRecord.amount)}</strong></p>
             <p className="mt-1 text-xs text-[#617469]">{openingRecord.note || 'Opening recorded successfully.'}</p>
           </div> : <p className="text-xs sm:text-sm text-[#718078]">Enter the cash physically available before sales start.</p>}
-          {openingRecord && canDaily('dailyOpeningEdit') && !editingOpening && <button type="button" onClick={() => setEditingOpening(true)} className="text-xs font-bold text-emerald-800 underline">Edit opening</button>}
-          {(!openingRecord || (editingOpening && canDaily('dailyOpeningEdit'))) && <>
+          {openingRecord && !canEditOpening && <p className="text-xs text-[#718078]">Only an administrator can edit a saved daily opening.</p>}
+          {openingRecord && canEditOpening && !editingOpening && <button type="button" onClick={() => setEditingOpening(true)} className="text-xs font-bold text-emerald-800 underline">Edit opening</button>}
+          {(!openingRecord || (editingOpening && canEditOpening)) && <>
           <label className="flex flex-col gap-1.5 text-xs sm:text-sm font-semibold text-[#173b32]">
             Opening cash in drawer
             <input
@@ -177,7 +187,7 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
               min="0"
               placeholder="0"
               value={opening}
-              disabled={Boolean(openingRecord) && !canDaily('dailyOpeningEdit')}
+              disabled={Boolean(openingRecord) && !canEditOpening}
               onChange={(event) => setOpening(event.target.value)}
               className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
             />
@@ -187,17 +197,17 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
             Opening note (optional)
             <textarea
               value={note}
-              disabled={Boolean(openingRecord) && !canDaily('dailyOpeningEdit')}
+              disabled={Boolean(openingRecord) && !canEditOpening}
               onChange={(event) => setNote(event.target.value)}
               rows="2"
               className="w-full p-3 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
             />
           </label>
 
-          {canDaily('dailyOpeningCreate') || canDaily('dailyOpeningEdit') ? <button
+          {canDaily('dailyOpeningCreate') || canEditOpening ? <button
             type="button"
             className="w-full h-11 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] disabled:opacity-50 text-white text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer active:scale-98"
-            disabled={opening === '' || (openingRecord ? !canDaily('dailyOpeningEdit') : !canDaily('dailyOpeningCreate'))}
+            disabled={opening === '' || (openingRecord ? !canEditOpening : !canDaily('dailyOpeningCreate'))}
             onClick={saveOpening}
           >
             {openingRecord ? 'Update daily opening' : 'Save daily opening'}

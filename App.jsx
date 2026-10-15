@@ -75,6 +75,7 @@ export default function App() {
   const [editingBillId, setEditingBillId] = useState(null)
   const [serverSaleDayStatus, setServerSaleDayStatus] = useState(null)
   const [dailyClosingInitialTab, setDailyClosingInitialTab] = useState('overview')
+  const [openingRedirectToSale, setOpeningRedirectToSale] = useState(false)
   const menuButtonRef = useRef(null)
   const navigationOpenerRef = useRef(null)
   const pendingMutationRef = useRef(new Set())
@@ -130,6 +131,15 @@ export default function App() {
   const activePage = currentPage === 'notifications' ? currentPage : can(pagePermissions[currentPage])
     ? currentPage
     : pageOrder.find((page) => can(pagePermissions[page])) || 'new-sale'
+
+  useEffect(() => {
+    if (!token || !user || authLoading || currentPage !== 'new-sale' || editingBillId || !serverSaleDayStatus) return
+    if (!serverSaleDayStatus.openingCompleted && !serverSaleDayStatus.closingCompleted && can('dailyClosing', 'dailyOpeningCreate')) {
+      setOpeningRedirectToSale(true)
+      setDailyClosingInitialTab('opening')
+      setCurrentPage('closing')
+    }
+  }, [token, user, authLoading, currentPage, editingBillId, serverSaleDayStatus])
 
   const refreshWorkspace = async (activeToken = token) => {
     const workspace = await getWorkspace(activeToken)
@@ -305,6 +315,16 @@ export default function App() {
     setCurrentPage('closing')
   }
 
+  const saveDailyRecord = async (record) => {
+    const saved = await mutate('finance/daily-closing', { body: record })
+    if (saved && record.type === 'opening' && openingRedirectToSale) {
+      setOpeningRedirectToSale(false)
+      setDailyClosingInitialTab('overview')
+      setCurrentPage('new-sale')
+    }
+    return saved
+  }
+
   const changeStatus = (path, status) => mutate(path, { method: 'PATCH', body: { status } })
 
   const openNotification = async (notification) => {
@@ -388,7 +408,7 @@ export default function App() {
       : activePage === 'khata' ? <CustomerKhata customers={customers} payments={database.payments} sales={savedBills} returns={database.returns} installments={database.installments} onNewCustomer={() => { setCustomerReturnPage('khata'); setCurrentPage('new-customer') }} onPayment={(payment) => mutate(`customers/${payment.accountId}/payments`, { body: payment })} onBulkRecovery={(input) => mutate('customers/recovery/bulk', { body: input })} onInstallmentPayment={(id, payment) => mutate(`customers/installments/${id}/payments`, { body: payment })} onStatement={(id) => showStatement('customer', id)} />
       : activePage === 'cheques' ? <ChequeRegister cheques={database.cheques} customers={customers} suppliers={suppliers} onCreate={(cheque) => mutate('cheques', { body: cheque })} onStatusChange={(id, status) => changeStatus(`cheques/${id}/status`, status)} />
       : activePage === 'expenses' ? <ShopExpenses expenses={database.expenses} financeEntries={database.financeEntries} onCreate={(entry) => mutate('finance/entries', { body: entry })} />
-      : activePage === 'closing' ? <DailyClosing database={database} user={user} branchId={branchId} initialTab={dailyClosingInitialTab} onSave={(record) => mutate('finance/daily-closing', { body: record })} onDelete={(id) => mutate(`finance/daily-closing/${id}`, { method: 'DELETE' })} onReviewStock={() => navigateTo('stock')} onAddBank={(account) => mutate('finance/banks', { body: account })} onUpdateBank={(id, changes) => mutate(`finance/banks/${id}`, { method: 'PATCH', body: changes })} onSaveBankBalances={(input) => mutate('finance/banks/balances', { body: input })} onRecordBankTransaction={(id, transaction) => mutate(`finance/banks/${id}/transactions`, { body: transaction })} onCreateCheque={(cheque) => mutate('cheques', { body: cheque })} onUpdateChequeStatus={(id, status, details) => mutate(`cheques/${id}/status`, { method: 'PATCH', body: { status, ...details } })} onUpdateChequeDetails={(id, details) => mutate(`cheques/${id}/details`, { method: 'PATCH', body: details })} />
+      : activePage === 'closing' ? <DailyClosing database={database} user={user} branchId={branchId} initialTab={dailyClosingInitialTab} onSave={saveDailyRecord} onDelete={(id) => mutate(`finance/daily-closing/${id}`, { method: 'DELETE' })} onReviewStock={() => navigateTo('stock')} onAddBank={(account) => mutate('finance/banks', { body: account })} onUpdateBank={(id, changes) => mutate(`finance/banks/${id}`, { method: 'PATCH', body: changes })} onSaveBankBalances={(input) => mutate('finance/banks/balances', { body: input })} onRecordBankTransaction={(id, transaction) => mutate(`finance/banks/${id}/transactions`, { body: transaction })} onCreateCheque={(cheque) => mutate('cheques', { body: cheque })} onUpdateChequeStatus={(id, status, details) => mutate(`cheques/${id}/status`, { method: 'PATCH', body: { status, ...details } })} onUpdateChequeDetails={(id, details) => mutate(`cheques/${id}/details`, { method: 'PATCH', body: details })} />
       : activePage === 'reports' ? <Reports bills={savedBills} customers={customers} database={database} token={token} permissions={user.permissions} />
       : activePage === 'settings' ? <Settings backupData={database} products={database.products} settings={database.settings} token={token} currentUserId={user.id} language={language} canManageSettings={user.role === 'admin' || hasModuleView(user.permissions, 'settings')} canEditSettings={user.role === 'admin' || hasModulePermission(user.permissions, 'settings', 'edit')} canManageLanguage={user.role === 'admin'} canViewActivity={can('activityHistory')} canExportActivity={user.role === 'admin' || hasModulePermission(user.permissions, 'activityHistory', 'export')} onSaveLanguage={saveLanguage} canBackup={user.role === 'admin' || user.permissions?.admin} onSaveSettings={(settings) => mutate('admin/settings', { method: 'PATCH', body: settings })} onImport={(backup) => mutate('admin/backup/restore', { body: { backup } })} />
       : !editingBillId && !saleDay.canCreateSale ? <SaleAccessGate status={saleDay} onOpenDailyOpening={openDailyOpening} />
