@@ -34,7 +34,7 @@ export default function SupplierReturns({ purchases = [], returns = [], onSubmit
         YOUR WHOLESALE WORKSPACE
       </p>
       <h1 className="text-[#173b32] text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
-        Supplier returns
+        Supplier return history
       </h1>
       <p className="mt-1 text-xs sm:text-sm text-[#718078] mb-6 sm:mb-8">
         Return received stock against its original purchase. The return reduces on hand stock and supplier due.

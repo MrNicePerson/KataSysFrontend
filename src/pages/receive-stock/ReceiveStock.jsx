@@ -8,7 +8,7 @@ import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 
 const money = (amount) => `Rs. ${Number(amount || 0).toLocaleString()}`
 
-export default function ReceiveStock({ suppliers = [], purchases = [], cheques = [], onSave }) {
+export default function ReceiveStock({ suppliers = [], products = [], purchases = [], cheques = [], onSave }) {
   const [adding, setAdding] = useState(false)
   const [editingPurchase, setEditingPurchase] = useState(null)
   const [message, setMessage] = useState('')
@@ -38,11 +38,14 @@ export default function ReceiveStock({ suppliers = [], purchases = [], cheques =
       setAdding(false)
       setEditingPurchase(null)
       if (!delivery.purchaseId) setSelectedPurchase(saved)
-      setMessage(delivery.purchaseId
-        ? `Delivery ${receivingLabel(saved)} updated.`
+      setMessage(delivery.appendStock
+        ? `Stock added to delivery ${receivingLabel(saved)}.`
+        : delivery.purchaseId
+          ? `Delivery ${receivingLabel(saved)} updated.`
         : `Delivery ${receivingLabel(saved)} recorded. Receiving bill is ready to print.`)
     } catch (error) {
       setMessage(error.message || 'Could not save delivery.')
+      throw error
     }
   }
 
@@ -75,7 +78,7 @@ export default function ReceiveStock({ suppliers = [], purchases = [], cheques =
           type="button"
           onClick={() => setAdding(true)}
         >
-          + New delivery
+          + Add New Delivery
         </button>
       </div>
 
@@ -102,6 +105,7 @@ export default function ReceiveStock({ suppliers = [], purchases = [], cheques =
       {adding && (
         <NewDeliveryModal
           suppliers={suppliers}
+          products={products}
           purchases={purchases}
           existingCheques={cheques}
           initialPurchase={editingPurchase}

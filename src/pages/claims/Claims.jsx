@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import FormDialog from '../../components/FormDialog/FormDialog.jsx'
 
-export default function Claims({ claims = [], products = [], suppliers = [], onCreate, onStatusChange, onUpdateDetails }) {
+export default function Claims({ claims = [], products = [], suppliers = [], customers = [], onCreate, onStatusChange, onUpdateDetails }) {
   const [productId, setProductId] = useState('')
   const [supplierId, setSupplierId] = useState('')
   const [quantity, setQuantity] = useState('1')
@@ -110,6 +110,7 @@ export default function Claims({ claims = [], products = [], suppliers = [], onC
             <tr>
               <th className="px-4 sm:px-6 py-3.5">Date</th>
               <th className="px-4 sm:px-6 py-3.5">Product</th>
+              <th className="px-4 sm:px-6 py-3.5">Customer / sale</th>
               <th className="px-4 sm:px-6 py-3.5">Supplier</th>
               <th className="px-4 sm:px-6 py-3.5">Qty</th>
               <th className="px-4 sm:px-6 py-3.5">Reason</th>
@@ -124,7 +125,12 @@ export default function Claims({ claims = [], products = [], suppliers = [], onC
                 <tr key={claim.id} data-keyboard-row tabIndex={0} className="hover:bg-[#f8faf7]">
                   <td className="px-4 sm:px-6 py-4 text-[#718078]">{claim.date}</td>
                   <td className="px-4 sm:px-6 py-4 font-semibold text-[#173b32]">
-                    {products.find((p) => p.id === claim.productId)?.name || '—'}
+                    {products.find((p) => p.id === claim.productId)?.name || claim.productName || '—'}
+                  </td>
+                  <td className="px-4 sm:px-6 py-4 text-[#718078]">
+                    {claim.sourceType === 'customer-return'
+                      ? `${customers.find((customer) => customer.id === claim.customerId)?.name || claim.customer || 'Customer'} · ${claim.saleNumber || claim.sourceSaleId || 'Sale'}`
+                      : '—'}
                   </td>
                   <td className="px-4 sm:px-6 py-4 font-medium">
                     {suppliers.find((s) => s.id === claim.supplierId)?.name || '—'}
@@ -176,7 +182,7 @@ export default function Claims({ claims = [], products = [], suppliers = [], onC
               ))
             ) : (
               <tr>
-                <td colSpan="8" className="px-4 sm:px-6 py-8 text-center text-[#718078]">
+                <td colSpan="9" className="px-4 sm:px-6 py-8 text-center text-[#718078]">
                   No claims recorded.
                 </td>
               </tr>

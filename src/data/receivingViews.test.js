@@ -148,7 +148,7 @@ test('supplier receiving details include a printable itemized bill and payment b
 
 test('keyboard sidebar exposes every top-level page and respects permissions', () => {
   const all = render(Sidebar, { activePage: 'new-sale', role: 'admin' })
-  for (const label of ['New sale', 'New customer', 'Bills &amp; receipts', 'Customer returns', 'Orders &amp; held bills', 'Stock &amp; products', 'Receive stock', 'Supplier returns', 'Defects &amp; claims', 'Suppliers', 'Customer khata', 'Cheque register', 'Shop expenses', 'Daily closing', 'Reports', 'Settings']) {
+  for (const label of ['New sale', 'New customer', 'Bills &amp; receipts', 'Customer Returns', 'Orders &amp; held bills', 'Stock &amp; products', 'Receive stock', 'Supplier return history', 'Defects &amp; claims', 'Suppliers', 'Customer khata', 'Cheque register', 'Shop expenses', 'Daily closing', 'Reports', 'Settings']) {
     assert.ok(all.includes(label), label)
   }
   const restricted = render(Sidebar, { activePage: 'stock', role: 'staff', permissions: { stock: true } })

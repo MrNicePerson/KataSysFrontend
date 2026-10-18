@@ -61,6 +61,13 @@ export const getCurrentUser = (token) =>
     token,
   })
 
+export const changePassword = (token, passwords) =>
+  apiRequest('auth/change-password', {
+    token,
+    method: 'POST',
+    body: passwords,
+  })
+
 // Workspace
 export const getWorkspace = (token) =>
   apiRequest('workspace', {

@@ -4,8 +4,9 @@ import ProductInputDemo from '../../components/ProductInputDemo/ProductInputDemo
 import ActivityHistory from '../../components/ActivityHistory/ActivityHistory.jsx'
 import UserAdministration from '../../components/UserAdministration/UserAdministration.jsx'
 import LanguageSettings from '../../components/LanguageSettings/LanguageSettings.jsx'
+import ChangePassword from '../../components/ChangePassword/ChangePassword.jsx'
 
-export default function Settings({ backupData, onImport, settings, onSaveSettings, onSaveLanguage, language = 'en', canManageSettings = false, canEditSettings = false, canManageLanguage = false, canViewActivity = false, canExportActivity = false, products = [], canBackup = false, token, currentUserId }) {
+export default function Settings({ backupData, onImport, settings, onSaveSettings, onSaveLanguage, onChangePassword, language = 'en', canManageSettings = false, canEditSettings = false, canManageLanguage = false, canViewActivity = false, canExportActivity = false, products = [], canBackup = false, token, currentUserId }) {
   return (
     <main className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-8 lg:py-10">
       <p className="text-[#70847b] text-xs sm:text-[13px] font-bold tracking-[3px] uppercase mb-1">
@@ -19,6 +20,8 @@ export default function Settings({ backupData, onImport, settings, onSaveSetting
       </p>
 
       {canManageSettings && canManageLanguage && <div className="mb-6"><LanguageSettings value={language} onSave={onSaveLanguage} /></div>}
+
+      <div className="mb-6"><ChangePassword onChangePassword={onChangePassword} /></div>
 
       {canManageSettings && <>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

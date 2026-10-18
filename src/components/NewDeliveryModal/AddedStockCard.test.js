@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { transformSync } from 'rolldown/utils'
-import { createEmptyDatabase, createAccount, receivePurchase } from '../../../Backend/src/domain/businessLogic.js'
+import { createEmptyDatabase, createAccount, receivePurchase } from '../../../../KataSysBackend-main/src/domain/businessLogic.js'
 
 async function componentUrl(url) {
   const path = new URL(url)
@@ -17,7 +17,7 @@ async function componentUrl(url) {
   }
   return `data:text/javascript;base64,${Buffer.from(resolved).toString('base64')}`
 }
-const { AddedStockCard, PaymentDetails, calculateStockPayment, prepareStockPayment, getReceivingBanks } = await import(await componentUrl(new URL('./NewDeliveryModal.jsx', import.meta.url).href))
+const { default: NewDeliveryModal, AddedStockCard, PaymentDetails, calculateStockPayment, prepareStockPayment, getReceivingBanks } = await import(await componentUrl(new URL('./NewDeliveryModal.jsx', import.meta.url).href))
 const render = (items) => renderToStaticMarkup(createElement(AddedStockCard, { items, onRemove() {} }))
 const item = { id: 'one', productName: 'Lawn Suit', articleNumber: 'L-1', batchNumber: 'BATCH-01', season: 'Summer', quantity: 3, unitCost: 1250.25, salePrice: 1700.5 }
 
@@ -56,6 +56,24 @@ test('product and batch text are safely escaped', () => {
   const html = render([{ ...item, productName: '<script>alert(1)</script>', batchNumber: '<b>batch</b>' }])
   assert.ok(!html.includes('<script>'))
   assert.ok(html.includes('&lt;b&gt;batch&lt;/b&gt;'))
+})
+
+test('new and existing deliveries expose separate receiving workflows', () => {
+  const suppliers = [{ id: 'supplier-1', name: 'Textiles', supplierCode: 'TX' }]
+  const newDelivery = renderToStaticMarkup(createElement(NewDeliveryModal, { suppliers, purchases: [], onClose() {}, onSave() {} }))
+  assert.ok(newDelivery.includes('+ Add Item to Delivery'))
+  assert.ok(newDelivery.includes('Save Delivery &amp; Add Stock'))
+  assert.ok(!newDelivery.includes('+ Add Stock to This Delivery'))
+  const existingDelivery = renderToStaticMarkup(createElement(NewDeliveryModal, {
+    suppliers,
+    purchases: [{ id: 'purchase-1', supplierId: 'supplier-1', date: '2026-10-18', batchNumber: 'TX-18102026-001', supplierBillNumber: 1, items: [item], total: 3750.75, paid: 0, due: 3750.75, payments: { cash: 0 } }],
+    initialPurchase: { id: 'purchase-1', supplierId: 'supplier-1', date: '2026-10-18', batchNumber: 'TX-18102026-001', supplierBillNumber: 1, items: [item], total: 3750.75, paid: 0, due: 3750.75, payments: { cash: 0 } },
+    onClose() {},
+    onSave() {},
+  }))
+  assert.ok(existingDelivery.includes('+ Add Stock to This Delivery'))
+  assert.ok(existingDelivery.includes('Save delivery changes'))
+  assert.ok(!existingDelivery.includes('Save Delivery &amp; Add Stock'))
 })
 
 test('stock payment summary recalculates for additions, removals, partial and full payments', () => {
@@ -159,11 +177,22 @@ test('payment UI shows the totals and all four selectable methods', () => {
   assert.ok(empty.includes('disabled=""'))
 })
 
+test('cheque payment totals appear in the delivery-only amount paid and remaining balance', () => {
+  const html = renderToStaticMarkup(createElement(PaymentDetails, {
+    items: [item],
+    method: 'cheque',
+    amountPaid: '0',
+    cheques: [{ id: 'cheque-1', number: 'CH-1', bank: 'Bank', amount: '150' }],
+  }))
+  assert.ok(html.includes('Rs. 150.00'))
+  assert.ok(html.includes('Rs. 3,600.75'))
+})
+
 test('added stock sidebar keeps a compact payment breakdown beside the items', () => {
   const html = renderToStaticMarkup(createElement(AddedStockCard, {
     items: [item], onRemove() {}, paymentMethod: 'split', splitCash: '100', splitBank: '200',
     bankDetails: { bankName: 'Main Bank', accountNumber: '001' },
     cheques: [{ id: 'c1', number: 'CH-1', bank: 'Cheque Bank', amount: 300 }],
   }))
-  for (const text of ['Product', 'Quantity', 'Batch number', 'Cost per suit', 'Sale price per suit', 'Total cost', 'Payment Summary', 'Stock Total', 'Cash Paid', 'Bank Paid', 'Cheque Paid', 'Total Paid', 'Remaining Supplier Balance', 'Rs. 100.00', 'Rs. 200.00', 'Rs. 300.00', 'Rs. 600.00', 'Main Bank', 'CH-1', 'Cheque Bank']) assert.ok(html.includes(text), text)
+  for (const text of ['Article Name', 'Quantity', 'Batch number', 'Cost per suit', 'Sale price per suit', 'Total cost', 'Payment Summary', 'Stock Total', 'Cash Paid', 'Bank Paid', 'Cheque Paid', 'Total Paid', 'Remaining Supplier Balance', 'Rs. 100.00', 'Rs. 200.00', 'Rs. 300.00', 'Rs. 600.00', 'Main Bank', 'CH-1', 'Cheque Bank']) assert.ok(html.includes(text), text)
 })

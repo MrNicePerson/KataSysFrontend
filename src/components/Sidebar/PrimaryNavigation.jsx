@@ -1,12 +1,11 @@
 const links = [
   ['▤', 'Bills & receipts'],
-  ['↩', 'Customer returns'],
+  ['↩', 'Customer Returns'],
   ['▧', 'Orders & held bills'],
-  ['↗', 'Supplier returns'],
+  ['↗', 'Supplier return history'],
   ['⚠', 'Defects & claims'],
 ]
 
 export default function PrimaryNavigation({ renderLink }) {
   return <>{links.map(([icon, label]) => renderLink(icon, label))}</>
 }
-
