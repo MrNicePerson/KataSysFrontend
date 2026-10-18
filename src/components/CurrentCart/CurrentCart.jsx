@@ -1,0 +1,367 @@
+import { ChevronDown, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+
+export default function CurrentCart({ items, discount, onDiscountChange, onAddReturn, onReturnAdded, onRemoveItem, onUpdateItem, onSaveBill, onHoldBill, onClear, purchasedItems = [], saleSubtotal: saleSubtotalProp, returnTotal: returnTotalProp, refundType = 'cash', onRefundTypeChange, saving = false }) {
+  const [returnItem, setReturnItem] = useState({ itemCode: '', quantity: 1, condition: 'Return' })
+  const [returnError, setReturnError] = useState('')
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const saleItems = items.filter((item) => !item.isReturn && !item.returnQuantity)
+  const returnItems = items.filter((item) => item.isReturn || item.returnQuantity)
+  const subtotal = Number(saleSubtotalProp ?? saleItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.price || 0), 0))
+  const returnTotal = Number(returnTotalProp ?? returnItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Math.abs(Number(item.price || 0)), 0))
+  const settlementBalance = subtotal - Number(discount || 0) - returnTotal
+  const total = Math.max(0, settlementBalance)
+  const itemCount = saleItems.reduce((sum, item) => sum + item.quantity, 0)
+  const [selectedPurchasedItem, setSelectedPurchasedItem] = useState(null)
+
+  const handleChange = (field, value) => {
+    setReturnItem((previous) => ({ ...previous, [field]: value }))
+    if (field === 'itemCode') setSelectedPurchasedItem(null)
+    if (returnError) setReturnError('')
+  }
+  const itemSuggestions = purchasedItems.filter((item) => {
+    const query = returnItem.itemCode.trim().toLowerCase()
+    if (!query) return false
+    const code = item.code || item.articleNumber || item.article || item.name || ''
+    return `${code} ${item.name || ''}`.toLowerCase().includes(query)
+  }).slice(0, 8)
+  const handleReturn = (event) => {
+    event.preventDefault()
+    const code = returnItem.itemCode.trim()
+    const quantity = Number(returnItem.quantity)
+    if (!code) {
+      setReturnError('')
+      onReturnAdded?.()
+      return
+    }
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      setReturnError('')
+      onReturnAdded?.()
+      return
+    }
+    const codeMatches = (item) => [item.code, item.articleNumber, item.id, item.name]
+      .filter(Boolean)
+      .some((value) => String(value).trim().toLowerCase() === code.toLowerCase())
+    const matchingPurchases = purchasedItems.filter((item) => codeMatches(item))
+    const purchasedItem = selectedPurchasedItem && codeMatches(selectedPurchasedItem)
+      ? selectedPurchasedItem
+      : matchingPurchases.length === 1 ? matchingPurchases[0] : null
+    if (!purchasedItem) {
+      setReturnError('Choose the exact previous sale and item from the suggestions.')
+      return
+    }
+    const alreadyAddedHere = returnItems.filter((item) => item.originalSaleId === purchasedItem.originalSaleId && item.originalSaleLineId === purchasedItem.lineId)
+      .reduce((sum, item) => sum + Number(item.returnQuantity ?? item.quantity ?? 0), 0)
+    const remainingReturnQuantity = Math.max(0, Number(purchasedItem.remainingReturnQuantity || 0) - alreadyAddedHere)
+    if (quantity > remainingReturnQuantity) {
+      setReturnError(`Only ${remainingReturnQuantity} item(s) remain returnable from ${purchasedItem.originalSaleNumber || 'that sale'}.`)
+      return
+    }
+    const added = onAddReturn({
+      code,
+      quantity,
+      condition: returnItem.condition,
+      originalSaleId: purchasedItem.originalSaleId,
+      originalSaleLineId: purchasedItem.lineId,
+    })
+    if (added === false) return
+    setReturnItem((previous) => ({ ...previous, itemCode: '', quantity: 1 }))
+    setSelectedPurchasedItem(null)
+    setReturnError('')
+    onReturnAdded?.()
+  }
+
+  return (
+    <section className="p-4 sm:p-6 lg:p-7 rounded-2xl bg-white border border-[#e2e6df] shadow-panel hover:border-[#155b4b]/20 hover:shadow-panel-hover transition-all flex flex-col">
+      <div className="flex items-center justify-between gap-3 pb-4 border-b border-[#edf0eb]">
+        <h2 className="text-[#173b32] text-lg sm:text-xl lg:text-2xl font-semibold leading-tight">
+          Current cart
+        </h2>
+        <span className="px-3 py-1 rounded-lg bg-[#e8f2e3] text-[#557250] text-xs sm:text-sm font-semibold whitespace-nowrap">
+          {itemCount} suits
+        </span>
+      </div>
+
+      {saleItems.length ? (
+        <div data-keyboard-scope className="divide-y divide-[#edf0eb] my-3">
+          {saleItems.map((item) => (
+            <div className="py-3 flex flex-col gap-3 text-sm" key={item.id}>
+              <div className="flex-1 min-w-0">
+                <strong className="block whitespace-normal break-words text-[#12332d] font-semibold text-sm sm:text-base">{item.articleNumber || item.article || item.code || item.name}</strong>
+                <small className="block whitespace-normal break-words text-[#718078] text-xs font-medium">Brand Name: {item.name}</small>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-start gap-3 self-start max-w-full">
+                <label className="flex items-center gap-1.5 text-xs text-[#718078] font-semibold">
+                  Qty
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-14 h-8 px-1.5 text-center rounded-lg border border-[#dfe4dc] text-sm text-[#12332d] font-medium focus:outline-none focus:border-[#155b4b]"
+                    value={item.quantity}
+                    onKeyDown={(event) => {
+                      if (['ArrowUp', 'ArrowDown'].includes(event.key)) event.preventDefault()
+                    }}
+                    onChange={(event) => onUpdateItem(item.id, 'quantity', event.target.value)}
+                    onBlur={() => {
+                      if (!Number(item.quantity)) onUpdateItem(item.id, 'quantity', '1')
+                    }}
+                  />
+                </label>
+
+                <label className="flex items-center gap-1.5 text-xs text-[#718078] font-semibold">
+                  Rate
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-20 h-8 px-1.5 text-center rounded-lg border border-[#dfe4dc] text-sm text-[#12332d] font-medium focus:outline-none focus:border-[#155b4b]"
+                    value={item.price}
+                    onChange={(event) => onUpdateItem(item.id, 'price', event.target.value)}
+                    onBlur={() => {
+                      if (item.price === '') onUpdateItem(item.id, 'price', '0')
+                    }}
+                  />
+                </label>
+
+                <div className="text-right min-w-[70px]">
+                  <strong className="block text-[#12332d] text-sm sm:text-base font-bold">
+                    Rs. {((Number(item.quantity) || 0) * (Number(item.price) || 0)).toLocaleString()}
+                  </strong>
+                </div>
+
+                <button
+                  type="button"
+                  aria-label={`Remove ${item.name}`}
+                  className="w-8 h-8 grid place-items-center rounded-lg border border-[#e2e6df] text-[#718078] hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors cursor-pointer"
+                  onClick={() => onRemoveItem(item.id)}
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="py-10 text-center text-[#7b857e] text-sm sm:text-base font-normal">
+          Your added items will appear here.
+        </p>
+      )}
+
+      {/* Return section */}
+      <section className="mt-4 p-4 rounded-xl bg-[#f8faf4] border border-[#dfe4dc]" aria-labelledby="return-customer-heading">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <h3 id="return-customer-heading" className="text-[#173b32] text-sm sm:text-base font-semibold leading-snug">
+            Return item from this customer
+          </h3>
+          <span className="px-2.5 py-0.5 rounded-md bg-[#e8f2e3] text-[#557250] text-xs font-semibold whitespace-nowrap">
+            {returnItems.length} {returnItems.length === 1 ? 'return' : 'returns'}
+          </span>
+        </div>
+        <p className="text-xs text-[#6f7b74] mb-3">
+          Select an item from the customer’s previous sale to add it to this return or exchange.
+        </p>
+
+        <form className="space-y-3" onSubmit={handleReturn}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <label className="relative flex flex-col gap-1 text-xs font-semibold text-[#173b32]">
+              Item code
+              <input
+                id="sale-return-code"
+                name="returnCode"
+                type="text"
+                autoComplete="off"
+                placeholder="Scan / type code"
+                className="w-full h-10 px-3 rounded-lg border border-[#d9e0d9] bg-white text-xs sm:text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
+                value={returnItem.itemCode}
+                onChange={(event) => { handleChange('itemCode', event.target.value); setSuggestionsOpen(true) }}
+              />
+              {suggestionsOpen && itemSuggestions.length > 0 && <div className="absolute z-40 left-0 right-0 top-full mt-1 max-h-44 overflow-y-auto rounded-lg border border-[#dfe4dc] bg-white shadow-lg">
+                {itemSuggestions.map((item) => {
+                  const code = item.code || item.articleNumber || item.article || item.name
+                  return code ? <button key={`${item.originalSaleId}-${item.lineId || code}`} type="button" className="block w-full px-3 py-2 text-left text-xs text-[#173b32] hover:bg-[#e8f2e3]" onMouseDown={(event) => event.preventDefault()} onClick={() => { setReturnItem((previous) => ({ ...previous, itemCode: code })); setSelectedPurchasedItem(item); setSuggestionsOpen(false) }}><strong>{code}</strong>{item.name && item.name !== code ? <span className="ml-2 text-[#718078]">{item.name}</span> : null}<small className="ml-2 text-[#718078]">Bill {item.originalSaleNumber} · {item.remainingReturnQuantity} returnable</small></button> : null
+                })}
+              </div>}
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-semibold text-[#173b32]">
+              Quantity
+              <input
+                name="returnQuantity"
+                type="number"
+                min="1"
+                step="1"
+                className="w-full h-10 px-3 rounded-lg border border-[#d9e0d9] bg-white text-xs sm:text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
+                value={returnItem.quantity}
+                onKeyDown={(event) => {
+                      if (['ArrowUp', 'ArrowDown'].includes(event.key)) event.preventDefault()
+                    }}
+                    onChange={(event) => handleChange('quantity', event.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2.5 items-end">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-[#173b32]">
+              Condition
+              <div className="relative">
+                <select
+                  name="condition"
+                  className="w-full h-10 pl-3 pr-8 rounded-lg border border-[#d9e0d9] bg-white text-xs sm:text-sm text-[#173b32] appearance-none focus:outline-none focus:border-[#155b4b]"
+                  value={returnItem.condition}
+                  onChange={(event) => handleChange('condition', event.target.value)}
+                >
+                  <option>Replace</option>
+                  <option>Defective</option>
+                  <option>Return</option>
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#718078] pointer-events-none" />
+              </div>
+            </label>
+
+            <button
+              className="w-full sm:w-auto h-10 px-4 rounded-lg bg-[#155b4b] hover:bg-[#104b3e] text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap shadow-xs active:scale-98"
+              type="submit"
+            >
+              Add return
+            </button>
+          </div>
+        </form>
+
+        {returnError && (
+          <p className="mt-2 text-xs text-red-600 font-medium" role="alert">
+            {returnError}
+          </p>
+        )}
+      </section>
+
+      {returnItems.length > 0 && (
+        <ul className="mt-3 divide-y divide-[#edf0eb] border border-[#e5e9df] rounded-xl p-2 bg-white" aria-label="Added return items">
+          {returnItems.map((item) => (
+            <li className="py-2 px-1 flex items-center justify-between gap-2 text-xs sm:text-sm text-[#12332d]" key={item.id}>
+              <div>
+                <strong className="block font-semibold">{item.returnCode || item.name}</strong>
+                <small className="text-[#718078]">
+                  {item.quantity} {item.quantity === 1 ? 'item' : 'items'} · {item.returnLabel || (item.returnCondition === 'sellable' ? 'Return' : item.returnCondition === 'damaged' ? 'Defective' : 'Replace')}
+                </small>
+              </div>
+              <div className="flex items-center gap-3">
+                <strong className="text-red-700">Rs. {(item.quantity * Math.abs(item.price)).toLocaleString()}</strong>
+                <button
+                  type="button"
+                  aria-label={`Remove return ${item.returnCode || item.name}`}
+                  className="w-7 h-7 grid place-items-center rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                  onClick={() => onRemoveItem(item.id)}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Totals Calculation */}
+      <div className="mt-6 space-y-3 pt-4 border-t border-[#edf0eb]">
+        <div className="flex justify-between items-center text-sm sm:text-base text-[#29443b]">
+          <span>Sale subtotal</span>
+          <strong className="font-bold">Rs. {subtotal.toLocaleString()}</strong>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs sm:text-sm font-semibold text-[#29443b]">
+            Discount (Rs.)
+          </label>
+          <input
+            type="number"
+            className="w-full h-10 sm:h-11 px-3.5 rounded-xl border border-[#dfe4dc] text-sm sm:text-base text-[#29443b] focus:outline-none focus:border-[#155b4b] focus:ring-2 focus:ring-[#155b4b]/15"
+            id="sale-discount"
+            value={discount}
+            onKeyDown={(event) => {
+              if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return
+              if (!['Enter', 'PageUp', 'PageDown', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
+              event.preventDefault()
+              const root = event.currentTarget.closest('main')
+              if (event.key === 'Enter') {
+                event.stopPropagation()
+                if (!event.repeat && !event.shiftKey) root?.querySelector('#sale-save-preview:not(:disabled)')?.click()
+                return
+              }
+              if (event.key === 'ArrowUp' || event.key === 'PageUp') root?.querySelector('#sale-return-code')?.focus()
+              if (event.key === 'ArrowDown') root?.querySelector('#sale-save-preview:not(:disabled)')?.focus()
+            }}
+            onChange={(event) => onDiscountChange(Number(event.target.value))}
+            min="0"
+            max={Math.max(0, subtotal)}
+          />
+        </div>
+        {returnItems.length > 0 && <div className="flex justify-between items-center text-sm text-[#29443b]">
+          <span>Returned goods value</span>
+          <strong className="font-bold">− Rs. {returnTotal.toLocaleString()}</strong>
+        </div>}
+      </div>
+
+      {settlementBalance < 0 && <div className="mb-3 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-sm font-semibold">
+        Refund Payable to Customer: Rs. {Math.abs(settlementBalance).toLocaleString()}
+        <label className="mt-3 flex items-center gap-2 text-xs font-medium">
+          Refund method
+          <select value={refundType} onChange={(event) => onRefundTypeChange?.(event.target.value)} className="h-9 px-2 rounded-lg border border-blue-200 bg-white">
+            <option value="cash">Cash refund</option>
+            <option value="khata">Credit to customer account</option>
+          </select>
+        </label>
+      </div>}
+      {settlementBalance > 0 && returnItems.length > 0 && <p className="mb-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm font-semibold">
+        Additional Payment Due from Customer: Rs. {settlementBalance.toLocaleString()}
+      </p>}
+      {settlementBalance === 0 && returnItems.length > 0 && <p className="mb-3 p-3 rounded-xl bg-[#eaf3e7] border border-[#d2e4ce] text-[#155b4b] text-sm font-semibold">
+        No Additional Payment or Refund Required.
+      </p>}
+
+      <div className="my-5 p-4 sm:p-5 rounded-xl bg-[#f1f6ea] border border-[#e2ebd7] flex justify-between items-center">
+        <span className="text-xs sm:text-sm font-semibold text-[#173b32] uppercase tracking-wider">{settlementBalance < 0 ? 'Refund amount' : 'Amount due'}</span>
+        <strong className="text-xl sm:text-2xl lg:text-3xl font-bold text-[#155b4b]">
+          Rs. {total.toLocaleString()}
+        </strong>
+      </div>
+
+      {/* Actions */}
+      <div className="space-y-3 mt-auto">
+        <button
+          className="w-full h-12 sm:h-14 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] disabled:opacity-50 disabled:cursor-not-allowed text-white text-base sm:text-lg font-bold transition-all shadow-md active:scale-98 cursor-pointer flex items-center justify-center gap-2"
+          type="button"
+          disabled={!items.length || saving}
+          id="sale-save-preview"
+          onClick={() => onSaveBill({ subtotal, discount, total, items, refundType })}
+        >
+          {saving ? 'Saving…' : 'Save & preview bill →'}
+        </button>
+
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            className="h-11 rounded-xl border border-[#e2e6df] bg-white hover:bg-[#f6f8f1] disabled:opacity-50 disabled:cursor-not-allowed text-[#12332d] text-xs sm:text-sm font-semibold transition-all cursor-pointer active:scale-98"
+            disabled={!items.length || saving}
+            onClick={() => onHoldBill('held')}
+          >
+            Hold bill
+          </button>
+          <button
+            type="button"
+            className="h-11 rounded-xl border border-[#e2e6df] bg-white hover:bg-[#f6f8f1] disabled:opacity-50 disabled:cursor-not-allowed text-[#12332d] text-xs sm:text-sm font-semibold transition-all cursor-pointer active:scale-98"
+            disabled={!items.length || saving}
+            onClick={() => onHoldBill('quotation')}
+          >
+            Save quote
+          </button>
+          <button
+            type="button"
+            className="h-11 rounded-xl border border-[#e2e6df] bg-white hover:bg-red-50 hover:text-red-700 hover:border-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-[#12332d] text-xs sm:text-sm font-semibold transition-all cursor-pointer active:scale-98"
+            disabled={!items.length || saving}
+            onClick={onClear}
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+    </section>
+  )
+}

@@ -1,0 +1,18 @@
+export const toPaymentNumber = (value) => {
+  const number = Number(value)
+  return Number.isFinite(number) && number > 0 ? number : 0
+}
+
+export function calculatePaymentSummary(totalBill, payment = {}) {
+  const cash = toPaymentNumber(payment.cash)
+  const bank = toPaymentNumber(payment.bankTransfer ?? payment.bank)
+  const cheque = toPaymentNumber(payment.cheque)
+  const totalReceived = cash + bank + cheque
+  const cashAndBankReceived = cash + bank
+  const pendingCheque = cheque
+  // A received cheque remains pending until it clears, so it does not reduce
+  // the customer's khata balance yet.
+  const uncoveredBalance = Math.max(0, totalBill - cashAndBankReceived)
+  const excessPayment = Math.max(0, totalReceived - totalBill)
+  return { cash, bank, cheque, totalReceived, cashAndBankReceived, pendingCheque, uncoveredBalance, excessPayment }
+}
