@@ -1,4 +1,5 @@
-import AddBankForm from '../../components/AddBankForm/AddBankForm.jsx'
+import { BANK_OPTIONS } from '../../components/Payment/Payment.jsx'
+import { dailyBankReceipts } from '../../data/dailyBankReceipts.js'
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Wallet, Landmark, TrendingUp, TrendingDown, Banknote, CalendarDays, ArrowRightLeft, ReceiptText, History, ShieldCheck } from 'lucide-react'
 import { calculateBankBalanceSummary, calculateDailyProfit } from '../../data/businessLogic.js'
@@ -18,6 +19,7 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
   const movement = calculateDailyClosing(database, date)
   const bankSummary = calculateBankBalanceSummary(database, date)
   const profit = calculateDailyProfit(database, date)
+  const bankReceipts = dailyBankReceipts(database, date, BANK_OPTIONS.map(bank => bank.name))
   const formatMoney = (value) => `Rs. ${Number(value || 0).toLocaleString()}`
   const matchesBranch = (entry) => String(entry.branchId || 'default') === String(branchId || 'default')
   const openingRecord = database.dailyClosings.find((entry) => entry.date === date && entry.type === 'opening' && matchesBranch(entry))
@@ -148,15 +150,15 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
           </article>)}
         </section>
         {canDaily('bankBalances') && <section className="rounded-2xl border border-[#e3eae5] bg-white p-5 sm:p-6 shadow-sm" aria-label="Saved bank balances">
-          <div className="flex items-center justify-between gap-3 mb-5"><div><h2 className="text-lg font-bold">Banks &amp; Wallets</h2><p className="text-xs text-[#75857b] mt-1">Individual balances for your saved accounts</p></div><button type="button" onClick={() => setActiveTab('summary')} className="text-xs font-bold text-emerald-800 hover:underline">Manage accounts →</button></div>
-          {bankSummary.accounts?.filter((row) => (database.bankAccounts || []).some((account) => account.id === row.accountId && account.active !== false)).length ? <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-            {bankSummary.accounts.filter((row) => (database.bankAccounts || []).some((account) => account.id === row.accountId && account.active !== false)).map((row) => <article key={row.accountId} className="rounded-xl border border-[#e4eae5] bg-[#fbfdfb] p-4">
-              <div className="flex items-center gap-2"><span className="grid place-items-center w-8 h-8 bg-[#e9f4ed] rounded-lg"><Landmark size={16} className="text-emerald-800" /></span><p className="text-sm font-semibold text-[#31473c] break-words">{(database.bankAccounts || []).find((account) => account.id === row.accountId)?.name || 'Account'}</p></div>
-              <strong className="block mt-4 text-lg text-emerald-800">{formatMoney(row.currentBalance)}</strong><p className="text-[11px] text-[#85938b] mt-1">Available balance</p>
+          <div className="mb-5"><h2 className="text-lg font-bold">Banks &amp; Wallets</h2><p className="text-xs text-[#75857b] mt-1">Money received on {date}</p></div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {bankReceipts.accounts.map((row) => <article key={row.name} className="rounded-xl border border-[#e4eae5] bg-[#fbfdfb] p-4">
+              <div className="flex items-center gap-2"><Landmark size={18} className="text-emerald-800" /><p className="text-sm font-semibold text-[#31473c]">{row.name}</p></div>
+              <strong className="block mt-4 text-lg text-emerald-800">{formatMoney(row.amount)}</strong><p className="text-[11px] text-[#85938b] mt-1">Received today</p>
             </article>)}
-          </div> : <p className="text-sm text-[#718078]">No saved bank accounts. Add accounts in Banks &amp; Wallets.</p>}
-          {canDaily('bankBalances') && <AddBankForm onAddBank={onAddBank} />}
-          <div className="mt-5 pt-4 border-t border-[#e5ece7] flex justify-between items-center"><span className="text-sm font-semibold text-[#5c7266]">Combined bank balance</span><strong className="text-xl text-emerald-800">{formatMoney(bankSummary.currentTotal)}</strong></div>
+          </div>
+          {bankReceipts.unassigned > 0 && <p className="mt-3 text-xs text-[#718078]">Bank not specified: {formatMoney(bankReceipts.unassigned)}</p>}
+          <div className="mt-5 pt-4 border-t border-[#e5ece7] flex justify-between items-center"><span className="text-sm font-semibold text-[#5c7266]">Total received in banks today</span><strong className="text-xl text-emerald-800">{formatMoney(bankReceipts.total)}</strong></div>
         </section>}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <section className="rounded-2xl bg-white border border-[#e3eae5] p-5 sm:p-6 shadow-sm"><h3 className="text-lg font-bold mb-4">Cash Position</h3><div className="space-y-3">{[['Opening Cash', openingRecord?.amount || 0], ['Cash Sales', movement.cashSales], ['Customer Recoveries', movement.customerPayments], ['Cash Refunds', -movement.cashRefunds], ['Cash Expenses', -movement.cashExpenses], ['Supplier Payments', -movement.supplierPayments]].map(([label, amount]) => <div key={label} className="flex justify-between gap-3 text-sm"><span className="text-[#718078]">{label}</span><strong className={amount < 0 ? 'text-rose-700' : 'text-[#244c3f]'}>{formatMoney(amount)}</strong></div>)}</div><div className="border-t mt-4 pt-4 flex justify-between gap-3"><strong>Expected Cash</strong><strong className="text-emerald-800">{formatMoney(movement.expectedCash)}</strong></div></section>
