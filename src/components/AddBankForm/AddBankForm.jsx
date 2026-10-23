@@ -1,9 +1,9 @@
-import { useId, useState } from 'react'
+import { useState } from 'react'
+import { BANK_OPTIONS } from '../Payment/Payment.jsx'
 
-const bankNames = ['ABL', 'HBL', 'UBL', 'MCB', 'Meezan Bank', 'Bank Alfalah', 'Bank AL Habib', 'National Bank of Pakistan', 'Bank of Punjab', 'Bank of Khyber', 'Askari Bank', 'Faysal Bank', 'Habib Metropolitan Bank', 'JS Bank', 'Soneri Bank', 'Sindh Bank', 'BankIslami', 'Dubai Islamic Bank', 'Al Baraka Bank', 'Standard Chartered', 'Samba Bank', 'Easypaisa', 'JazzCash', 'SadaPay', 'NayaPay']
+const bankNames = BANK_OPTIONS.map((bank) => bank.name)
 
 export default function AddBankForm({ onAddBank }) {
-  const listId = useId()
   const [name, setName] = useState('')
   const [balance, setBalance] = useState('0')
   const [saving, setSaving] = useState(false)
@@ -11,7 +11,7 @@ export default function AddBankForm({ onAddBank }) {
 
   const submit = async (event) => {
     event.preventDefault()
-    if (saving || !name.trim()) return
+    if (saving || !bankNames.includes(name)) return
     setSaving(true)
     setError('')
     try {
@@ -26,8 +26,10 @@ export default function AddBankForm({ onAddBank }) {
     <p className="text-sm font-semibold text-[#31473c] mb-3">Add bank or wallet</p>
     <div className="flex flex-wrap items-end gap-3">
       <label className="flex-1 min-w-[200px] text-xs font-semibold text-[#52645c]">Bank / wallet
-        <input list={listId} value={name} onChange={(event) => setName(event.target.value)} placeholder="Choose a bank or enter a custom name" required maxLength={100} className="mt-1 block w-full h-10 px-3 rounded-lg border border-[#dfe6df] bg-white text-sm" />
-        <datalist id={listId}>{bankNames.map((bank) => <option key={bank} value={bank} />)}</datalist>
+        <select value={name} onChange={(event) => setName(event.target.value)} required className="mt-1 block w-full h-10 px-3 rounded-lg border border-[#dfe6df] bg-white text-sm">
+          <option value="">Choose a bank or wallet</option>
+          {bankNames.map((bank) => <option key={bank} value={bank}>{bank}</option>)}
+        </select>
       </label>
       <label className="text-xs font-semibold text-[#52645c]">Opening balance (Rs.)
         <input type="number" min="0" step="0.01" required value={balance} onChange={(event) => setBalance(event.target.value)} className="mt-1 block w-40 h-10 px-3 rounded-lg border border-[#dfe6df] bg-white text-sm" />
