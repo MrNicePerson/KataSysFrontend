@@ -4,7 +4,7 @@ import ReportStats from '../../components/ReportStats/ReportStats.jsx'
 import SalesBySupplier from '../../components/SalesBySupplier/SalesBySupplier.jsx'
 import IncomeSpending from '../../components/IncomeSpending/IncomeSpending.jsx'
 import StockMovements from '../../components/StockMovements/StockMovements.jsx'
-import { localDateString } from '../../data/businessLogic.js'
+import { financialPeriodDatabase, localDateString } from '../../data/businessLogic.js'
 import { hasModulePermission } from '../../permissions.js'
 
 export default function Reports({ bills = [], customers = [], database, token, permissions = {} }) {
@@ -30,6 +30,7 @@ export default function Reports({ bills = [], customers = [], database, token, p
     key,
     datedCollections.has(key) && Array.isArray(value) ? value.filter(inRange) : value,
   ]))
+  const financialReportDatabase = { ...reportDatabase, ...financialPeriodDatabase(database, from, to) }
   const reportBills = reportDatabase.sales || bills
   const customerName = (bill) => bill.customer?.trim()
     || bill.customerDetails?.name
@@ -101,7 +102,7 @@ export default function Reports({ bills = [], customers = [], database, token, p
       </div>
 
       {!canFinancialReports && <p className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Financial report details are restricted for this account.</p>}
-      {canFinancialReports && <ReportStats database={reportDatabase} />}
+      {canFinancialReports && <ReportStats database={financialReportDatabase} />}
 
       {canFinancialReports && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-6">
         <SalesBySupplier database={reportDatabase} />

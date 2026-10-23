@@ -649,8 +649,7 @@ export function calculateBankBalanceSummary(database, date) {
 
 export function calculateDailyProfit(database, date) {
   const dateOnly = (value) => String(value || '').slice(0, 10)
-  const sales = (database.sales || []).filter((sale) => dateOnly(sale.date) === date)
-  const returns = (database.returns || []).filter((entry) => dateOnly(entry.date) === date && entry.refundType !== 'sale-adjustment')
+  const { sales, returns } = financialPeriodDatabase(database, date, date)
   const revenue = sales.reduce((sum, sale) => sum + Number(sale.total ?? sale.totalAmount ?? 0), 0)
   const saleCost = sales.reduce((sum, sale) => sum + (sale.items || []).reduce((itemSum, item) => {
     const cost = Number(item.unitCostAtSale ?? item.costPrice ?? 0)
@@ -662,6 +661,19 @@ export function calculateDailyProfit(database, date) {
   const netSales = revenue - returnAmount
   const costOfGoods = saleCost - returnedSellableCost
   return { date, revenue, returnAmount, netSales, costOfGoods, grossProfit: netSales - costOfGoods, expenses, netProfit: netSales - costOfGoods - expenses }
+}
+
+export function financialPeriodDatabase(database, from = '', to = '') {
+  const inRange = (value) => { const date = String(value || '').slice(0, 10); return (!from || date >= from) && (!to || date <= to) }
+  const byId = new Map(database.sales.map(sale => [sale.id, sale]))
+  return { ...database,
+    sales: database.sales.filter(sale => inRange(sale.date)).map(sale => ({ ...sale, total: Number(sale.total ?? sale.totalAmount ?? 0) + Number(sale.returnTotal || 0), returnTotal: 0, items: (sale.items || []).filter(item => !item.isReturn) })),
+    returns: database.returns.filter(entry => inRange(byId.get(entry.saleId)?.date || entry.saleDate || entry.date)).map(entry => {
+      const item = byId.get(entry.saleId)?.items?.find(item => entry.lineId ? item.lineId === entry.lineId : item.productId === entry.productId)
+      return { ...entry, refundType: entry.refundType === 'sale-adjustment' ? 'financial-adjustment' : entry.refundType, unitCostAtSale: entry.unitCostAtSale ?? item?.unitCostAtSale ?? item?.costPrice ?? 0 }
+    }),
+    expenses: database.expenses.filter(entry => inRange(entry.date)),
+  }
 }
 
 export function calculateBusinessTotals(database) {

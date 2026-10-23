@@ -425,7 +425,7 @@ export default function App() {
       : <NewSale businessDate={saleDay.date} customers={customers} products={database.products} bills={savedBills} returns={database.returns} selectedCustomerId={selectedCustomerId} onCustomerChange={setSelectedCustomerId} onNewCustomer={can('customers') ? () => { setCustomerReturnPage('new-sale'); setCurrentPage('new-customer') } : undefined} onSaveBill={saveBill} onHoldBill={(order) => mutate('orders', { body: order })} initialDraft={resumeDraft} onDraftLoaded={() => setResumeDraft(null)} />}
     </Suspense>
     <Footer />
-    {currentStatement && <AccountStatement type={currentStatement.type} statement={currentStatement.statement} onClose={() => setCurrentStatement(null)} />}
+    {currentStatement && <AccountStatement type={currentStatement.type} statement={currentStatement.statement} products={database.products} onClose={() => setCurrentStatement(null)} />}
     {isSidebarOpen && <Sidebar activePage={activePage} permissions={user.permissions} role={user.role} onClose={() => closeNavigation()} onNavigate={(page) => { navigateTo(page); closeNavigation(true) }} />}
   </>
 }

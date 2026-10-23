@@ -1,7 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import BillReceipt from '../../pages/bill-receipt/BillReceipt.jsx'
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 
-export default function AccountStatement({ statement, type, onClose }) {
+export default function AccountStatement({ statement, type, products = [], onClose }) {
+  const [viewingBill, setViewingBill] = useState(null)
   const keyboard = useKeyboardScope({ onEscape: onClose, trapFocus: true })
   useEffect(() => {
     const opener = document.activeElement
@@ -10,6 +12,13 @@ export default function AccountStatement({ statement, type, onClose }) {
   }, [])
   const account = type === 'supplier' ? statement.supplier : statement.customer
   const ledger = statement.ledger
+  const salesById = new Map((type === 'customer' ? statement.sales || [] : []).map((sale) => [sale.id, sale]))
+
+  if (viewingBill) return (
+    <div className="fixed inset-0 z-[60] bg-[#203832]/40 flex items-center justify-center p-3 sm:p-6 overflow-y-auto print:bg-white print:static print:block print:p-0">
+      <BillReceipt bill={viewingBill} products={products} modal closeLabel="Back to statement" onClose={() => setViewingBill(null)} />
+    </div>
+  )
 
   return (
     <div className="fixed inset-0 z-[60] bg-[#203832]/40 flex items-center justify-center p-3 sm:p-6 overflow-y-auto print:bg-white print:static print:block print:p-0">
@@ -34,7 +43,10 @@ export default function AccountStatement({ statement, type, onClose }) {
             <tbody className="divide-y divide-[#edf0eb]">
               {ledger.entries.map((entry) => <tr key={entry.id}>
                 <td className="py-2 pr-3 whitespace-nowrap">{entry.date || '—'}</td>
-                <td className="py-2">{entry.title}</td>
+                <td className="py-2">
+                  <span>{entry.title}</span>
+                  {salesById.has(entry.id) && <button type="button" aria-label={`View bill ${salesById.get(entry.id).number || entry.title}`} onClick={() => setViewingBill(salesById.get(entry.id))} className="statement-controls ml-3 inline-flex min-h-9 items-center rounded-lg border border-[#dfe4dc] px-3 text-xs font-semibold text-[#155b4b] hover:bg-[#eaf3e7] focus-visible:outline-2 focus-visible:outline-[#155b4b]">View bill</button>}
+                </td>
                 <td className="py-2 text-right">{entry.direction === 'debit' ? `Rs. ${Number(entry.amount).toLocaleString()}` : '—'}</td>
                 <td className="py-2 text-right">{entry.direction === 'credit' ? `Rs. ${Number(entry.amount).toLocaleString()}` : '—'}</td>
               </tr>)}
