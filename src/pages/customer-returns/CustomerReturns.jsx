@@ -1,3 +1,4 @@
+import { returnRefundAmount } from '../../data/inputValidation.js'
 import { useState } from 'react'
 import { localDateString } from '../../data/businessLogic.js'
 import BillReceipt from '../bill-receipt/BillReceipt.jsx'
@@ -258,10 +259,7 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
                 Total refund/credit amount:{' '}
                 <strong className="text-base sm:text-lg text-[#155b4b] font-bold">
                   Rs.{' '}
-                  {(
-                    (Number(returnQuantity) || 1) *
-                    Math.abs(currentItem?.price ?? currentItem?.unitPrice ?? 0)
-                  ).toLocaleString()}
+                  {(currentItem ? returnRefundAmount(selectedBill, currentItem, Number(returnQuantity) || 1, alreadyReturned) : 0).toLocaleString()}
                 </strong>
               </span>
               <div className="flex items-center gap-3 w-full sm:w-auto">

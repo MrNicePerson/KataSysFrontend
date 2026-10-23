@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { transformSync } from 'rolldown/utils'
-import { createEmptyDatabase, createAccount, receivePurchase } from '../../../../KataSysBackend-main/src/domain/businessLogic.js'
+import { createEmptyDatabase, createAccount, receivePurchase } from '../../data/businessLogic.js'
 
 async function componentUrl(url) {
   const path = new URL(url)

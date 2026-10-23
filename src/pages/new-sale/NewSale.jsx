@@ -1,3 +1,4 @@
+import { returnRefundAmount } from '../../data/inputValidation.js'
 import { useEffect, useRef, useState } from 'react'
 import CustomerInvoice from '../../components/CustomerInvoice/CustomerInvoice.jsx'
 import CurrentCart from '../../components/CurrentCart/CurrentCart.jsx'
@@ -282,7 +283,7 @@ export default function NewSale({ customers, products = [], bills = [], returns 
       setSaleMessage('Item not found.')
       return false
     }
-    const amount = Math.abs(Number(billedItem.price ?? billedItem.unitPrice ?? 0))
+    const amount = returnRefundAmount(originalSale, billedItem, quantity) / quantity
     const returnCondition = condition === 'Return' ? 'sellable' : condition === 'Defective' ? 'damaged' : 'replace'
 
     setItems((currentItems) => [...currentItems, {

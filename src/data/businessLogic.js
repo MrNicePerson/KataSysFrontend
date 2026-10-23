@@ -1,3 +1,4 @@
+import { requireDate, returnRefundAmount, validateBackupNumbers } from './inputValidation.js'
 import { receivingLabel, receivingBatchPreview } from './receiving.js'
 
 export const APP_DB_VERSION = 2
@@ -35,7 +36,7 @@ export function createEmptyDatabase() {
 
 const now = () => new Date().toISOString()
 export const localDateString = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-const dateOf = (value) => value || localDateString()
+const dateOf = (value) => requireDate(value || localDateString())
 const amountOf = (value) => {
   const amount = Number(value)
   if (!Number.isFinite(amount) || amount < 0) throw new Error('Amounts must be zero or greater.')
@@ -52,7 +53,7 @@ const nonnegativeWholeQuantity = (value) => {
   return quantity
 }
 const makeId = (prefix) => `${prefix}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`
-const record = (prefix, values) => ({ id: makeId(prefix), createdAt: now(), ...values })
+const record = (prefix, values) => ({ createdAt: now(), ...values, id: makeId(prefix) })
 
 function addAudit(database, type, referenceId, description) {
   return [...database.auditHistory, record('audit', { type, referenceId, description, date: now() })]
@@ -133,12 +134,13 @@ export function createSale(database, input) {
     const quantity = positiveQuantity(item.returnQuantity ?? item.quantity)
     const alreadyReturned = database.returns.filter((entry) => entry.saleId === originalSale.id && (entry.lineId ? entry.lineId === originalItem.lineId : entry.productId === originalItem.productId)).reduce((sum, entry) => sum + Number(entry.quantity || 0), 0)
     if (alreadyReturned + quantity > originalItem.quantity) throw new Error('Return quantity exceeds the amount sold and not yet returned.')
-    return { originalSale, originalItem, quantity, condition: item.returnCondition || 'sellable', amount: quantity * Number(originalItem.unitPrice ?? originalItem.price ?? 0) }
+    return { originalSale, originalItem, quantity, condition: item.returnCondition || 'sellable', amount: returnRefundAmount(originalSale, originalItem, quantity, alreadyReturned) }
   })
   for (let i = 0; i < returnItems.length; i += 1) {
     const current = returnItems.slice(0, i).filter((entry) => entry.originalItem.lineId === returnItems[i].originalItem.lineId && entry.originalSale.id === returnItems[i].originalSale.id).reduce((sum, entry) => sum + entry.quantity, 0)
     const already = database.returns.filter((entry) => entry.saleId === returnItems[i].originalSale.id && entry.lineId === returnItems[i].originalItem.lineId).reduce((sum, entry) => sum + Number(entry.quantity || 0), 0)
     if (already + current + returnItems[i].quantity > returnItems[i].originalItem.quantity) throw new Error('Combined return quantities exceed the amount sold.')
+    returnItems[i].amount = returnRefundAmount(returnItems[i].originalSale, returnItems[i].originalItem, returnItems[i].quantity, already + current)
   }
   const discount = amountOf(input.discount ?? 0)
   if (discount > subtotal) throw new Error('Discount cannot exceed the subtotal.')
@@ -353,7 +355,8 @@ export function assertDueCustomerChequesUpdated(database, date) {
 
 export function saveDailyRecord(database, input) {
   const date = dateOf(input.date)
-  const type = input.type === 'opening' ? 'opening' : 'closing'
+  if (!['opening', 'closing'].includes(input.type)) throw new Error('Daily record type must be opening or closing.')
+  const type = input.type
   if (type === 'closing') assertDueCustomerChequesUpdated(database, date)
   if (type === 'closing' && !database.dailyClosings.some((entry) => entry.date === date && entry.type === 'opening')) {
     throw new Error('Save the daily opening before recording the daily closing.')
@@ -467,7 +470,10 @@ export function processCustomerReturn(database, input) {
   const alreadyReturned = database.returns.filter((entry) => entry.saleId === sale.id && (entry.lineId || entry.productId) === returnKey).reduce((sum, entry) => sum + entry.quantity, 0)
   const soldQuantity = originalItem.lineId ? originalItem.quantity : sale.items.filter((item) => item.productId === originalItem.productId).reduce((sum, item) => sum + item.quantity, 0)
   if (alreadyReturned + quantity > soldQuantity) throw new Error('Return quantity exceeds the amount sold and not yet returned.')
-  const amount = quantity * originalItem.unitPrice
+  if (input.refundType && !['cash', 'khata'].includes(input.refundType)) throw new Error('Refund type must be cash or khata.')
+  if (input.condition && !['sellable', 'Sellable stock', 'damaged', 'defective', 'Damaged / Defective'].includes(input.condition)) throw new Error('Choose a valid return condition.')
+  if (originalItem.isReturn) throw new Error('A return line cannot itself be returned.')
+  const amount = returnRefundAmount(sale, originalItem, quantity, alreadyReturned)
   const condition = input.condition || 'sellable'
   const result = record('return', { saleId: sale.id, saleNumber: sale.number, customerId: sale.customerId, productId: originalItem.productId, lineId: originalItem.lineId, code: originalItem.code, itemName: originalItem.name, quantity, unitPrice: originalItem.unitPrice, unitCostAtSale: Number(originalItem.unitCostAtSale || 0), amount, condition, refundType: input.refundType || 'khata', date: sale.date || dateOf(input.date) })
   let products = database.products
@@ -529,6 +535,7 @@ export function recordExpense(database, input) {
   const amount = amountOf(input.amount)
   if (amount <= 0) throw new Error('Expense amount must be greater than zero.')
   const method = input.method || 'cash'
+  if (!['cash', 'bank', 'cheque'].includes(method)) throw new Error('Expense method must be cash, bank, or cheque.')
   const expense = record('expense', { category: input.category || 'Other', amount, date: dateOf(input.date), description: input.description || '', paidTo: input.paidTo || '', method, account: input.account || method })
   const next = { ...database, expenses: [expense, ...database.expenses], auditHistory: addAudit(database, 'expense', expense.id, `${expense.category} expense recorded`) }
   return { database: next, record: expense }
@@ -774,6 +781,7 @@ export function validateBackup(data) {
       database[key] = data[key]
     }
   }
+  validateBackupNumbers(database)
   if (currentFormat) validateRelationships(database)
   return database
 }
