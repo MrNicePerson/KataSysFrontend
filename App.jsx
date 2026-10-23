@@ -1,3 +1,5 @@
+import Swal from 'sweetalert2'
+import { assertDueCustomerChequesUpdated } from './src/data/businessLogic.js'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { apiRequest, changePassword, getBootstrapStatus, getCurrentUser, getSaleDayStatus as fetchSaleDayStatus, getWorkspace, registerAccount, signIn } from './src/api/client.js'
 import AccountStatement from './src/components/AccountStatement/AccountStatement.jsx'
@@ -324,7 +326,14 @@ export default function App() {
   }
 
   const saveDailyRecord = async (record) => {
-    const saved = await mutate('finance/daily-closing', { body: record })
+    let saved
+    try {
+      if (record.type === 'closing') assertDueCustomerChequesUpdated(database, record.date)
+      saved = await mutate('finance/daily-closing', { body: record, throwOnError: true })
+    } catch (error) {
+      await Swal.fire({ icon: 'error', title: 'Daily closing blocked', text: error.message, confirmButtonText: 'OK', confirmButtonColor: '#155b4b' })
+      return null
+    }
     if (saved && record.type === 'opening' && openingRedirectToSale) {
       setOpeningRedirectToSale(false)
       setDailyClosingInitialTab('overview')

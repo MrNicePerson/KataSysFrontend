@@ -342,9 +342,19 @@ export function adjustStock(database, input) {
   return { database: next, record: result }
 }
 
+export function assertDueCustomerChequesUpdated(database, date) {
+  const finalStatuses = new Set(['Cleared', 'Returned', 'Cancelled', 'Bounced', 'Bounced / Dishonoured', 'Replaced'])
+  const due = (database.cheques || []).filter(cheque => cheque.direction === 'received'
+    && cheque.partyType !== 'supplier'
+    && String(cheque.expectedClearanceDate || cheque.dueDate || '').slice(0, 10) === date
+    && !finalStatuses.has(cheque.status))
+  if (due.length) throw new Error('Update the status of customer cheques due on ' + date + ' before daily closing: ' + due.map(cheque => cheque.number || cheque.id).join(', ') + '. Mark cleared, returned/bounced, cancelled, replaced, or reschedule to the correct future date.')
+}
+
 export function saveDailyRecord(database, input) {
   const date = dateOf(input.date)
   const type = input.type === 'opening' ? 'opening' : 'closing'
+  if (type === 'closing') assertDueCustomerChequesUpdated(database, date)
   if (type === 'closing' && !database.dailyClosings.some((entry) => entry.date === date && entry.type === 'opening')) {
     throw new Error('Save the daily opening before recording the daily closing.')
   }
