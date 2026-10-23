@@ -1,3 +1,4 @@
+import AddBankForm from '../../components/AddBankForm/AddBankForm.jsx'
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Wallet, Landmark, TrendingUp, TrendingDown, Banknote, CalendarDays, ArrowRightLeft, ReceiptText, History, ShieldCheck } from 'lucide-react'
 import { calculateBankBalanceSummary, calculateDailyProfit } from '../../data/businessLogic.js'
@@ -154,6 +155,7 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
               <strong className="block mt-4 text-lg text-emerald-800">{formatMoney(row.currentBalance)}</strong><p className="text-[11px] text-[#85938b] mt-1">Available balance</p>
             </article>)}
           </div> : <p className="text-sm text-[#718078]">No saved bank accounts. Add accounts in Banks &amp; Wallets.</p>}
+          {canDaily('bankBalances') && <AddBankForm onAddBank={onAddBank} />}
           <div className="mt-5 pt-4 border-t border-[#e5ece7] flex justify-between items-center"><span className="text-sm font-semibold text-[#5c7266]">Combined bank balance</span><strong className="text-xl text-emerald-800">{formatMoney(bankSummary.currentTotal)}</strong></div>
         </section>}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

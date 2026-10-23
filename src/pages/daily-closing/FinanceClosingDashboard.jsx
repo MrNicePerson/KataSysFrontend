@@ -1,3 +1,4 @@
+import AddBankForm from '../../components/AddBankForm/AddBankForm.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowDownLeft, ArrowUpRight, Banknote, CalendarClock, ChevronDown, CircleAlert, Download, Landmark, Plus, Printer, RefreshCw, Search, Wallet } from 'lucide-react'
 import { calculateBankBalanceSummary } from '../../data/businessLogic.js'
@@ -42,8 +43,6 @@ function TabButton({ current, value, onClick, children }) {
 export default function FinanceClosingDashboard({ database, date, movement, user, permissions = {}, onAddBank, onUpdateBank, onSaveBankBalances, onRecordBankTransaction, onUpdateChequeStatus, onUpdateChequeDetails, onCreateCheque, externalTab = null }) {
   const [internalTab, setTab] = useState('summary')
   const tab = externalTab || internalTab
-  const [accountName, setAccountName] = useState('')
-  const [openingBalance, setOpeningBalance] = useState('0')
   const [balanceInputs, setBalanceInputs] = useState({})
   const [balanceNotes, setBalanceNotes] = useState({})
   const [transaction, setTransaction] = useState({ type: 'withdrawal', accountId: '', destinationAccountId: '', destination: 'cash', amount: '', date, reference: '', note: '' })
@@ -101,15 +100,6 @@ export default function FinanceClosingDashboard({ database, date, movement, user
     + (database.expenses || []).filter((entry) => entry.date === date).reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
   const transactionsForHistory = (database.bankTransactions || []).filter((entry) => (!dateFrom || entry.date >= dateFrom) && (!dateTo || entry.date <= dateTo)).slice(0, 100)
 
-  const addBank = async () => {
-    const name = accountName.trim()
-    if (!name) return
-    const saved = await onAddBank({ name, openingBalance: Number(openingBalance || 0) })
-    if (saved) {
-      setAccountName('')
-      setOpeningBalance('0')
-    }
-  }
 
   const saveBalances = async () => {
     const balances = accounts.map((account) => ({
@@ -202,7 +192,7 @@ export default function FinanceClosingDashboard({ database, date, movement, user
           const difference = Math.round((actual - Number(row?.expectedBalance || 0) + Number.EPSILON) * 100) / 100
           return <tr key={account.id} className="border-t border-[#edf0eb]"><td className="px-3 py-2.5 font-semibold text-[#31473c]">{account.name}<button type="button" aria-label={`Rename ${account.name}`} title="Rename bank" onClick={() => { const name = window.prompt('Bank or wallet name', account.name); if (name?.trim()) void onUpdateBank(account.id, { name: name.trim() }) }} className="ml-2 text-[10px] font-medium text-[#176148] hover:underline">Rename</button></td><td className="px-3 py-2.5 text-[#65736b]">{money(row?.previousBalance)}</td><td className="px-3 py-2.5 text-[#65736b]">{money(row?.expectedBalance)}</td><td className="px-3 py-2"><input aria-label={`${account.name} actual closing balance`} type="number" min="0" step="0.01" value={balanceInputs[account.id] ?? row?.currentBalance ?? 0} onChange={(event) => setBalanceInputs((current) => ({ ...current, [account.id]: event.target.value }))} className="w-28 h-8 px-2 rounded border border-[#dfe6df] text-xs" /></td><td className={`px-3 py-2.5 font-bold ${difference ? 'text-rose-700' : 'text-emerald-700'}`}>{difference ? money(difference) : '—'}</td><td className="px-3 py-2"><button type="button" onClick={() => { if (window.confirm(`Deactivate ${account.name}? Historical balances will be preserved.`)) void onUpdateBank(account.id, { active: false }) }} className="text-[10px] font-semibold text-[#8b5650] hover:underline">Deactivate</button></td></tr>
         })}</tbody></table><div className="grid grid-cols-1 sm:grid-cols-2 gap-2 px-3 py-3 border-t border-[#edf0eb]">{accounts.map((account) => <input key={account.id} aria-label={`${account.name} balance note`} value={balanceNotes[account.id] || ''} onChange={(event) => setBalanceNotes((current) => ({ ...current, [account.id]: event.target.value }))} placeholder={`${account.name}: difference explanation`} className="h-9 px-2.5 rounded border border-[#dfe6df] text-xs" />)}</div><div className="flex justify-between items-center px-3 py-3 border-t border-[#edf0eb]"><span className="text-xs text-[#748078]">Previous total {money(bankSummary.previousTotal)} · Expected {money(bankSummary.expectedTotal)}</span><button type="button" onClick={saveBalances} className="h-9 px-3 rounded-md bg-[#155b4b] text-white text-xs font-bold hover:bg-[#104b3e]">Save balances</button></div></div> : <div className="p-5"><p className="text-xs text-[#748078]">No bank accounts yet. Add the accounts used by this business.</p></div>}
-        <form onSubmit={(event) => { event.preventDefault(); void addBank() }} className="flex flex-wrap gap-2 p-3 border-t border-[#edf0eb] bg-[#fbfcfa]"><input value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="Custom bank or wallet" aria-label="Custom bank or wallet name" className="flex-1 min-w-[150px] h-9 px-3 rounded-md border border-[#dfe6df] text-xs" /><input type="number" min="0" step="0.01" value={openingBalance} onChange={(event) => setOpeningBalance(event.target.value)} aria-label="Opening balance" className="w-32 h-9 px-2.5 rounded-md border border-[#dfe6df] text-xs" /><button type="submit" className="inline-flex items-center gap-1 h-9 px-3 rounded-md bg-[#edf5ee] text-[#176148] text-xs font-bold"><Plus size={14} />Add bank</button></form>
+        <AddBankForm onAddBank={onAddBank} />
         {banks.some((account) => account.active === false) && <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-t border-[#edf0eb]"><span className="text-[10px] text-[#748078]">Inactive:</span>{banks.filter((account) => account.active === false).map((account) => <button key={account.id} type="button" onClick={() => void onUpdateBank(account.id, { active: true })} className="text-[10px] font-semibold text-[#176148] hover:underline">Reactivate {account.name}</button>)}</div>}
 
       </section>}
