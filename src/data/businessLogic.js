@@ -116,7 +116,9 @@ export function createSale(database, input) {
     if (Number(product.stockQuantity || 0) - reserved < quantity) throw new Error(`Not enough available stock for ${product.name}.`)
     const articleNumber = item.articleNumber || item.article || product.articleNumber || product.article || product.code || ''
     const itemName = item.articleName || item.articleNumber || item.article || product.articleNumber || product.article || item.name || product.code || product.name
-    return { lineId: makeId('line'), productId: product.id, code: product.code ?? '', name: itemName, articleName: articleNumber || itemName, articleNumber, productName: product.name, quantity, price: unitPrice, unitPrice, unitCostAtSale: Number(product.averageCost || 0), lineTotal: quantity * unitPrice }
+    const tan = product.productType === 'tan'
+    const lineTotal = quantity * unitPrice * (tan ? Number(product.metersPerTan || 0) : 1)
+    return { lineId: makeId('line'), productId: product.id, code: product.code ?? '', name: itemName, articleName: articleNumber || itemName, articleNumber, productName: product.name, productType: tan ? 'tan' : 'suit', tanType: product.tanType || '', batchNumber: product.batchNumber || '', metersPerTan: tan ? Number(product.metersPerTan) : undefined, quantity, price: unitPrice, unitPrice, unitCostAtSale: Number(product.averageCost || 0), lineTotal }
   })
   const subtotal = saleItems.reduce((sum, item) => sum + item.lineTotal, 0)
   for (const product of database.products) {
@@ -133,7 +135,7 @@ export function createSale(database, input) {
     const quantity = positiveQuantity(item.returnQuantity ?? item.quantity)
     const alreadyReturned = database.returns.filter((entry) => entry.saleId === originalSale.id && (entry.lineId ? entry.lineId === originalItem.lineId : entry.productId === originalItem.productId)).reduce((sum, entry) => sum + Number(entry.quantity || 0), 0)
     if (alreadyReturned + quantity > originalItem.quantity) throw new Error('Return quantity exceeds the amount sold and not yet returned.')
-    return { originalSale, originalItem, quantity, condition: item.returnCondition || 'sellable', amount: quantity * Number(originalItem.unitPrice ?? originalItem.price ?? 0) }
+    return { originalSale, originalItem, quantity, condition: item.returnCondition || 'sellable', amount: quantity * Number(originalItem.unitPrice ?? originalItem.price ?? 0) * (originalItem.productType === 'tan' ? Number(originalItem.metersPerTan || 0) : 1) }
   })
   for (let i = 0; i < returnItems.length; i += 1) {
     const current = returnItems.slice(0, i).filter((entry) => entry.originalItem.lineId === returnItems[i].originalItem.lineId && entry.originalSale.id === returnItems[i].originalSale.id).reduce((sum, entry) => sum + entry.quantity, 0)
@@ -219,7 +221,14 @@ export function receivePurchase(database, input) {
     quantity: positiveQuantity(item.quantity),
     unitCost: amountOf(item.unitCost ?? item.cost ?? 0),
     salePrice: amountOf(item.salePrice ?? 0),
+    productType: item.productType === 'tan' ? 'tan' : 'suit', tanType: String(item.tanType || '').trim(), tanName: String(item.tanName || '').trim(), metersPerTan: item.productType === 'tan' ? Number(item.metersPerTan ?? item.totalMeters) : undefined,
+    buyPricePerMeter: item.productType === 'tan' ? Number(item.unitCost || 0) / Number(item.metersPerTan ?? item.totalMeters) : undefined,
+    salePricePerMeter: item.productType === 'tan' ? Number(item.salePrice || 0) / Number(item.metersPerTan ?? item.totalMeters) : undefined,
   }))
+  for (const item of purchaseItems) if (item.productType === 'tan') {
+    if (!item.tanType || !item.tanName || !Number.isFinite(item.metersPerTan) || item.metersPerTan <= 0) throw new Error('Tan type, name, and positive meters per Tan are required.')
+    item.productName = item.tanName
+  }
   if (purchaseItems.some((item) => item.productId && !database.products.some((product) => product.id === item.productId))) throw new Error('A delivery item points to a stock product that no longer exists.')
   if (purchaseItems.some((item) => !item.productName && (!item.productId || !database.products.some((product) => product.id === item.productId)))) throw new Error('Each delivery item needs an existing product or a product name/article number.')
   const total = purchaseItems.reduce((sum, item) => sum + item.quantity * item.unitCost, 0)
@@ -254,7 +263,8 @@ export function receivePurchase(database, input) {
     const sameBatch = (entry) =>
       entry.supplierId === supplier.id &&
       String(entry.batchNumber || '').trim().toLowerCase() === item.batchNumber.toLowerCase() &&
-      String(entry.size || '').trim().toLowerCase() === item.size.toLowerCase()
+      String(entry.size || '').trim().toLowerCase() === item.size.toLowerCase() &&
+      item.productType !== 'tan'
     const sourceProduct = item.productId ? products.find((entry) => entry.id === item.productId) : null
     if (sourceProduct) {
       item.productName ||= sourceProduct.name
@@ -278,10 +288,11 @@ export function receivePurchase(database, input) {
         arrivalDate: purchase.date,
         size: item.size || entry.size || '',
         rackLocation: item.rackLocation || entry.rackLocation,
+        ...(item.productType === 'tan' ? { productType: 'tan', tanType: item.tanType, metersPerTan: item.metersPerTan, buyPricePerMeter: item.buyPricePerMeter, salePricePerMeter: item.salePricePerMeter } : {}),
       } : entry)
       stockMovements = addMovement({ ...database, stockMovements }, { productId: product.id, type: 'purchase', quantity: item.quantity, referenceId: purchase.id, date: purchase.date, note: batchNumber })
     } else {
-      const newProduct = record('product', { name: item.productName, code: item.code || makeId('sku'), categoryId: null, size: item.size, stockQuantity: item.quantity, reservedQuantity: 0, defectiveQuantity: 0, averageCost: item.unitCost, salePrice: item.salePrice, supplierId: supplier.id, batchNumber: item.batchNumber, rackLocation: item.rackLocation, active: true })
+      const newProduct = record('product', { name: item.productName, code: item.code || makeId('sku'), categoryId: null, size: item.size, stockQuantity: item.quantity, reservedQuantity: 0, defectiveQuantity: 0, averageCost: item.unitCost, salePrice: item.salePrice, supplierId: supplier.id, batchNumber: item.batchNumber, rackLocation: item.rackLocation, active: true, ...(item.productType === 'tan' ? { productType: 'tan', tanType: item.tanType, metersPerTan: item.metersPerTan, buyPricePerMeter: item.buyPricePerMeter, salePricePerMeter: item.salePricePerMeter } : {}) })
       newProduct.purchaseId = purchase.id
       newProduct.arrivalDate = purchase.date
       products.push(newProduct)
@@ -457,7 +468,7 @@ export function processCustomerReturn(database, input) {
   const alreadyReturned = database.returns.filter((entry) => entry.saleId === sale.id && (entry.lineId || entry.productId) === returnKey).reduce((sum, entry) => sum + entry.quantity, 0)
   const soldQuantity = originalItem.lineId ? originalItem.quantity : sale.items.filter((item) => item.productId === originalItem.productId).reduce((sum, item) => sum + item.quantity, 0)
   if (alreadyReturned + quantity > soldQuantity) throw new Error('Return quantity exceeds the amount sold and not yet returned.')
-  const amount = quantity * originalItem.unitPrice
+  const amount = quantity * originalItem.unitPrice * (originalItem.productType === 'tan' ? Number(originalItem.metersPerTan || 0) : 1)
   const condition = input.condition || 'sellable'
   const result = record('return', { saleId: sale.id, saleNumber: sale.number, customerId: sale.customerId, productId: originalItem.productId, lineId: originalItem.lineId, code: originalItem.code, itemName: originalItem.name, quantity, unitPrice: originalItem.unitPrice, unitCostAtSale: Number(originalItem.unitCostAtSale || 0), amount, condition, refundType: input.refundType || 'khata', date: sale.date || dateOf(input.date) })
   let products = database.products
@@ -649,8 +660,7 @@ export function calculateBankBalanceSummary(database, date) {
 
 export function calculateDailyProfit(database, date) {
   const dateOnly = (value) => String(value || '').slice(0, 10)
-  const sales = (database.sales || []).filter((sale) => dateOnly(sale.date) === date)
-  const returns = (database.returns || []).filter((entry) => dateOnly(entry.date) === date && entry.refundType !== 'sale-adjustment')
+  const { sales, returns } = financialPeriodDatabase(database, date, date)
   const revenue = sales.reduce((sum, sale) => sum + Number(sale.total ?? sale.totalAmount ?? 0), 0)
   const saleCost = sales.reduce((sum, sale) => sum + (sale.items || []).reduce((itemSum, item) => {
     const cost = Number(item.unitCostAtSale ?? item.costPrice ?? 0)
@@ -662,6 +672,19 @@ export function calculateDailyProfit(database, date) {
   const netSales = revenue - returnAmount
   const costOfGoods = saleCost - returnedSellableCost
   return { date, revenue, returnAmount, netSales, costOfGoods, grossProfit: netSales - costOfGoods, expenses, netProfit: netSales - costOfGoods - expenses }
+}
+
+export function financialPeriodDatabase(database, from = '', to = '') {
+  const inRange = (value) => { const date = String(value || '').slice(0, 10); return (!from || date >= from) && (!to || date <= to) }
+  const byId = new Map(database.sales.map(sale => [sale.id, sale]))
+  return { ...database,
+    sales: database.sales.filter(sale => inRange(sale.date)).map(sale => ({ ...sale, total: Number(sale.total ?? sale.totalAmount ?? 0) + Number(sale.returnTotal || 0), returnTotal: 0, items: (sale.items || []).filter(item => !item.isReturn) })),
+    returns: database.returns.filter(entry => inRange(byId.get(entry.saleId)?.date || entry.saleDate || entry.date)).map(entry => {
+      const item = byId.get(entry.saleId)?.items?.find(item => entry.lineId ? item.lineId === entry.lineId : item.productId === entry.productId)
+      return { ...entry, refundType: entry.refundType === 'sale-adjustment' ? 'financial-adjustment' : entry.refundType, unitCostAtSale: entry.unitCostAtSale ?? item?.unitCostAtSale ?? item?.costPrice ?? 0 }
+    }),
+    expenses: database.expenses.filter(entry => inRange(entry.date)),
+  }
 }
 
 export function calculateBusinessTotals(database) {

@@ -23,7 +23,7 @@ export default function ReceivingDetails({ purchase, supplier, cheques = [] }) {
     ['Supplier Code', purchase.supplierCode || supplier?.supplierCode || 'Not recorded'],
     ['Receive Date', purchase.date || 'Not recorded'],
     ['Record ID', purchase.id || 'Not recorded'],
-    ['Quantity Received', `${items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)} suits`],
+    ['Quantity Received', `${items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)} whole units`],
   ]
   return <>
     <style>{`@media print {
@@ -62,8 +62,8 @@ export default function ReceivingDetails({ purchase, supplier, cheques = [] }) {
             <th className="p-3">Item / Article</th><th className="p-3">Batch</th><th className="p-3">Qty</th><th className="p-3">Cost / suit</th><th className="p-3">Sale price / suit</th><th className="p-3">Amount</th>
           </tr></thead>
           <tbody className="divide-y divide-[#edf0eb]">{items.map((item, index) => <tr key={item.lineId || index}>
-          <td className="p-3 font-semibold text-[#173b32]">{articleOf(item) || item.productName || 'Product'}{item.productName && item.productName !== articleOf(item) ? <small className="block font-normal text-[#718078]">Brand: {item.productName}</small> : null}{item.season ? <small className="block font-normal text-[#718078]">{item.season}</small> : null}</td>
-            <td className="p-3">{item.batchNumber || receivingLabel(purchase)}</td><td className="p-3">{item.quantity}</td><td className="p-3">{money(item.unitCost)}</td><td className="p-3">{money(item.salePrice)}</td>
+          <td className="p-3 font-semibold text-[#173b32]">{articleOf(item) || item.productName || 'Product'}{item.productType === 'tan' ? <small className="block font-normal text-[#718078]">Tan name: {item.tanName || item.productName}</small> : item.productName && item.productName !== articleOf(item) ? <small className="block font-normal text-[#718078]">Brand: {item.productName}</small> : null}{item.season ? <small className="block font-normal text-[#718078]">{item.season}</small> : null}</td>
+            <td className="p-3">{item.batchNumber || receivingLabel(purchase)}{item.productType === 'tan' ? <small className="block">{item.tanType} · {item.metersPerTan} m / Tan</small> : null}</td><td className="p-3">{item.quantity} {item.productType === 'tan' ? 'Tan' : 'suits'}</td><td className="p-3">{money(item.unitCost)}{item.productType === 'tan' ? <small className="block">{money(item.buyPricePerMeter)} / meter</small> : null}</td><td className="p-3">{money(item.salePrice)}{item.productType === 'tan' ? <small className="block">{money(item.salePricePerMeter)} / meter</small> : null}</td>
             <td className="p-3">{money(Number(item.quantity || 0) * Number(item.unitCost || 0))}</td>
           </tr>)}</tbody>
         </table>

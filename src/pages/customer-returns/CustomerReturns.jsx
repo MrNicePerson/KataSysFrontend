@@ -207,7 +207,7 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
                     <strong className="text-[#12332d] text-sm font-semibold">{item.name}</strong>
                     {item.shade && <span className="text-xs text-[#718078]">{item.shade}</span>}
                     <span className="text-xs text-[#155b4b] font-medium">
-                      Purchased: {item.quantity} suits @ Rs. {Number(item.price ?? item.unitPrice ?? 0).toLocaleString()}
+                      Purchased: {item.quantity} {item.productType === 'tan' ? 'Tan' : 'suits'} @ Rs. {Number(item.price ?? item.unitPrice ?? 0).toLocaleString()}{item.productType === 'tan' ? ` / meter · ${item.metersPerTan} m / Tan` : ''}
                     </span>
                   </button>
                 ))}
@@ -260,7 +260,7 @@ export default function CustomerReturns({ bills = [], customers = [], returns = 
                   Rs.{' '}
                   {(
                     (Number(returnQuantity) || 1) *
-                    Math.abs(currentItem?.price ?? currentItem?.unitPrice ?? 0)
+                    Math.abs(currentItem?.price ?? currentItem?.unitPrice ?? 0) * (currentItem?.productType === 'tan' ? Number(currentItem.metersPerTan || 0) : 1)
                   ).toLocaleString()}
                 </strong>
               </span>

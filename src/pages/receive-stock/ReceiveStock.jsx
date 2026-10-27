@@ -8,7 +8,7 @@ import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 
 const money = (amount) => `Rs. ${Number(amount || 0).toLocaleString()}`
 
-export default function ReceiveStock({ suppliers = [], purchases = [], cheques = [], onSave }) {
+export default function ReceiveStock({ suppliers = [], purchases = [], cheques = [], tanTypes = [], onSave, onAddTanType }) {
   const [adding, setAdding] = useState(false)
   const [message, setMessage] = useState('')
   const [selectedPurchase, setSelectedPurchase] = useState(null)
@@ -46,7 +46,7 @@ export default function ReceiveStock({ suppliers = [], purchases = [], cheques =
     receivingLabel(purchase),
     purchase.supplier,
     purchase.date,
-    `${(purchase.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)} suits · ${(purchase.items || []).length} products`,
+    `${(purchase.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)} items · ${(purchase.items || []).length} products`,
     money(purchase.total),
     money(purchase.paid),
     purchase.id,
@@ -95,6 +95,8 @@ export default function ReceiveStock({ suppliers = [], purchases = [], cheques =
         <NewDeliveryModal
           suppliers={suppliers}
           purchases={purchases}
+          tanTypes={tanTypes}
+          onAddTanType={onAddTanType}
           onClose={() => setAdding(false)}
           onSave={saveDelivery}
         />

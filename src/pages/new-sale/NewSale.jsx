@@ -177,7 +177,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
     setAddress(customer?.address ?? customer?.addressLine ?? customer?.customerAddress ?? customer?.location ?? customer?.city ?? '')
   }, [customers, selectedCustomerId])
 
-  const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0)
+  const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price * (item.productType === 'tan' ? Number(item.metersPerTan || 0) : 1), 0)
   const total = Math.max(0, subtotal - discount)
   const availableProducts = products.filter((product) => product.active !== false && Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0) > 0)
   const customerProducts = (() => {
@@ -230,6 +230,13 @@ export default function NewSale({ customers, products = [], bills = [], selected
   }
 
   const addItem = (item) => {
+    if (item.productType === 'tan') {
+      const inCart = items.filter((current) => current.productId === item.productId && !current.isReturn).reduce((sum, current) => sum + Number(current.quantity || 0), 0)
+      if (!Number.isInteger(Number(item.quantity)) || Number(item.quantity) <= 0 || inCart + Number(item.quantity) > Number(item.availableQuantity || 0)) {
+        setSaleMessage(`Tan quantity must be a whole number and cannot exceed the ${item.availableQuantity || 0} available Tan.`)
+        return
+      }
+    }
     setItems((currentItems) => {
       const sameItem = currentItems.find((currentItem) => {
         if (currentItem.isReturn || currentItem.returnQuantity) return false
@@ -254,7 +261,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
   const updateItem = (id, field, value) => {
     setItems((currentItems) => currentItems.map((item) => item.id !== id ? item : {
       ...item,
-      [field]: value === '' ? '' : field === 'quantity' ? Math.max(1, Number(value) || 1) : Math.max(0, Number(value) || 0),
+      [field]: value === '' ? '' : field === 'quantity' ? Math.max(1, item.productType === 'tan' ? Math.min(Number(item.availableQuantity || 0), Math.floor(Number(value) || 1)) : Number(value) || 1) : Math.max(0, Number(value) || 0),
     }))
   }
 
@@ -269,7 +276,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
       setSaleMessage('Item not found.')
       return false
     }
-    const amount = Math.abs(Number(billedItem.price ?? billedItem.unitPrice ?? 0))
+    const amount = Math.abs(Number(billedItem.price ?? billedItem.unitPrice ?? 0)) * (billedItem.productType === 'tan' ? Number(billedItem.metersPerTan || 0) : 1)
     const returnCondition = condition === 'Return' ? 'sellable' : condition === 'Defective' ? 'damaged' : 'replace'
 
     setItems((currentItems) => [...currentItems, {
