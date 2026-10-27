@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Banknote, Landmark, ReceiptText, Split } from 'lucide-react';
 import { receivingBatchPreview } from '../../data/receiving.js';
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js';
+import FormDialog from '../FormDialog/FormDialog.jsx';
 import { BANK_OPTIONS } from '../Payment/Payment.jsx';
 
 const today = () => {
@@ -443,6 +444,7 @@ export default function NewDeliveryModal({
   const [tanName, setTanName] = useState('');
   const [metersPerTan, setMetersPerTan] = useState('100');
   const [addingType, setAddingType] = useState(false);
+  const [showTanTypeDialog, setShowTanTypeDialog] = useState(false);
   const [savedTanTypes, setSavedTanTypes] = useState(tanTypes);
   const [items, setItems] = useState(() => (initialPurchase?.items || []).map((item, index) => ({
     ...item,
@@ -477,6 +479,20 @@ export default function NewDeliveryModal({
   const idempotencyRef = useRef(null);
   const appendIdempotencyRef = useRef(null);
   const keyboard = useKeyboardScope({ onEscape: onClose, trapFocus: true });
+  const saveTanType = async ({ name }) => {
+    setAddingType(true);
+    try {
+      const saved = await onAddTanType?.(name);
+      if (!saved?.name) throw new Error('Could not save the Tan type.');
+      setSavedTanTypes((current) => current.some((item) => item.name.toLowerCase() === saved.name.toLowerCase()) ? current : [saved, ...current]);
+      setTanType(saved.name);
+      setErrors((current) => ({ ...current, tanType: '', productName: '' }));
+      setShowTanTypeDialog(false);
+      return saved;
+    } finally {
+      setAddingType(false);
+    }
+  };
   const updateItem = (id, field, value) => setItems((current) => current.map((item) => item.id !== id ? item : ({
     ...item,
     [field]: field === "quantity" ? Math.max(1, Number(value) || 1) : field === "unitCost" || field === "salePrice" ? Math.max(0, Number(value) || 0) : value,
@@ -661,6 +677,7 @@ export default function NewDeliveryModal({
   }] : [];
 
   return (
+    <>
     <div className="fixed inset-0 z-50 bg-[#203832]/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
       <section
         ref={keyboard.ref}
@@ -776,7 +793,7 @@ export default function NewDeliveryModal({
 
               {productType === 'tan' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Tan type" name="tanType" value={tanType} onChange={(event) => setTanType(event.target.value)} options={[["", "Choose type"], ...savedTanTypes.map((entry) => [entry.name, entry.name])]} error={errors.tanType || errors.productName} />
-                <div className="flex items-end"><button type="button" disabled={addingType} onClick={async () => { const name = window.prompt('New Tan type name'); if (!name?.trim()) return; setAddingType(true); try { const saved = await onAddTanType?.(name.trim()); if (!saved?.name) throw new Error('Could not save the Tan type.'); const entry = saved; setSavedTanTypes((current) => current.some((item) => item.name.toLowerCase() === entry.name.toLowerCase()) ? current : [entry, ...current]); setTanType(entry.name); setErrors((current) => ({ ...current, tanType: '', productName: '' })); } catch (error) { setErrors((current) => ({ ...current, tanType: error.message || 'Could not save the Tan type.' })); } finally { setAddingType(false); } }} className="h-11 px-4 rounded-xl border border-[#155b4b] text-[#155b4b] font-semibold">+ Add type</button></div>
+                <div className="flex items-end"><button type="button" disabled={addingType} onClick={() => setShowTanTypeDialog(true)} className="h-11 px-4 rounded-xl border border-[#155b4b] text-[#155b4b] font-semibold">+ Add type</button></div>
                 <Field label="Tan name" name="tanName" value={tanName} onChange={(event) => setTanName(event.target.value)} placeholder="e.g. Premium Cotton" required error={errors.productName} />
               </div>}
 
@@ -913,5 +930,7 @@ export default function NewDeliveryModal({
         </div>
       </section>
     </div>
+    {showTanTypeDialog && <FormDialog title="Add Tan type" fields={[{ name: 'name', label: 'Tan type name', required: true }]} onClose={() => setShowTanTypeDialog(false)} onSave={saveTanType} />}
+    </>
   );
 }
