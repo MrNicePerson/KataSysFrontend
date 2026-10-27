@@ -27,7 +27,7 @@ export default function BillReceipt({ bill, products = [], onClose, onEdit, clos
     const parts = String(value).slice(0, 10).split('-')
     return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : value
   }
-  const subtotal = bill.subtotal ?? bill.items?.reduce((sum, item) => sum + num(item.quantity) * num(item.price), 0) ?? bill.total ?? 0
+  const subtotal = bill.subtotal ?? bill.items?.reduce((sum, item) => sum + num(item.lineTotal ?? num(item.quantity) * num(item.price) * (item.productType === 'tan' ? num(item.metersPerTan) : 1)), 0) ?? bill.total ?? 0
   const discount = num(bill.discount)
   const total = num(bill.total ?? (subtotal - discount))
   const cash = num(bill.payments?.cash ?? bill.paid)
@@ -200,9 +200,9 @@ export default function BillReceipt({ bill, products = [], onClose, onEdit, clos
                 <tr key={item.id || index}>
                   <td className="sr">{index + 1}</td>
                   <td className="item">{articleFor(item)}{(item.shade || item.colour || item.color || item.variant || item.description) ? ` ${item.shade || item.colour || item.color || item.variant || item.description}` : ''}</td>
-                  <td className="qty">{Math.abs(num(item.quantity))}</td>
-                  <td className="rate">{plainMoney(Math.abs(item.price ?? item.unitPrice))}</td>
-                  <td className="amount">{plainMoney(num(item.quantity) * num(item.price ?? item.unitPrice))}</td>
+                  <td className="qty">{Math.abs(num(item.quantity))}{item.productType === 'tan' ? ' Tan' : ''}{item.productType === 'tan' ? <small className="block">{item.metersPerTan} m / Tan</small> : null}</td>
+                  <td className="rate">{item.productType === 'tan' ? `${plainMoney(Math.abs(item.price ?? item.unitPrice))} / m` : plainMoney(Math.abs(item.price ?? item.unitPrice))}{item.productType === 'tan' ? <small className="block">{item.tanType} · {item.batchNumber}</small> : null}</td>
+                  <td className="amount">{plainMoney(item.lineTotal ?? num(item.quantity) * num(item.price ?? item.unitPrice) * (item.productType === 'tan' ? num(item.metersPerTan) : 1))}</td>
                 </tr>
               ))}
               {Array.from({ length: emptyRows }).map((_, index) => <tr key={`empty-${index}`}><td className="sr">&nbsp;</td><td/><td/><td/><td/></tr>)}

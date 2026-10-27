@@ -183,15 +183,16 @@ export function AddedStockCard({ items, onRemove, onUpdate, editable = false, sh
                 </div>
                 <div className="col-span-2">
                   <dt className="text-xs text-[#718078]">Quantity</dt>
-                  <dd className="mt-0.5 font-semibold">{editable ? <input aria-label="Quantity" type="number" min="1" step="1" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.quantity} onChange={(event) => onUpdate(item.id, "quantity", event.target.value)} /> : `${item.quantity} ${item.quantity === 1 ? "suit" : "suits"}`}</dd>
+                  <dd className="mt-0.5 font-semibold">{editable ? <input aria-label={item.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity'} type="number" min="1" step="1" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.quantity} onChange={(event) => onUpdate(item.id, "quantity", event.target.value)} /> : `${item.quantity} ${item.productType === 'tan' ? 'Tan' : item.quantity === 1 ? 'suit' : 'suits'}`}</dd>
+                </div>
+                {item.productType === 'tan' && <div className="col-span-2 text-[#52645c]">{item.tanType} · {item.metersPerTan} m / Tan · Buy Rs. {Number(item.buyPricePerMeter || 0).toFixed(2)} / m · Sale Rs. {Number(item.salePricePerMeter || 0).toFixed(2)} / m</div>}
+                <div className="min-w-0">
+                  <dt className="text-xs text-[#718078]">{item.productType === 'tan' ? 'Buy price per Tan' : 'Cost per suit'}</dt>
+                  <dd className="mt-0.5 font-semibold tabular-nums break-words">{editable ? <input aria-label={item.productType === 'tan' ? 'Buy price per Tan' : 'Purchase price per suit'} type="number" min="0" step="0.01" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.unitCost} onChange={(event) => onUpdate(item.id, "unitCost", event.target.value)} /> : money(item.unitCost)}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="text-xs text-[#718078]">Cost per suit</dt>
-                  <dd className="mt-0.5 font-semibold tabular-nums break-words">{editable ? <input aria-label="Purchase price per suit" type="number" min="0" step="0.01" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.unitCost} onChange={(event) => onUpdate(item.id, "unitCost", event.target.value)} /> : money(item.unitCost)}</dd>
-                </div>
-                <div className="min-w-0">
-                  <dt className="text-xs text-[#718078]">Sale price per suit</dt>
-                  <dd className="mt-0.5 font-semibold tabular-nums break-words">{editable ? <input aria-label="Sale price per suit" type="number" min="0" step="0.01" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.salePrice} onChange={(event) => onUpdate(item.id, "salePrice", event.target.value)} /> : money(item.salePrice)}</dd>
+                  <dt className="text-xs text-[#718078]">{item.productType === 'tan' ? 'Sale price per Tan' : 'Sale price per suit'}</dt>
+                  <dd className="mt-0.5 font-semibold tabular-nums break-words">{editable ? <input aria-label={item.productType === 'tan' ? 'Sale price per Tan' : 'Sale price per suit'} type="number" min="0" step="0.01" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.salePrice} onChange={(event) => onUpdate(item.id, "salePrice", event.target.value)} /> : money(item.salePrice)}</dd>
                 </div>
                 <div className="col-span-2 pt-3 border-t border-[#edf0eb]">
                   <dt className="font-bold text-[#155b4b]">Total cost <span className="block text-xs font-normal text-[#718078]">Total purchase cost</span></dt>
@@ -423,6 +424,8 @@ export default function NewDeliveryModal({
   purchases = [],
   existingCheques = [],
   initialPurchase = null,
+  tanTypes = [],
+  onAddTanType,
 }) {
   const [supplier, setSupplier] = useState(initialPurchase?.supplierId || "");
   const [arrivalDate, setArrivalDate] = useState(initialPurchase?.date || today());
@@ -435,6 +438,12 @@ export default function NewDeliveryModal({
   const [unitCost, setUnitCost] = useState("0");
   const [salePrice, setSalePrice] = useState("0");
   const [season, setSeason] = useState("Summer");
+  const [productType, setProductType] = useState('suit');
+  const [tanType, setTanType] = useState('');
+  const [tanName, setTanName] = useState('');
+  const [metersPerTan, setMetersPerTan] = useState('100');
+  const [addingType, setAddingType] = useState(false);
+  const [savedTanTypes, setSavedTanTypes] = useState(tanTypes);
   const [items, setItems] = useState(() => (initialPurchase?.items || []).map((item, index) => ({
     ...item,
     id: item.lineId || `legacy-line-${index}`,
@@ -503,9 +512,11 @@ export default function NewDeliveryModal({
     const itemUnitCost = Number(unitCost);
     const itemSalePrice = Number(salePrice);
     if (!trimmedBatch) nextErrors.batchNumber = "Choose a supplier with a Supplier Code to generate the batch number.";
-    if (!articleNumber.trim())
+    if (productType === 'suit' && !articleNumber.trim())
       nextErrors.articleNumber = "Please enter the article name or design number.";
-    if (!season) nextErrors.season = "Choose a season.";
+    if (productType === 'suit' && !season) nextErrors.season = "Choose a season.";
+    if (productType === 'tan' && (!tanType || !tanName.trim())) nextErrors.productName = 'Choose a Tan type and enter its name.';
+    if (productType === 'tan' && (!Number.isFinite(Number(metersPerTan)) || Number(metersPerTan) <= 0)) nextErrors.metersPerTan = 'Meters per Tan must be greater than zero.';
     if (!Number.isInteger(Number(quantity)) || Number(quantity) <= 0)
       nextErrors.quantity = "Quantity must be greater than 0.";
     if (!Number.isFinite(itemUnitCost) || itemUnitCost < 0) nextErrors.unitCost = "Enter a valid non-negative cost.";
@@ -518,12 +529,18 @@ export default function NewDeliveryModal({
         existingProductId: selectedProductId || undefined,
         batchNumber: trimmedBatch,
         padNumber: initialPurchase && addingStock ? appendPadNumber.trim() : padNumber.trim(),
-        productName: productName.trim() || articleNumber.trim(),
-        articleNumber: articleNumber.trim(),
+        productType,
+        tanType: productType === 'tan' ? tanType : '',
+        tanName: productType === 'tan' ? tanName.trim() : '',
+        metersPerTan: productType === 'tan' ? Number(metersPerTan) : undefined,
+        buyPricePerMeter: productType === 'tan' ? itemUnitCost / Number(metersPerTan) : undefined,
+        salePricePerMeter: productType === 'tan' ? itemSalePrice / Number(metersPerTan) : undefined,
+        productName: productType === 'tan' ? tanName.trim() : productName.trim() || articleNumber.trim(),
+        articleNumber: productType === 'tan' ? '' : articleNumber.trim(),
         quantity: Number(quantity),
         unitCost: itemUnitCost,
         salePrice: itemSalePrice,
-        season,
+        season: productType === 'tan' ? '' : season,
     };
     if (initialPurchase && addingStock) setAppendItems((current) => [...current, newItem]);
     else setItems((current) => [...current, newItem]);
@@ -531,6 +548,7 @@ export default function NewDeliveryModal({
     setProductName("");
     setArticleNumber("");
     setSelectedProductId("");
+    setTanName('');
     setQuantity("1");
     setUnitCost("0");
     setSalePrice("0");
@@ -564,7 +582,7 @@ export default function NewDeliveryModal({
     setSaving(true);
     try {
       if (initialPurchase && addingStock) {
-        const signature = JSON.stringify(appendItems.map(({ existingProductId, productName, articleNumber, padNumber, quantity, unitCost, salePrice, season }) => ({
+        const signature = JSON.stringify(appendItems.map(({ existingProductId, productName, articleNumber, padNumber, quantity, unitCost, salePrice, season, productType, tanType, metersPerTan }) => ({
           existingProductId,
           productName,
           articleNumber,
@@ -573,6 +591,9 @@ export default function NewDeliveryModal({
           unitCost,
           salePrice,
           season,
+          productType,
+          tanType,
+          metersPerTan,
         })));
         if (appendIdempotencyRef.current?.signature !== signature) {
           appendIdempotencyRef.current = {
@@ -703,6 +724,9 @@ export default function NewDeliveryModal({
               <h3 className="text-sm font-bold text-[#173b32] uppercase tracking-wider">
                 {addingStock ? "New items for this delivery" : "Item details"}
               </h3>
+              <div className="grid grid-cols-2 gap-1 rounded-xl border border-[#dfe4dc] bg-white p-1">
+                {['suit', 'tan'].map((type) => <button key={type} type="button" onClick={() => setProductType(type)} className={`h-10 rounded-lg capitalize font-semibold ${productType === type ? 'bg-[#e8f2e3] text-[#155b4b]' : 'text-[#52645c]'}`}>{type}</button>)}
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field
                   label="Batch number (automatic)"
@@ -719,8 +743,7 @@ export default function NewDeliveryModal({
                   onChange={(event) => addingStock ? setAppendPadNumber(event.target.value) : setPadNumber(event.target.value)}
                   placeholder="Enter supplier pad number"
                 />
-
-                <Field
+                {productType === 'suit' && <Field
                   label="Article / design number"
                   name="articleNumber"
                   value={articleNumber}
@@ -728,32 +751,38 @@ export default function NewDeliveryModal({
                   placeholder="Please enter the article name or design number"
                   required
                   error={errors.articleNumber}
-                />
-                <label className="flex flex-col gap-1.5 text-xs sm:text-sm font-semibold text-[#173b32]" htmlFor="delivery-existing-product">
+                />}
+                {productType === 'suit' && <label className="flex flex-col gap-1.5 text-xs sm:text-sm font-semibold text-[#173b32]" htmlFor="delivery-existing-product">
                   Existing product (optional)
                   <select id="delivery-existing-product" value={selectedProductId} onChange={(event) => { selectExistingProduct(event.target.value); setItemDraftDirty(true) }} className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm">
                     <option value="">Create a new stock product</option>
                     {existingSupplierProducts.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.code}</option>)}
                   </select>
-                </label>
-                <Field
+                </label>}
+                {productType === 'suit' && <Field
                   label="Brand Name (optional)"
                   name="productName"
                   value={productName}
                   onChange={(event) => { setProductName(event.target.value); setItemDraftDirty(true) }}
                   placeholder="e.g. Lawn Suit"
                   error={errors.productName}
-                />
-                <SeasonField
+                />}
+                {productType === 'suit' && <SeasonField
                   value={season}
                   onChange={(value) => { setSeason(value); setItemDraftDirty(true) }}
                   error={errors.season}
-                />
+                />}
               </div>
+
+              {productType === 'tan' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Tan type" name="tanType" value={tanType} onChange={(event) => setTanType(event.target.value)} options={[["", "Choose type"], ...savedTanTypes.map((entry) => [entry.name, entry.name])]} error={errors.tanType || errors.productName} />
+                <div className="flex items-end"><button type="button" disabled={addingType} onClick={async () => { const name = window.prompt('New Tan type name'); if (!name?.trim()) return; setAddingType(true); try { const saved = await onAddTanType?.(name.trim()); if (!saved?.name) throw new Error('Could not save the Tan type.'); const entry = saved; setSavedTanTypes((current) => current.some((item) => item.name.toLowerCase() === entry.name.toLowerCase()) ? current : [entry, ...current]); setTanType(entry.name); setErrors((current) => ({ ...current, tanType: '', productName: '' })); } catch (error) { setErrors((current) => ({ ...current, tanType: error.message || 'Could not save the Tan type.' })); } finally { setAddingType(false); } }} className="h-11 px-4 rounded-xl border border-[#155b4b] text-[#155b4b] font-semibold">+ Add type</button></div>
+                <Field label="Tan name" name="tanName" value={tanName} onChange={(event) => setTanName(event.target.value)} placeholder="e.g. Premium Cotton" required error={errors.productName} />
+              </div>}
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Field
-                  label="Qty (suits)"
+                  label={productType === 'tan' ? 'Quantity (Tan)' : 'Qty (suits)'}
                   name="quantity"
                   type="number"
                   min="1"
@@ -763,8 +792,9 @@ export default function NewDeliveryModal({
                   onBlur={() => { if (quantity === "") setQuantity("1") }}
                   error={errors.quantity}
                 />
+                {productType === 'tan' && <Field label="Meters per Tan" name="metersPerTan" type="number" min="0.01" step="0.01" value={metersPerTan} onChange={(event) => setMetersPerTan(event.target.value)} error={errors.metersPerTan} />}
                 <Field
-                  label="Cost per suit"
+                  label={productType === 'tan' ? 'Buy price per Tan (Rs.)' : 'Cost per suit'}
                   name="unitCost"
                   type="number"
                   min="0"
@@ -776,7 +806,7 @@ export default function NewDeliveryModal({
                   error={errors.unitCost}
                 />
                 <Field
-                  label="Sale price"
+                  label={productType === 'tan' ? 'Sale price per Tan (Rs.)' : 'Sale price'}
                   name="salePrice"
                   type="number"
                   min="0"
@@ -788,6 +818,7 @@ export default function NewDeliveryModal({
                   error={errors.salePrice}
                 />
               </div>
+              {productType === 'tan' && <div className="grid grid-cols-2 gap-3 rounded-xl bg-[#e2f5f3] p-3 text-sm"><div>Buy price / meter<strong className="block">Rs. {(Number(unitCost || 0) / Number(metersPerTan || 1)).toFixed(2)}</strong></div><div>Sale price / meter<strong className="block">Rs. {(Number(salePrice || 0) / Number(metersPerTan || 1)).toFixed(2)}</strong></div></div>}
 
               <button
                 className="w-full h-11 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-xs active:scale-98"

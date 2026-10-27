@@ -8,7 +8,7 @@ export default function StockTable({ products = [] }) {
               <th className="px-4 sm:px-6 py-3.5">Article name</th>
               <th className="px-4 sm:px-6 py-3.5">Supplier / batch</th>
               <th className="px-4 sm:px-6 py-3.5">Available stock</th>
-              <th className="px-4 sm:px-6 py-3.5">Cost per suit</th>
+              <th className="px-4 sm:px-6 py-3.5">Cost per suit / Tan</th>
             </tr>
           </thead>
           <tbody data-keyboard-list className="divide-y divide-[#edf0eb]">
@@ -20,8 +20,8 @@ export default function StockTable({ products = [] }) {
                       ✧
                     </span>
                     <div>
-                      <strong className="block font-bold text-[#173b32] text-sm sm:text-base">{product.article || product.code || '—'}</strong>
-                      <small className="text-[#718078] text-xs font-medium">Brand Name: {product.name}{product.colour ? ` · ${product.colour}` : ''}</small>
+                      <strong className="block font-bold text-[#173b32] text-sm sm:text-base">{product.productType === 'tan' ? product.name : product.article || product.code || '-'}</strong>
+                      {product.productType === 'tan' ? <small className="text-[#718078] text-xs font-medium">Tan · {product.tanType} · {product.metersPerTan} meters / Tan · Rs. {Number(product.salePricePerMeter || 0).toLocaleString()} / meter</small> : <small className="text-[#718078] text-xs font-medium">Brand Name: {product.name}{product.colour ? ` · ${product.colour}` : ''}</small>}
                     </div>
                   </div>
                 </td>
@@ -35,7 +35,7 @@ export default function StockTable({ products = [] }) {
                   </span>
                 </td>
                 <td className="px-4 sm:px-6 py-4">
-                  <div className="font-semibold text-[#173b32]">{product.cost}</div>
+                  <div className="font-semibold text-[#173b32]">{product.cost}{product.productType === 'tan' ? <small className="block text-xs font-normal text-[#718078]">Buy / m: Rs. {Number(product.buyPricePerMeter || 0).toLocaleString()} · Sale / Tan: Rs. {Number(product.salePrice || 0).toLocaleString()} · Sale / m: Rs. {Number(product.salePricePerMeter || 0).toLocaleString()}</small> : null}</div>
                 </td>
               </tr>
             ))}

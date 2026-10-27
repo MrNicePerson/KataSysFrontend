@@ -10,11 +10,11 @@ const csvCell = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`
 function exportStockCsv(products) {
   const date = localDateString()
   const rows = [
-    ['Audit date', 'Article Name', 'Brand Name', 'Supplier', 'Batch Number', 'Available Stock', 'Cost per suit', 'Available stock value'],
+    ['Audit date', 'Product type', 'Article / Tan name', 'Brand / Tan type', 'Supplier', 'Batch Number', 'Available whole units', 'Meters per Tan', 'Buy price per Tan', 'Buy price per meter', 'Sale price per Tan', 'Sale price per meter', 'Available stock value'],
     ...products.map((product) => {
       const available = Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0)
       const cost = Number(product.averageCost || 0)
-      return [date, product.article || product.code || '', product.name || '', product.supplier === '—' ? '' : product.supplier, product.batch === '—' ? '' : product.batch, available, cost, available * cost]
+      return [date, product.productType === 'tan' ? 'Tan' : 'Suit', product.productType === 'tan' ? product.name : product.article || product.code || '', product.productType === 'tan' ? product.tanType : product.name || '', product.supplier === '-' ? '' : product.supplier, product.batch === '-' ? '' : product.batch, available, product.productType === 'tan' ? product.metersPerTan : '', product.productType === 'tan' ? cost : '', product.productType === 'tan' ? product.buyPricePerMeter : '', product.productType === 'tan' ? product.salePrice : '', product.productType === 'tan' ? product.salePricePerMeter : '', available * cost]
     }),
   ]
   const csv = `\uFEFF${rows.map((row) => row.map(csvCell).join(',')).join('\r\n')}`
@@ -40,7 +40,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
   const reviewKeyboard = useKeyboardScope({ onEscape: () => { if (!reviewSaving) closeReview() }, trapFocus: true })
   const products = useMemo(() => records.map((p) => ({ ...p, colour: p.shade || '', supplier: suppliers.find((s) => s.id === p.supplierId)?.name || '—', batch: p.batchNumber || '—', available: String(Number(p.stockQuantity || 0) - Number(p.reservedQuantity || 0)), defective: String(p.defectiveQuantity || 0), cost: `Rs. ${Number(p.averageCost || 0).toLocaleString()}`, tone: 'blue' })), [records, suppliers])
   const total = (key) => products.reduce((sum, p) => sum + Number(p[key] || 0), 0)
-  const stats = [['Available suits', total('available').toLocaleString()], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value', `Rs. ${products.reduce((sum, p) => sum + Number(p.stockQuantity || 0) * Number(p.averageCost || 0), 0).toLocaleString()}`]]
+  const stats = [['Available whole units', total('available').toLocaleString()], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value', `Rs. ${products.reduce((sum, p) => sum + Number(p.stockQuantity || 0) * Number(p.averageCost || 0), 0).toLocaleString()}`]]
   const filtered = products.filter((product) => [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(query.toLowerCase()))
 
   const closeReview = () => {

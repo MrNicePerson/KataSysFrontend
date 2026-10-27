@@ -7,8 +7,8 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const saleItems = items.filter((item) => !item.isReturn && !item.returnQuantity)
   const returnItems = items.filter((item) => item.isReturn || item.returnQuantity)
-  const subtotal = Number(saleSubtotalProp ?? saleItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.price || 0), 0))
-  const returnTotal = Number(returnTotalProp ?? returnItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Math.abs(Number(item.price || 0)), 0))
+  const subtotal = Number(saleSubtotalProp ?? saleItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.price || 0) * (item.productType === 'tan' ? Number(item.metersPerTan || 0) : 1), 0))
+  const returnTotal = Number(returnTotalProp ?? returnItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Math.abs(Number(item.price || 0)) * (item.productType === 'tan' ? Number(item.metersPerTan || 0) : 1), 0))
   const settlementBalance = subtotal - Number(discount || 0) - returnTotal
   const total = Math.max(0, settlementBalance)
   const itemCount = saleItems.reduce((sum, item) => sum + item.quantity, 0)
@@ -78,7 +78,7 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
           Current cart
         </h2>
         <span className="px-3 py-1 rounded-lg bg-[#e8f2e3] text-[#557250] text-xs sm:text-sm font-semibold whitespace-nowrap">
-          {itemCount} suits
+          {itemCount} items
         </span>
       </div>
 
@@ -87,16 +87,18 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
           {saleItems.map((item) => (
             <div className="py-3 flex flex-col gap-3 text-sm" key={item.id}>
               <div className="flex-1 min-w-0">
-                <strong className="block whitespace-normal break-words text-[#12332d] font-semibold text-sm sm:text-base">{item.articleNumber || item.article || item.code || item.name}</strong>
-                <small className="block whitespace-normal break-words text-[#718078] text-xs font-medium">Brand Name: {item.name}</small>
+                <strong className="block whitespace-normal break-words text-[#12332d] font-semibold text-sm sm:text-base">{item.productType === 'tan' ? item.name : item.articleNumber || item.article || item.code || item.name} {item.productType === 'tan' && <span className="ml-1 rounded bg-[#f3ead7] px-2 py-0.5 text-[10px] text-[#765a30]">Tan</span>}</strong>
+                {item.productType === 'tan' ? <small className="block text-[#718078] text-xs">Type: {item.tanType} · Batch: {item.batchNumber} · {item.metersPerTan} m / Tan</small> : <small className="block whitespace-normal break-words text-[#718078] text-xs font-medium">Brand Name: {item.name}</small>}
               </div>
 
               <div className="flex flex-wrap items-center justify-start gap-3 self-start max-w-full">
                 <label className="flex items-center gap-1.5 text-xs text-[#718078] font-semibold">
-                  Qty
+                  {item.productType === 'tan' ? 'Qty (Tan)' : 'Qty'}
                   <input
                     type="number"
                     min="1"
+                    step={item.productType === 'tan' ? '1' : undefined}
+                    max={item.productType === 'tan' ? item.availableQuantity : undefined}
                     className="w-14 h-8 px-1.5 text-center rounded-lg border border-[#dfe4dc] text-sm text-[#12332d] font-medium focus:outline-none focus:border-[#155b4b]"
                     value={item.quantity}
                     onKeyDown={(event) => {
@@ -110,7 +112,7 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
                 </label>
 
                 <label className="flex items-center gap-1.5 text-xs text-[#718078] font-semibold">
-                  Rate
+                  {item.productType === 'tan' ? 'Per meter (Rs.)' : 'Rate'}
                   <input
                     type="number"
                     min="0"
@@ -125,7 +127,7 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
 
                 <div className="text-right min-w-[70px]">
                   <strong className="block text-[#12332d] text-sm sm:text-base font-bold">
-                    Rs. {((Number(item.quantity) || 0) * (Number(item.price) || 0)).toLocaleString()}
+                    Rs. {((Number(item.quantity) || 0) * (Number(item.price) || 0) * (item.productType === 'tan' ? Number(item.metersPerTan || 0) : 1)).toLocaleString()}
                   </strong>
                 </div>
 

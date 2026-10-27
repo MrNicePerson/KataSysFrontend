@@ -94,24 +94,24 @@ function ReviewEditBillDialog({ bill, products, onClose, onUpdateBill, onUpdateR
               <article key={item.lineId || `${item.code}-${index}`} className="p-4 sm:p-5 rounded-2xl bg-white border border-[#e2e6df] shadow-panel">
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
-                    <p className="text-xs sm:text-sm font-bold text-black">Article: {articleFor(item)}</p>
-                    <p className="mt-1 text-xs sm:text-sm text-[#173b32]">Brand Name: <span className="font-semibold">{brandFor(item)}</span></p>
+                    <p className="text-xs sm:text-sm font-bold text-black">{item.productType === 'tan' ? `Tan: ${item.name}` : `Article: ${articleFor(item)}`}</p>
+                    {item.productType === 'tan' ? <p className="mt-1 text-xs sm:text-sm text-[#718078]">Type: {item.tanType} · Batch: {item.batchNumber} · {item.metersPerTan} m / Tan</p> : <p className="mt-1 text-xs sm:text-sm text-[#173b32]">Brand Name: <span className="font-semibold">{brandFor(item)}</span></p>}
                   </div>
                   <span className="px-2.5 py-1 rounded-full bg-[#f1f4ee] text-[#718078] text-xs font-semibold">Item {index + 1}</span>
                 </div>
                 {canEditItems && onUpdateBill ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <label className="flex flex-col gap-2 text-[#173b32] text-sm font-semibold">
-                      Quantity
+                      {item.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity'}
                       <input name={`quantity-${item.lineId}`} type="number" min="1" step="1" defaultValue={item.quantity} required className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm font-normal focus:outline-none focus:border-[#155b4b] focus:ring-3 focus:ring-[#155b4b]/15" />
                     </label>
                     <label className="flex flex-col gap-2 text-[#173b32] text-sm font-semibold">
-                      Price per suit
+                      {item.productType === 'tan' ? 'Price per meter' : 'Price per suit'}
                       <input name={`price-${item.lineId}`} type="number" min="0" step="0.01" defaultValue={item.unitPrice ?? item.price} required className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm font-normal focus:outline-none focus:border-[#155b4b] focus:ring-3 focus:ring-[#155b4b]/15" />
                     </label>
                   </div>
                 ) : (
-                  <p className="text-sm text-[#718078]">Quantity: {item.quantity} · Rate: Rs. {Number(item.unitPrice ?? item.price ?? 0).toLocaleString()}</p>
+                  <p className="text-sm text-[#718078]">Quantity: {item.quantity} {item.productType === 'tan' ? 'Tan' : ''} · Rate: Rs. {Number(item.unitPrice ?? item.price ?? 0).toLocaleString()}{item.productType === 'tan' ? ` / meter · ${item.metersPerTan} m / Tan` : ''}</p>
                 )}
               </article>
             ))}

@@ -8,7 +8,7 @@ import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 
 const money = (amount) => `Rs. ${Number(amount || 0).toLocaleString()}`
 
-export default function ReceiveStock({ suppliers = [], products = [], purchases = [], cheques = [], onSave }) {
+export default function ReceiveStock({ suppliers = [], products = [], purchases = [], cheques = [], tanTypes = [], onSave, onAddTanType }) {
   const [adding, setAdding] = useState(false)
   const [editingPurchase, setEditingPurchase] = useState(null)
   const [message, setMessage] = useState('')
@@ -53,7 +53,7 @@ export default function ReceiveStock({ suppliers = [], products = [], purchases 
     receivingLabel(purchase),
     purchase.supplier,
     purchase.date,
-    `${(purchase.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)} suits · ${(purchase.items || []).length} products`,
+    `${(purchase.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)} items · ${(purchase.items || []).length} products`,
     money(purchase.total),
     money(purchase.paid),
     purchase.id,
@@ -110,6 +110,8 @@ export default function ReceiveStock({ suppliers = [], products = [], purchases 
           existingCheques={cheques}
           initialPurchase={editingPurchase}
           onClose={() => { setAdding(false); setEditingPurchase(null) }}
+          tanTypes={tanTypes}
+          onAddTanType={onAddTanType}
           onSave={saveDelivery}
         />
       )}

@@ -64,6 +64,7 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [database, setDatabase] = useState(createEmptyDatabase)
   const [authLoading, setAuthLoading] = useState(() => Boolean(sessionStorage.getItem('katasys-token')))
+  const [registrationAvailable, setRegistrationAvailable] = useState(false)
   const [language, setLanguage] = useState(() => localStorage.getItem('katasys-language') === 'ur' ? 'ur' : 'en')
   const [operationError, setOperationError] = useState('')
   const [isSidebarOpen, setSidebarOpen] = useState(false)
@@ -156,6 +157,7 @@ export default function App() {
     if (!token) {
       getBootstrapStatus().then((status) => {
         setLanguage(status.language === 'ur' ? 'ur' : 'en')
+        setRegistrationAvailable(Boolean(status.registrationAvailable))
       }).catch(() => {})
       setAuthLoading(false)
       return undefined
@@ -193,6 +195,7 @@ export default function App() {
     const result = credentials.registration
       ? await registerAccount(credentials)
       : await signIn(credentials)
+    setRegistrationAvailable(false)
     setOperationError('')
     sessionStorage.setItem('katasys-token', result.token)
     setUser(result.user)
@@ -405,7 +408,7 @@ export default function App() {
   }
 
   if (authLoading) return <main className="min-h-screen grid place-items-center text-[#52645c]">Connecting to KataSys…</main>
-  if (!token || !user) return <SignIn onSignIn={handleSignIn} />
+  if (!token || !user) return <SignIn onSignIn={handleSignIn} registrationAvailable={registrationAvailable} />
 
   return <>
     <Header user={user} token={token} showNotifications={can('notifications')} canManageNotifications={can('notifications', 'manage')} menuButtonRef={menuButtonRef} onMenuClick={openNavigation} onSignOut={signOut} onViewAllNotifications={() => setCurrentPage('notifications')} onOpenNotification={openNotification} />
@@ -420,7 +423,7 @@ export default function App() {
       : activePage === 'stock' ? <StockProducts products={database.products} suppliers={suppliers} onReceiveStock={() => navigateTo('Receive stock')} onSaveAudit={saveStockAudit} />
       : activePage === 'receive' ? <ReceiveStock suppliers={suppliers} products={database.products} purchases={database.purchases} cheques={database.cheques} onSave={(delivery) => delivery.purchaseId
         ? mutate(`purchases/${delivery.purchaseId}`, { method: 'PATCH', body: delivery })
-        : mutate('purchases', { body: delivery })} />
+        : mutate('purchases', { body: delivery })} tanTypes={database.tanTypes || []} onAddTanType={(name) => mutate('purchases/tan-types', { body: { name }, throwOnError: true })} />
       : activePage === 'supplier-returns' ? <SupplierReturns purchases={database.purchases} returns={database.supplierReturns} onSubmit={(input) => mutate('returns/suppliers', { body: input })} />
       : activePage === 'claims' ? <Claims claims={database.claims} products={database.products} suppliers={suppliers} customers={customers} onCreate={(input) => mutate('claims', { body: input })} onStatusChange={(id, status) => changeStatus(`claims/${id}/status`, status)} onUpdateDetails={(id, details) => mutate(`claims/${id}`, { method: 'PATCH', body: details })} />
       : activePage === 'suppliers' ? <Suppliers suppliers={suppliers} products={database.products} purchases={database.purchases} payments={database.payments} returns={database.supplierReturns} claims={database.claims} cheques={database.cheques} onCreate={(supplier) => mutate('suppliers', { body: supplier })} onUpdate={(id, supplier) => mutate(`suppliers/${id}`, { method: 'PATCH', body: supplier })} onPayment={(payment) => mutate(`suppliers/${payment.accountId}/payments`, { body: payment })} onStatement={(id) => showStatement('supplier', id)} />
