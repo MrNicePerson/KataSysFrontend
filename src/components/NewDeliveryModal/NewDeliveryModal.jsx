@@ -162,14 +162,14 @@ export function AddedStockCard({ items, onRemove, onUpdate, editable = false, sh
                 <span className="min-w-0 break-words"><small className="block text-[10px] font-normal uppercase tracking-wide text-[#718078]">Article Name</small>
                   {editable ? <input aria-label="Product name" className="w-full mt-1 px-2 py-1 rounded border border-[#dfe4dc] font-semibold" value={item.productName || ""} onChange={(event) => onUpdate(item.id, "productName", event.target.value)} /> : item.productName || item.articleNumber || "Stock item"}
                 </span>
-                {!editable && <button
+                <button
                   type="button"
                   aria-label={`Remove ${item.productName || "stock item"}`}
                   className="w-6 h-6 shrink-0 grid place-items-center rounded-md text-red-600 hover:bg-red-50 cursor-pointer"
                   onClick={() => onRemove(item.id)}
                 >
                   ×
-                </button>}
+                </button>
               </div>
               <small className="text-[#718078] block break-words">
                 {editable
@@ -495,7 +495,7 @@ export default function NewDeliveryModal({
   };
   const updateItem = (id, field, value) => setItems((current) => current.map((item) => item.id !== id ? item : ({
     ...item,
-    [field]: field === "quantity" ? Math.max(1, Number(value) || 1) : field === "unitCost" || field === "salePrice" ? Math.max(0, Number(value) || 0) : value,
+    [field]: value,
     ...(field === "articleNumber" ? { code: value } : {}),
   })));
   const existingSupplierProducts = products.filter((product) => product.active !== false && (!product.supplierId || product.supplierId === supplier));
@@ -583,7 +583,7 @@ export default function NewDeliveryModal({
       if (!supplier) nextErrors.supplier = "Choose a supplier.";
       if (!arrivalDate) nextErrors.arrivalDate = "Choose an arrival date.";
       if (!batchNumber) nextErrors.batchNumber = "Choose a supplier with a Supplier Code to generate the batch number.";
-      if (items.length === 0)
+      if (items.length === 0 && !initialPurchase)
       nextErrors.items = "Add at least one stock item before saving.";
       if (itemDraftDirty) nextErrors.items = "Add the current item to the delivery before saving.";
     }
@@ -923,7 +923,7 @@ export default function NewDeliveryModal({
             splitBank={splitBank}
             bankDetails={bankDetails}
             cheques={cheques}
-            onRemove={(id) => addingStock
+            onRemove={(id) => initialPurchase && !addingStock && !window.confirm('Remove this stock item from the delivery? Save the delivery to apply this change.') ? undefined : addingStock
               ? setAppendItems((current) => current.filter((item) => item.id !== id))
               : setItems((current) => current.filter((item) => item.id !== id))}
           />
