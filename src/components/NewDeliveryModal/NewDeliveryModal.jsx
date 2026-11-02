@@ -128,6 +128,35 @@ function SeasonField({ value, onChange, error }) {
 const money = (amount) =>
   `Rs. ${Number(amount).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+export function DeliveryCart({ items, onRemove, onUpdate, editable = false, append = false }) {
+  const [query, setQuery] = useState('');
+  const filtered = items.filter((item) => [item.articleNumber, item.code, item.productName, item.batchNumber, item.season, item.tanType].some((value) => String(value || '').toLowerCase().includes(query.trim().toLowerCase())));
+  const total = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitCost || 0), 0);
+  const inputClass = 'w-full min-w-0 rounded-md border border-[#dfe4dc] bg-white px-2 py-1.5 text-sm text-[#173b32]';
+  return <aside aria-label={append ? 'New stock added' : 'Added stock'} className="min-h-0 min-w-0 flex flex-col overflow-hidden rounded-xl border border-[#e2e6df] bg-[#f7faf5]">
+    <div className="shrink-0 space-y-2 p-4">
+      <div className="flex items-center gap-3"><h3 className="text-lg font-bold text-[#173b32]">{append ? 'New stock added' : 'Added stock'}</h3><span className="rounded-md bg-[#e8f2e3] px-2 py-1 text-xs font-semibold text-[#155b4b]">{items.length} {items.length === 1 ? 'item' : 'items'}</span></div>
+      {append && <p className="text-xs text-[#718078]">Only items added in this session.</p>}
+      <input type="search" aria-label="Search added stock" placeholder="Search article, brand, batch number or season..." value={query} onChange={(event) => setQuery(event.target.value)} className={`${inputClass} h-10`} />
+    </div>
+    <div className="min-h-0 flex-1 overflow-auto">
+      <table className="w-full min-w-[690px] table-fixed text-left text-xs text-[#173b32]">
+        <thead className="sticky top-0 z-10 bg-[#e8f2e3]"><tr>{['Article / Brand', 'Season', 'Quantity', 'Buy price (Rs.)', 'Sale price (Rs.)', 'Total', 'Remove'].map((heading) => <th key={heading} scope="col" className="border-b border-[#dfe8dc] px-2 py-3 font-semibold">{heading}</th>)}</tr></thead>
+        <tbody className="divide-y divide-[#edf0eb] bg-white">{filtered.map((item) => <tr key={item.id}>
+          <td className="px-2 py-2 align-top">{editable ? <><input aria-label="Article number" className={inputClass} value={item.articleNumber ?? item.code ?? ''} onChange={(event) => onUpdate(item.id, 'articleNumber', event.target.value)} /><input aria-label="Product name" className={`${inputClass} mt-1`} value={item.productName ?? ''} onChange={(event) => onUpdate(item.id, 'productName', event.target.value)} /></> : <><strong className="block break-words">{item.articleNumber || item.code || '—'}</strong><span className="block break-words">{item.productName}</span></>}<small className="mt-1 block break-words text-[#718078]">{item.productType === 'tan' && `${item.tanType || 'Tan'} · ${item.metersPerTan || 0} m / Tan · `}{item.batchNumber || '—'}</small></td>
+          <td className="px-2 py-2">{editable ? <select aria-label="Season" className={inputClass} value={item.season || ''} onChange={(event) => onUpdate(item.id, 'season', event.target.value)}><option value="">—</option>{!['', 'Summer', 'Winter'].includes(item.season || '') && <option value={item.season}>{item.season}</option>}<option value="Summer">Summer</option><option value="Winter">Winter</option></select> : item.season || (item.productType === 'tan' ? 'Tan' : '—')}</td>
+          <td className="px-2 py-2">{editable ? <input aria-label={item.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity'} type="number" min="1" step="1" className={inputClass} value={item.quantity} onChange={(event) => onUpdate(item.id, 'quantity', event.target.value)} /> : item.quantity}<small className="block text-[#718078]">{item.productType === 'tan' ? 'Tan' : 'suits'}</small></td>
+          {['unitCost', 'salePrice'].map((field) => <td key={field} className="px-2 py-2">{editable ? <input aria-label={field === 'unitCost' ? 'Buy price' : 'Sale price'} type="number" min="0" step="0.01" className={inputClass} value={item[field] ?? ''} onChange={(event) => onUpdate(item.id, field, event.target.value)} /> : money(item[field] || 0)}{item.productType === 'tan' && <small className="block text-[#718078]">/ Tan</small>}</td>)}
+          <td className="px-2 py-2 font-semibold">{money(Number(item.quantity || 0) * Number(item.unitCost || 0))}</td>
+          <td className="px-2 py-2"><button type="button" onClick={() => onRemove(item.id)} aria-label={`Remove ${item.productName || item.articleNumber || 'stock item'}`} className="rounded-md px-2 py-1 text-red-700 hover:bg-red-50">Remove</button></td>
+        </tr>)}</tbody>
+      </table>
+      {!filtered.length && <p className="p-5 text-center text-sm text-[#718078]">{items.length ? 'No matching stock items.' : 'No stock items added.'}</p>}
+    </div>
+    <div className="shrink-0 flex justify-between gap-4 border-t border-[#dfe8dc] bg-[#f7faf5] px-4 py-3 text-sm text-[#52645c]"><span>{items.length} {items.length === 1 ? 'product' : 'products'}</span><span>{append ? 'New stock total' : 'Stock total'} <strong className="ml-2 text-[#173b32]">{money(total)}</strong></span></div>
+  </aside>;
+}
+
 export function AddedStockCard({ items, onRemove, onUpdate, editable = false, showPaymentSummary = true, paymentMethod = "cash", amountPaid = "0", splitCash = "0", splitBank = "0", bankDetails = {}, cheques = [] }) {
   const stockTotal = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitCost || 0), 0);
   const cashPaid = paymentMethod === "split" ? Number(splitCash || 0) : paymentMethod === "cash" ? Number(amountPaid || 0) : 0;
@@ -159,7 +188,7 @@ export function AddedStockCard({ items, onRemove, onUpdate, editable = false, sh
               key={item.id}
             >
               <div className="flex items-start justify-between gap-2 font-bold mb-1">
-                <span className="min-w-0 break-words"><small className="block text-[10px] font-normal uppercase tracking-wide text-[#718078]">Article Name</small>
+                <span className="min-w-0 break-words"><small className="block text-[10px] font-normal uppercase tracking-wide text-[#718078]">Product</small>
                   {editable ? <input aria-label="Product name" className="w-full mt-1 px-2 py-1 rounded border border-[#dfe4dc] font-semibold" value={item.productName || ""} onChange={(event) => onUpdate(item.id, "productName", event.target.value)} /> : item.productName || item.articleNumber || "Stock item"}
                 </span>
                 <button
@@ -514,7 +543,7 @@ export default function NewDeliveryModal({
     const opener = document.activeElement;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    keyboard.ref.current?.querySelector("#delivery-supplier")?.focus();
+    keyboard.ref.current?.querySelector(initialPurchase ? "#delivery-arrivalDate" : "#delivery-supplier")?.focus();
     return () => {
       document.body.style.overflow = previousOverflow;
       if (opener?.isConnected) opener.focus();
@@ -678,7 +707,7 @@ export default function NewDeliveryModal({
 
   return (
     <>
-    <div className="fixed inset-0 z-50 bg-[#203832]/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-[#203832]/40 backdrop-blur-xs flex items-center justify-center p-2 sm:p-5">
       <section
         ref={keyboard.ref}
         onKeyDownCapture={(event) => {
@@ -686,12 +715,12 @@ export default function NewDeliveryModal({
         }}
         onKeyDown={keyboard.onKeyDown}
         data-keyboard-scope
-        className="w-full max-w-4xl p-5 sm:p-7 rounded-2xl bg-white border border-[#e2e6df] shadow-2xl max-h-[92vh] overflow-y-auto"
+        className="flex h-[min(900px,96dvh)] w-full max-w-[1400px] min-h-0 flex-col overflow-hidden rounded-2xl bg-white border border-[#e2e6df] shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="new-delivery-title"
       >
-        <header className="flex items-center justify-between pb-4 mb-5 border-b border-[#edf0eb]">
+        <header className="shrink-0 flex items-center justify-between px-5 sm:px-7 py-4 border-b border-[#edf0eb]">
           <h2
             id="new-delivery-title"
             className="text-[#173b32] text-xl sm:text-2xl font-bold"
@@ -708,8 +737,8 @@ export default function NewDeliveryModal({
           </button>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-          <form className="space-y-6" onSubmit={saveDelivery} noValidate>
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3 overflow-hidden p-3 sm:p-4 lg:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.4fr)] lg:grid-rows-1">
+          <form id="delivery-form" className="min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1" onSubmit={saveDelivery} noValidate>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field
                 label="Supplier"
@@ -851,6 +880,7 @@ export default function NewDeliveryModal({
                 onClick={() => {
                   setAddingStock(false);
                   setErrors({});
+                  requestAnimationFrame(() => keyboard.ref.current?.querySelector('#delivery-add-stock')?.focus());
                 }}
               >
                 ← Back to Edit Received Delivery
@@ -863,11 +893,13 @@ export default function NewDeliveryModal({
             </div>}
 
             {initialPurchase && !addingStock && <button
+              id="delivery-add-stock"
               type="button"
               className="w-full h-11 rounded-xl border border-[#155b4b] text-[#155b4b] hover:bg-[#e8f2e3] text-xs sm:text-sm font-semibold transition-all cursor-pointer"
               onClick={() => {
                 setAddingStock(true);
                 setErrors({});
+                requestAnimationFrame(() => keyboard.ref.current?.querySelector(productType === 'tan' ? '#delivery-tanType' : '#delivery-articleNumber')?.focus());
               }}
             >
               + Add Stock to This Delivery
@@ -901,18 +933,11 @@ export default function NewDeliveryModal({
               }}
               error={errors.payment}
             />
+            {initialPurchase && errors.items && <p className="text-sm text-red-600" role="alert">{errors.items}</p>}
 
-            <button
-              disabled={saving}
-              className="w-full h-12 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] text-white text-sm sm:text-base font-bold shadow-md transition-all cursor-pointer active:scale-98"
-              type="submit"
-            >
-              {saving ? "Saving…" : initialPurchase ? addingStock ? "Save changes to delivery" : "Save delivery changes" : "Save Delivery & Add Stock"}
-            </button>
-            {errors.save && <p className="text-sm text-red-600" role="alert">{errors.save}</p>}
-          </form>
+</form>
 
-          <AddedStockCard
+          {initialPurchase ? <DeliveryCart key={addingStock ? 'append' : 'edit'} items={(addingStock ? appendItems : items).map((item) => ({ ...item, batchNumber: item.batchNumber || (addingStock ? appendBatchNumber : batchNumber) }))} editable={!addingStock} append={addingStock} onUpdate={updateItem} onRemove={(id) => !addingStock && !window.confirm('Remove this stock item from the delivery? Save the delivery to apply this change.') ? undefined : addingStock ? setAppendItems((current) => current.filter((item) => item.id !== id)) : setItems((current) => current.filter((item) => item.id !== id))} /> : <div className="min-h-0 min-w-0 overflow-y-auto"><AddedStockCard
             items={(addingStock ? appendItems : items).map((item) => ({ ...item, batchNumber: item.batchNumber || (addingStock ? appendBatchNumber : batchNumber) }))}
             editable={Boolean(initialPurchase && !addingStock)}
             showPaymentSummary={!addingStock}
@@ -926,8 +951,13 @@ export default function NewDeliveryModal({
             onRemove={(id) => initialPurchase && !addingStock && !window.confirm('Remove this stock item from the delivery? Save the delivery to apply this change.') ? undefined : addingStock
               ? setAppendItems((current) => current.filter((item) => item.id !== id))
               : setItems((current) => current.filter((item) => item.id !== id))}
-          />
+          /></div>}
         </div>
+        <footer className="shrink-0 flex flex-wrap items-center justify-end gap-3 border-t border-[#edf0eb] px-4 sm:px-6 py-3">
+          {errors.save && <p className="mr-auto text-sm text-red-600" role="alert">{errors.save}</p>}
+          <button type="button" disabled={saving} onClick={onClose} className="h-10 rounded-xl border border-[#dfe4dc] px-5 text-sm font-semibold text-[#173b32] disabled:opacity-50">Cancel</button>
+          <button type="submit" form="delivery-form" disabled={saving} className="h-10 rounded-xl bg-[#155b4b] px-5 text-sm font-bold text-white hover:bg-[#104b3e] disabled:opacity-50">{saving ? 'Saving...' : initialPurchase ? addingStock ? 'Save changes to delivery' : 'Save delivery changes' : 'Save Delivery & Add Stock'}</button>
+        </footer>
       </section>
     </div>
     {showTanTypeDialog && <FormDialog title="Add Tan type" fields={[{ name: 'name', label: 'Tan type name', required: true }]} onClose={() => setShowTanTypeDialog(false)} onSave={saveTanType} />}
