@@ -143,7 +143,7 @@ export function DeliveryCart({ items, onRemove, onUpdate, editable = false, appe
       <table className="w-full min-w-[690px] table-fixed text-left text-xs text-[#173b32]">
         <thead className="sticky top-0 z-10 bg-[#e8f2e3]"><tr>{['Article / Brand', 'Season', 'Quantity', 'Buy price (Rs.)', 'Sale price (Rs.)', 'Total', 'Remove'].map((heading) => <th key={heading} scope="col" className="border-b border-[#dfe8dc] px-2 py-3 font-semibold">{heading}</th>)}</tr></thead>
         <tbody className="divide-y divide-[#edf0eb] bg-white">{filtered.map((item) => <tr key={item.id}>
-          <td className="px-2 py-2 align-top">{editable ? <><input aria-label="Article number" className={inputClass} value={item.articleNumber ?? item.code ?? ''} onChange={(event) => onUpdate(item.id, 'articleNumber', event.target.value)} /><input aria-label="Product name" className={`${inputClass} mt-1`} value={item.productName ?? ''} onChange={(event) => onUpdate(item.id, 'productName', event.target.value)} /></> : <><strong className="block break-words">{item.articleNumber || item.code || '—'}</strong><span className="block break-words">{item.productName}</span></>}<small className="mt-1 block break-words text-[#718078]">{item.productType === 'tan' && `${item.tanType || 'Tan'} · ${item.metersPerTan || 0} m / Tan · `}{item.batchNumber || '—'}</small></td>
+          <td className="px-2 py-2 align-top">{editable ? <><input aria-label="Article number" className={inputClass} value={item.articleNumber ?? item.code ?? ''} onChange={(event) => onUpdate(item.id, 'articleNumber', event.target.value)} /><input aria-label="Brand name" placeholder="Brand name (optional)" className={`${inputClass} mt-1`} value={item.brandName ?? ''} onChange={(event) => onUpdate(item.id, 'brandName', event.target.value)} /></> : <><strong className="block break-words">{item.articleNumber || item.code || '—'}</strong><span className="block break-words">{item.brandName || (item.productType === 'tan' ? item.productName : '')}</span></>}<small className="mt-1 block break-words text-[#718078]">{item.productType === 'tan' && `${item.tanType || 'Tan'} · ${item.metersPerTan || 0} m / Tan · `}{item.batchNumber || '—'}</small></td>
           <td className="px-2 py-2">{editable ? <select aria-label="Season" className={inputClass} value={item.season || ''} onChange={(event) => onUpdate(item.id, 'season', event.target.value)}><option value="">—</option>{!['', 'Summer', 'Winter'].includes(item.season || '') && <option value={item.season}>{item.season}</option>}<option value="Summer">Summer</option><option value="Winter">Winter</option></select> : item.season || (item.productType === 'tan' ? 'Tan' : '—')}</td>
           <td className="px-2 py-2">{editable ? <input aria-label={item.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity'} type="number" min="1" step="1" className={inputClass} value={item.quantity} onChange={(event) => onUpdate(item.id, 'quantity', event.target.value)} /> : item.quantity}<small className="block text-[#718078]">{item.productType === 'tan' ? 'Tan' : 'suits'}</small></td>
           {['unitCost', 'salePrice'].map((field) => <td key={field} className="px-2 py-2">{editable ? <input aria-label={field === 'unitCost' ? 'Buy price' : 'Sale price'} type="number" min="0" step="0.01" className={inputClass} value={item[field] ?? ''} onChange={(event) => onUpdate(item.id, field, event.target.value)} /> : money(item[field] || 0)}{item.productType === 'tan' && <small className="block text-[#718078]">/ Tan</small>}</td>)}
@@ -480,6 +480,7 @@ export default function NewDeliveryModal({
     id: item.lineId || `legacy-line-${index}`,
     lineId: item.lineId || `legacy-line-${index}`,
     articleNumber: item.code || "",
+    brandName: item.brandName ?? (item.productType === 'tan' ? item.productName : String(item.productName || '').trim().toLowerCase() === String(item.code || '').trim().toLowerCase() ? '' : item.productName || ''),
   })));
   const [appendItems, setAppendItems] = useState([]);
   const [addingStock, setAddingStock] = useState(false);
@@ -525,6 +526,7 @@ export default function NewDeliveryModal({
   const updateItem = (id, field, value) => setItems((current) => current.map((item) => item.id !== id ? item : ({
     ...item,
     [field]: value,
+    ...(field === "brandName" ? { productName: value || item.articleNumber || item.code || item.productName } : {}),
     ...(field === "articleNumber" ? { code: value } : {}),
   })));
   const existingSupplierProducts = products.filter((product) => product.active !== false && (!product.supplierId || product.supplierId === supplier));
@@ -581,6 +583,7 @@ export default function NewDeliveryModal({
         buyPricePerMeter: productType === 'tan' ? itemUnitCost / Number(metersPerTan) : undefined,
         salePricePerMeter: productType === 'tan' ? itemSalePrice / Number(metersPerTan) : undefined,
         productName: productType === 'tan' ? tanName.trim() : productName.trim() || articleNumber.trim(),
+        brandName: productType === 'tan' ? tanName.trim() : productName.trim(),
         articleNumber: productType === 'tan' ? '' : articleNumber.trim(),
         quantity: Number(quantity),
         unitCost: itemUnitCost,
@@ -627,9 +630,10 @@ export default function NewDeliveryModal({
     setSaving(true);
     try {
       if (initialPurchase && addingStock) {
-        const signature = JSON.stringify(appendItems.map(({ existingProductId, productName, articleNumber, padNumber, quantity, unitCost, salePrice, season, productType, tanType, metersPerTan }) => ({
+        const signature = JSON.stringify(appendItems.map(({ existingProductId, productName, brandName, articleNumber, padNumber, quantity, unitCost, salePrice, season, productType, tanType, metersPerTan }) => ({
           existingProductId,
           productName,
+          brandName,
           articleNumber,
           padNumber,
           quantity,
@@ -677,7 +681,7 @@ export default function NewDeliveryModal({
           supplierId: payload.supplierId,
           date: payload.date,
           padNumber: payload.padNumber,
-          items: payload.items.map(({ productId, existingProductId, productName, code, padNumber, size, quantity, unitCost, salePrice, season, rackLocation, batchNumber }) => ({ productId, existingProductId, productName, code, padNumber, size, quantity, unitCost, salePrice, season, rackLocation, batchNumber })),
+          items: payload.items.map(({ productId, existingProductId, productName, brandName, code, padNumber, size, quantity, unitCost, salePrice, season, rackLocation, batchNumber }) => ({ productId, existingProductId, productName, brandName, code, padNumber, size, quantity, unitCost, salePrice, season, rackLocation, batchNumber })),
           payments: payload.payments,
           bankDetails: payload.bankDetails,
           cheques: payload.cheques,
