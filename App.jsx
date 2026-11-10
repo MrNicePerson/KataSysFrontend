@@ -413,6 +413,17 @@ export default function App() {
     return saved
   }
 
+  const saveDelivery = async (delivery) => {
+    const saved = await (delivery.purchaseId
+      ? mutate(`purchases/${delivery.purchaseId}`, { method: 'PATCH', body: delivery, throwOnError: true })
+      : mutate('purchases', { body: delivery, throwOnError: true }))
+    if (saved?.updatedProducts?.length) {
+      const updated = new Map(saved.updatedProducts.map((product) => [product.id, product]))
+      setDatabase((current) => ({ ...current, products: current.products.map((product) => updated.get(product.id) || product) }))
+    }
+    return saved
+  }
+
   if (authLoading) return <main className="min-h-screen grid place-items-center text-[#52645c]">Connecting to KataSys…</main>
   if (!token || !user) return <SignIn onSignIn={handleSignIn} registrationAvailable={registrationAvailable} />
 
@@ -427,9 +438,7 @@ export default function App() {
       : activePage === 'returns' ? <CustomerReturns bills={savedBills} customers={customers} returns={database.returns} onReturnProcessed={(input) => mutate('returns/customers', { body: input })} />
       : activePage === 'orders' ? <OrdersHeld bills={heldBills} customers={customers} onResume={async (bill) => { const resumed = await mutate(`orders/${bill.id}/resume`); if (resumed) { setResumeDraft(resumed); setCurrentPage('new-sale') } }} onDiscard={(id) => mutate(`orders/${id}/cancel`)} onDeliver={(id, delivery) => mutate(`orders/${id}/deliver`, { body: delivery })} onComplete={async (bill) => { const sale = await mutate(`orders/${bill.id}/complete`); if (sale?.id) await showInvoice(sale, 'orders') }} />
       : activePage === 'stock' ? <StockProducts products={database.products} suppliers={suppliers} onReceiveStock={() => navigateTo('Receive stock')} onSaveAudit={saveStockAudit} onUpdateProduct={can('stock', 'edit') ? updateStockProduct : undefined} onDeleteProduct={can('stock', 'delete') ? (id) => mutate(`products/${id}`, { method: 'DELETE', throwOnError: true }) : undefined} />
-      : activePage === 'receive' ? <ReceiveStock suppliers={suppliers} products={database.products} purchases={database.purchases} cheques={database.cheques} onSave={(delivery) => delivery.purchaseId
-        ? mutate(`purchases/${delivery.purchaseId}`, { method: 'PATCH', body: delivery })
-        : mutate('purchases', { body: delivery })} tanTypes={database.tanTypes || []} onAddTanType={(name) => mutate('purchases/tan-types', { body: { name }, throwOnError: true })} />
+      : activePage === 'receive' ? <ReceiveStock suppliers={suppliers} products={database.products} purchases={database.purchases} cheques={database.cheques} onSave={saveDelivery} tanTypes={database.tanTypes || []} onAddTanType={(name) => mutate('purchases/tan-types', { body: { name }, throwOnError: true })} />
       : activePage === 'supplier-returns' ? <SupplierReturns purchases={database.purchases} returns={database.supplierReturns} onSubmit={(input) => mutate('returns/suppliers', { body: input })} />
       : activePage === 'claims' ? <Claims claims={database.claims} products={database.products} suppliers={suppliers} customers={customers} onCreate={(input) => mutate('claims', { body: input })} onStatusChange={(id, status) => changeStatus(`claims/${id}/status`, status)} onUpdateDetails={(id, details) => mutate(`claims/${id}`, { method: 'PATCH', body: details })} />
       : activePage === 'suppliers' ? <Suppliers suppliers={suppliers} products={database.products} purchases={database.purchases} payments={database.payments} returns={database.supplierReturns} claims={database.claims} cheques={database.cheques} onCreate={(supplier) => mutate('suppliers', { body: supplier })} onUpdate={(id, supplier) => mutate(`suppliers/${id}`, { method: 'PATCH', body: supplier, throwOnError: true })} onDelete={(id) => mutate(`suppliers/${id}`, { method: 'DELETE', throwOnError: true })} onPayment={(payment) => mutate(`suppliers/${payment.accountId}/payments`, { body: payment })} onStatement={(id) => showStatement('supplier', id)} />
