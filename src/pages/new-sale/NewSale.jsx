@@ -422,19 +422,6 @@ export default function NewSale({ customers, products = [], bills = [], returns 
             onAddressChange={setAddress}
           />
           </div>
-          <section className="rounded-2xl border border-[#e2e6df] bg-white p-4 sm:p-6 shadow-panel" aria-labelledby="payment-promises-title">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div><h2 id="payment-promises-title" className="text-[#173b32] text-lg font-semibold">Payment promises</h2><p className="mt-1 text-sm text-[#718078]">Schedule expected payments from the selected customer.</p></div>
-              <span className="rounded-full bg-[#f1f6ea] px-3 py-1 text-xs font-semibold text-[#557250]">{customers.find((customer) => String(customer.id) === String(selectedCustomerId))?.name || 'No customer selected'}</span>
-            </div>
-            {!customers.some((customer) => String(customer.id) === String(selectedCustomerId)) && <p className="mt-3 text-xs text-[#718078]">Choose a saved customer to schedule a promise.</p>}
-            <div className="mt-4 space-y-3">{paymentPromises.map((promise, index) => <div key={promise.id} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] items-end gap-3 rounded-xl border border-[#edf0eb] p-3">
-              <label className="flex flex-col gap-1 text-xs font-semibold text-[#29443b]">Due date<input type="date" value={promise.dueDate} onChange={(event) => setPaymentPromises((rows) => rows.map((row) => row.id === promise.id ? { ...row, dueDate: event.target.value } : row))} className="h-10 rounded-lg border border-[#dfe4dc] px-3 text-sm" /></label>
-              <label className="flex flex-col gap-1 text-xs font-semibold text-[#29443b]">Promised amount (Rs.)<input type="number" min="0.01" step="0.01" inputMode="decimal" placeholder="0" value={promise.amount} onChange={(event) => setPaymentPromises((rows) => rows.map((row) => row.id === promise.id ? { ...row, amount: event.target.value } : row))} className="h-10 rounded-lg border border-[#dfe4dc] px-3 text-sm" /></label>
-              <button type="button" aria-label={`Remove payment promise ${index + 1}`} onClick={() => setPaymentPromises((rows) => rows.filter((row) => row.id !== promise.id))} className="h-10 rounded-lg border border-[#e2e6df] px-3 text-sm font-semibold text-[#718078] hover:border-red-200 hover:bg-red-50 hover:text-red-700">Remove</button>
-            </div>)}</div>
-            <button type="button" onClick={() => setPaymentPromises((rows) => [...rows, { id: `promise-${Date.now()}-${Math.random()}`, dueDate: '', amount: '' }])} className="mt-3 h-10 rounded-lg border border-[#155b4b] px-4 text-sm font-semibold text-[#155b4b] hover:bg-[#f1f6ea]">+ Add another payment</button>
-          </section>
           <div data-sale-step="article">
           <AddItem products={availableProducts} onAddItem={addItem} onSkipEmptyItem={focusDiscount} />
           </div>
@@ -451,6 +438,19 @@ export default function NewSale({ customers, products = [], bills = [], returns 
             onChequeDetailsChange={setChequeDetails}
           />
           </div>
+          <section className="rounded-2xl border border-[#e2e6df] bg-white p-4 sm:p-6 shadow-panel" aria-labelledby="payment-promises-title">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div><h2 id="payment-promises-title" className="text-[#173b32] text-lg font-semibold">Payment promises</h2><p className="mt-1 text-sm text-[#718078]">Schedule expected payments from the selected customer.</p></div>
+              <span className="rounded-full bg-[#f1f6ea] px-3 py-1 text-xs font-semibold text-[#557250]">{customers.find((customer) => String(customer.id) === String(selectedCustomerId))?.name || 'No customer selected'}</span>
+            </div>
+            {!customers.some((customer) => String(customer.id) === String(selectedCustomerId)) && <p className="mt-3 text-xs text-[#718078]">Choose a saved customer to schedule a promise.</p>}
+            <div className="mt-4 space-y-3">{paymentPromises.map((promise, index) => <div key={promise.id} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] items-end gap-3 rounded-xl border border-[#edf0eb] p-3">
+              <label className="flex flex-col gap-1 text-xs font-semibold text-[#29443b]">Due date<input type="date" value={promise.dueDate} onChange={(event) => setPaymentPromises((rows) => rows.map((row) => row.id === promise.id ? { ...row, dueDate: event.target.value } : row))} className="h-10 rounded-lg border border-[#dfe4dc] px-3 text-sm" /></label>
+              <label className="flex flex-col gap-1 text-xs font-semibold text-[#29443b]">Promised amount (Rs.)<input type="number" min="0.01" step="0.01" inputMode="decimal" placeholder="0" value={promise.amount} onChange={(event) => setPaymentPromises((rows) => rows.map((row) => row.id === promise.id ? { ...row, amount: event.target.value } : row))} className="h-10 rounded-lg border border-[#dfe4dc] px-3 text-sm" /></label>
+              <button type="button" aria-label={`Remove payment promise ${index + 1}`} onClick={() => setPaymentPromises((rows) => rows.filter((row) => row.id !== promise.id))} className="h-10 rounded-lg border border-[#e2e6df] px-3 text-sm font-semibold text-[#718078] hover:border-red-200 hover:bg-red-50 hover:text-red-700">Remove</button>
+            </div>)}</div>
+            <button type="button" onClick={() => setPaymentPromises((rows) => [...rows, { id: `promise-${Date.now()}-${Math.random()}`, dueDate: '', amount: '' }])} className="mt-3 h-10 rounded-lg border border-[#155b4b] px-4 text-sm font-semibold text-[#155b4b] hover:bg-[#f1f6ea]">+ Add another payment</button>
+          </section>
         </div>
 
         <div data-sale-step="cart" className="space-y-4 lg:sticky lg:top-28">

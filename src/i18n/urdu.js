@@ -453,6 +453,8 @@ export const urduMessages = {
   'Defective / quarantine': 'نقص زدہ / قرنطینہ',
   'Stock value': 'اسٹاک کی مالیت',
   'Stock Purchase Cost': 'اسٹاک کی خریداری کی لاگت',
+  'Value at current selling prices': 'موجودہ فروخت کی قیمتوں پر مالیت',
+  'Partial total: some stock has no selling price or valid tan length.': 'جزوی مجموعہ: کچھ اسٹاک کی فروخت کی قیمت یا تھان کی درست لمبائی موجود نہیں۔',
   'Purchase cost of stock currently on hand': 'موجودہ اسٹاک کی خریداری کی لاگت',
   'Print': 'پرنٹ کریں',
   'Receive stock': 'اسٹاک وصول کریں',
