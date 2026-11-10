@@ -9,7 +9,7 @@ export default function StockStats({ stats = [] }) {
           <span className="text-xs sm:text-sm font-medium text-[#718078]">{label}</span>
           <strong className="text-lg sm:text-xl lg:text-2xl font-bold text-[#173b32]">{value}</strong>
           {helper && <span className="text-xs leading-snug text-[#718078]">{helper}</span>}
-          {warning && <span className="text-xs leading-snug font-semibold text-amber-700">{warning}</span>}
+          {warning && <div className="text-xs leading-snug font-semibold text-amber-700">{warning}</div>}
         </div>
       ))}
     </div>
