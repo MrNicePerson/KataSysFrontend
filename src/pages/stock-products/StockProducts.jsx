@@ -29,7 +29,7 @@ function exportStockCsv(products) {
   setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-export default function StockProducts({ products: records = [], suppliers = [], onReceiveStock, onSaveAudit }) {
+export default function StockProducts({ products: records = [], suppliers = [], onReceiveStock, onSaveAudit, onUpdateProduct, onDeleteProduct }) {
   const [query, setQuery] = useState('')
   const [reviewOpen, setReviewOpen] = useState(false)
   const [counts, setCounts] = useState({})
@@ -37,13 +37,46 @@ export default function StockProducts({ products: records = [], suppliers = [], 
   const [reviewSaving, setReviewSaving] = useState(false)
   const [reviewPeriod, setReviewPeriod] = useState('monthly')
   const [reviewDate, setReviewDate] = useState(localDateString())
+  const [editingProduct, setEditingProduct] = useState(null)
+  const [editValues, setEditValues] = useState({})
+  const [editError, setEditError] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
   const reviewOpenerRef = useRef(null)
   const reviewKeyboard = useKeyboardScope({ onEscape: () => { if (!reviewSaving) closeReview() }, trapFocus: true })
+  const editKeyboard = useKeyboardScope({ onEscape: () => { if (!editSaving) setEditingProduct(null) }, trapFocus: true })
   const products = useMemo(() => records.map((p) => ({ ...p, colour: p.shade || '', supplier: suppliers.find((s) => s.id === p.supplierId)?.name || '—', batch: p.batchNumber || '—', available: String(Number(p.stockQuantity || 0) - Number(p.reservedQuantity || 0)), defective: String(p.defectiveQuantity || 0), cost: `Rs. ${Number(p.averageCost || 0).toLocaleString()}`, tone: 'blue' })), [records, suppliers])
   const total = (key) => products.reduce((sum, p) => sum + Number(p[key] || 0), 0)
   const valuation = stockValuation(records)
   const stats = [['Available whole units', total('available').toLocaleString()], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value', `Rs. ${valuation.sellingValue.toLocaleString()}`, 'Value at current selling prices', valuation.missingPrices ? 'Partial total: some stock has no selling price or valid tan length.' : ''], ['Stock Purchase Cost', `Rs. ${valuation.purchaseCost.toLocaleString()}`, 'Purchase cost of stock currently on hand']]
-  const filtered = products.filter((product) => [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(query.toLowerCase()))
+  const filtered = products.filter((product) => product.active !== false && [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(query.toLowerCase()))
+
+  const openEdit = (product) => {
+    setEditingProduct(product)
+    setEditValues({ stockQuantity: String(product.stockQuantity ?? 0), averageCost: String(product.averageCost ?? 0), salePrice: String(product.salePrice ?? 0) })
+    setEditError('')
+  }
+  const saveProduct = async (event) => {
+    event.preventDefault()
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const saved = await onUpdateProduct(editingProduct.id, { ...editValues, expectedStockQuantity: editingProduct.stockQuantity ?? 0 })
+      if (!saved) throw new Error('Could not save stock changes.')
+      setEditingProduct(null)
+    } catch (error) { setEditError(error.message || 'Could not save stock changes.') }
+    finally { setEditSaving(false) }
+  }
+  const deleteProduct = async () => {
+    if (!window.confirm('Remove this product from the stock list? Its history will be preserved.')) return
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const saved = await onDeleteProduct(editingProduct.id)
+      if (!saved) throw new Error('Could not remove this product.')
+      setEditingProduct(null)
+    } catch (error) { setEditError(error.message || 'Could not remove this product.') }
+    finally { setEditSaving(false) }
+  }
 
   const closeReview = () => {
     setReviewOpen(false)
@@ -114,7 +147,15 @@ export default function StockProducts({ products: records = [], suppliers = [], 
 
       <StockStats stats={stats} />
       <StockTools query={query} onQueryChange={setQuery} onReview={openReview} onExport={() => exportStockCsv(products)} />
-      <StockTable products={filtered} />
+      <StockTable products={filtered} onEdit={onUpdateProduct ? openEdit : undefined} />
+      {editingProduct && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#203832]/50 p-4">
+        <form ref={editKeyboard.ref} onKeyDown={editKeyboard.onKeyDown} onSubmit={saveProduct} className="w-full max-w-md rounded-2xl bg-white p-5 sm:p-6 shadow-2xl space-y-4" role="dialog" aria-modal="true" aria-labelledby="edit-stock-title">
+          <div><h2 id="edit-stock-title" className="text-xl font-bold text-[#173b32]">Edit stock</h2><p className="mt-1 text-sm text-[#718078]">{editingProduct.article || editingProduct.code || editingProduct.name} · {editingProduct.batchNumber || '—'}</p></div>
+          {[['stockQuantity', editingProduct.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity (suits)', '1'], ['averageCost', editingProduct.productType === 'tan' ? 'Purchase cost per Tan (Rs.)' : 'Purchase cost per suit (Rs.)', '0.01'], ['salePrice', editingProduct.productType === 'tan' ? 'Sale price per Tan (Rs.)' : 'Sale price per suit (Rs.)', '0.01']].map(([field, label, step]) => <label key={field} className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">{label}<input type="number" min="0" step={step} required value={editValues[field]} onChange={(event) => setEditValues((current) => ({ ...current, [field]: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 font-normal" /></label>)}
+          {editError && <p role="alert" className="text-sm text-red-700">{editError}</p>}
+          <div className="flex flex-wrap justify-between gap-2">{onDeleteProduct && <button type="button" disabled={editSaving} onClick={deleteProduct} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">Delete</button>}<div className="ml-auto flex gap-2"><button type="button" disabled={editSaving} onClick={() => setEditingProduct(null)} className="rounded-lg border border-[#dfe4dc] px-4 py-2 text-sm font-semibold">Cancel</button><button type="submit" disabled={editSaving} className="rounded-lg bg-[#155b4b] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{editSaving ? 'Saving...' : 'Save changes'}</button></div></div>
+        </form>
+      </div>}
       {reviewOpen && (
         <div className="fixed inset-0 z-50 bg-[#203832]/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !reviewSaving) closeReview() }}>
           <form ref={reviewKeyboard.ref} onKeyDown={reviewKeyboard.onKeyDown} onSubmit={saveReview} className="w-full max-w-5xl max-h-[92vh] overflow-hidden rounded-2xl bg-white border border-[#e2e6df] shadow-2xl flex flex-col" role="dialog" aria-modal="true" aria-labelledby="stock-review-title">

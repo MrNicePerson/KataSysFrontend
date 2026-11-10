@@ -1,4 +1,4 @@
-export default function StockTable({ products = [] }) {
+export default function StockTable({ products = [], onEdit }) {
   return (
     <>
       <div className="w-full overflow-x-auto rounded-2xl border border-[#e2e6df] bg-white shadow-panel">
@@ -9,6 +9,8 @@ export default function StockTable({ products = [] }) {
               <th className="px-4 sm:px-6 py-3.5">Supplier / batch</th>
               <th className="px-4 sm:px-6 py-3.5">Available stock</th>
               <th className="px-4 sm:px-6 py-3.5">Cost per suit / Tan</th>
+              <th className="px-4 sm:px-6 py-3.5">Sale price</th>
+              {onEdit && <th className="px-4 sm:px-6 py-3.5">Actions</th>}
             </tr>
           </thead>
           <tbody data-keyboard-list className="divide-y divide-[#edf0eb]">
@@ -37,6 +39,8 @@ export default function StockTable({ products = [] }) {
                 <td className="px-4 sm:px-6 py-4">
                   <div className="font-semibold text-[#173b32]">{product.cost}{product.productType === 'tan' ? <small className="block text-xs font-normal text-[#718078]">Buy / m: Rs. {Number(product.buyPricePerMeter || 0).toLocaleString()} · Sale / Tan: Rs. {Number(product.salePrice || 0).toLocaleString()} · Sale / m: Rs. {Number(product.salePricePerMeter || 0).toLocaleString()}</small> : null}</div>
                 </td>
+                <td className="px-4 sm:px-6 py-4 font-semibold text-[#173b32]">Rs. {Number(product.salePrice || 0).toLocaleString()}{product.productType === 'tan' ? ' / Tan' : ' / suit'}</td>
+                {onEdit && <td className="px-4 sm:px-6 py-4"><button type="button" onClick={() => onEdit(product)} className="rounded-lg border border-[#155b4b] px-3 py-2 font-semibold text-[#155b4b] hover:bg-[#e8f2e3]">Edit</button></td>}
               </tr>
             ))}
           </tbody>
