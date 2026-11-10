@@ -72,6 +72,7 @@ export const changePassword = (token, passwords) =>
 export const getWorkspace = (token) =>
   apiRequest('workspace', {
     token,
+    cache: 'no-store',
   })
 
 export const getSaleDayStatus = (token) =>
