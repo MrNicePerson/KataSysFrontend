@@ -40,6 +40,7 @@ export default function Payment({ total, payments, chequeDetails, bankDetails = 
         min="0"
         step="0.01"
         value={payments[field]}
+        placeholder="0"
         onChange={(event) => onChange(field, event.target.value)}
         className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
       />

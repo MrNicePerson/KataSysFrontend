@@ -40,7 +40,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
   const reviewKeyboard = useKeyboardScope({ onEscape: () => { if (!reviewSaving) closeReview() }, trapFocus: true })
   const products = useMemo(() => records.map((p) => ({ ...p, colour: p.shade || '', supplier: suppliers.find((s) => s.id === p.supplierId)?.name || '—', batch: p.batchNumber || '—', available: String(Number(p.stockQuantity || 0) - Number(p.reservedQuantity || 0)), defective: String(p.defectiveQuantity || 0), cost: `Rs. ${Number(p.averageCost || 0).toLocaleString()}`, tone: 'blue' })), [records, suppliers])
   const total = (key) => products.reduce((sum, p) => sum + Number(p[key] || 0), 0)
-  const stats = [['Available whole units', total('available').toLocaleString()], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value', `Rs. ${products.reduce((sum, p) => sum + Number(p.stockQuantity || 0) * Number(p.averageCost || 0), 0).toLocaleString()}`]]
+  const stats = [['Available whole units', total('available').toLocaleString()], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value', `Rs. ${products.reduce((sum, p) => sum + Number(p.stockQuantity || 0) * Number(p.averageCost || 0), 0).toLocaleString()}`], ['Stock Purchase Cost', `Rs. ${records.reduce((sum, product) => sum + Number(product.stockQuantity || 0) * Number(product.averageCost || 0), 0).toLocaleString()}`, 'Purchase cost of stock currently on hand']]
   const filtered = products.filter((product) => [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(query.toLowerCase()))
 
   const closeReview = () => {

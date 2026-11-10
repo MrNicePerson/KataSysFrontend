@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
+import { availableSellableQuantity, sellableProducts } from '../../data/sellableStock.js'
 
 export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
   const [name, setName] = useState('')
@@ -11,7 +12,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
   const quantityRef = useRef(null)
   const priceRef = useRef(null)
   const fieldRef = useRef(null)
-  const productRecords = products
+  const productRecords = sellableProducts(products)
 
   const articleLabel = (product) => product.articleName || product.articleNumber || product.article || product.itemCode || product.code || product.productName || product.itemName || product.name
 
@@ -85,7 +86,8 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
       onSkipEmptyItem?.()
       return
     }
-    const product = selectedProduct || productRecords.find((entry) => entry.name?.trim().toLowerCase() === name.trim().toLowerCase())
+    const product = productRecords.find((entry) => entry.id === selectedProduct?.id) || (!selectedProduct && productRecords.find((entry) => entry.name?.trim().toLowerCase() === name.trim().toLowerCase()))
+    if (selectedProduct && !product) return
     onAddItem({
       productId: product?.id,
       code: product?.code || product?.articleNumber || product?.itemCode || name.trim(),
@@ -95,7 +97,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
       productType: product?.productType === 'tan' ? 'tan' : 'suit',
       tanType: product?.tanType || '', batchNumber: product?.batchNumber || '', metersPerTan: Number(product?.metersPerTan || 0),
       salePricePerMeter: Number(product?.salePricePerMeter || 0),
-      availableQuantity: product ? Math.max(0, Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0)) : undefined,
+      availableQuantity: product ? availableSellableQuantity(product) : undefined,
       quantity: Number(quantity) || 1,
       price: Number(price) || 0,
     })

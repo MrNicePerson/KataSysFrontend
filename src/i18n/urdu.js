@@ -452,6 +452,8 @@ export const urduMessages = {
   'Reserved': 'مختص',
   'Defective / quarantine': 'نقص زدہ / قرنطینہ',
   'Stock value': 'اسٹاک کی مالیت',
+  'Stock Purchase Cost': 'اسٹاک کی خریداری کی لاگت',
+  'Purchase cost of stock currently on hand': 'موجودہ اسٹاک کی خریداری کی لاگت',
   'Print': 'پرنٹ کریں',
   'Receive stock': 'اسٹاک وصول کریں',
   'Add a supplier delivery to the stock ledger.': 'سپلائر کی ڈیلیوری اسٹاک لیجر میں شامل کریں۔',

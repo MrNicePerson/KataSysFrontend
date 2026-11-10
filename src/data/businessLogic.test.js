@@ -1,6 +1,19 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { calculateAccountLedger, calculateBankBalanceSummary, calculateBusinessTotals, calculateDailyClosing, calculateDailyProfit, createAccount, createClaim, createEmptyDatabase, createSale, localDateString, processCustomerReturn, processSupplierReturn, receivePurchase, recordAccountPayment, recordExpense, recordHeldOrder, runDatabaseCommand, saveSettings, updateChequeStatus, updateClaimStatus, validateBackup } from './businessLogic.js'
+import { calculateDailyClosing as calculateBackendClosing } from '../../Backend/src/domain/businessLogic.js'
+
+test('supplier cash payments do not reduce the drawer in frontend or backend closing', () => {
+  const date = '2026-11-03'
+  const database = createEmptyDatabase()
+  database.dailyClosings = [{ id: 'opening', date, type: 'opening', amount: 1000 }]
+  database.payments = [{ id: 'supplier-payment', date, type: 'supplier-payment', method: 'cash', amount: 250 }]
+  for (const calculate of [calculateDailyClosing, calculateBackendClosing]) {
+    const closing = calculate(database, date)
+    assert.equal(closing.supplierPayments, 250)
+    assert.equal(closing.expectedCash, 1000)
+  }
+})
 
 const seed = () => {
   let db = createEmptyDatabase()

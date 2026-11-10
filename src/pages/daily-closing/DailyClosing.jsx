@@ -73,7 +73,7 @@ export default function DailyClosing({ database, onSave, onDelete, onReviewStock
     ['Cash sales', movement.cashSales],
     ['Customer cash received', movement.customerPayments],
     ['Other cash received', movement.cashOtherReceipts],
-    ['Supplier cash paid', -movement.supplierPayments],
+    ['Supplier cash paid (outside drawer)', movement.supplierPayments],
     ['Cash refunds', -movement.cashRefunds],
     ['Cash expenses / withdrawals', -movement.cashExpenses],
   ]

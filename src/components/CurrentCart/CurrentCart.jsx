@@ -1,7 +1,7 @@
 import { ChevronDown, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
-export default function CurrentCart({ items, discount, onDiscountChange, onAddReturn, onReturnAdded, onRemoveItem, onUpdateItem, onSaveBill, onHoldBill, onClear, purchasedItems = [], saleSubtotal: saleSubtotalProp, returnTotal: returnTotalProp, refundType = 'cash', onRefundTypeChange, saving = false }) {
+export default function CurrentCart({ items, discount, discountInput, paymentPromises = [], onDiscountChange, onAddReturn, onReturnAdded, onRemoveItem, onUpdateItem, onSaveBill, onHoldBill, onClear, purchasedItems = [], saleSubtotal: saleSubtotalProp, returnTotal: returnTotalProp, refundType = 'cash', onRefundTypeChange, saving = false }) {
   const [returnItem, setReturnItem] = useState({ itemCode: '', quantity: 1, condition: 'Return' })
   const [returnError, setReturnError] = useState('')
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
@@ -13,6 +13,7 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
   const total = Math.max(0, settlementBalance)
   const itemCount = saleItems.reduce((sum, item) => sum + item.quantity, 0)
   const [selectedPurchasedItem, setSelectedPurchasedItem] = useState(null)
+  const scheduledPromises = paymentPromises.filter((promise) => promise.dueDate && Number(promise.amount) > 0).sort((left, right) => left.dueDate.localeCompare(right.dueDate))
 
   const handleChange = (field, value) => {
     setReturnItem((previous) => ({ ...previous, [field]: value }))
@@ -101,13 +102,12 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
                     max={item.productType === 'tan' ? item.availableQuantity : undefined}
                     className="w-14 h-8 px-1.5 text-center rounded-lg border border-[#dfe4dc] text-sm text-[#12332d] font-medium focus:outline-none focus:border-[#155b4b]"
                     value={item.quantity}
+                    onFocus={() => { if (Number(item.quantity) === 1) onUpdateItem(item.id, 'quantity', '') }}
                     onKeyDown={(event) => {
                       if (['ArrowUp', 'ArrowDown'].includes(event.key)) event.preventDefault()
                     }}
                     onChange={(event) => onUpdateItem(item.id, 'quantity', event.target.value)}
-                    onBlur={() => {
-                      if (!Number(item.quantity)) onUpdateItem(item.id, 'quantity', '1')
-                    }}
+                    onBlur={() => { if (item.quantity === '') onUpdateItem(item.id, 'quantity', '1') }}
                   />
                 </label>
 
@@ -117,11 +117,9 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
                     type="number"
                     min="0"
                     className="w-20 h-8 px-1.5 text-center rounded-lg border border-[#dfe4dc] text-sm text-[#12332d] font-medium focus:outline-none focus:border-[#155b4b]"
-                    value={item.price}
+                    value={item.price === 0 || item.price === '0' ? '' : item.price}
+                    placeholder="0"
                     onChange={(event) => onUpdateItem(item.id, 'price', event.target.value)}
-                    onBlur={() => {
-                      if (item.price === '') onUpdateItem(item.id, 'price', '0')
-                    }}
                   />
                 </label>
 
@@ -193,6 +191,9 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
                 step="1"
                 className="w-full h-10 px-3 rounded-lg border border-[#d9e0d9] bg-white text-xs sm:text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
                 value={returnItem.quantity}
+                placeholder="1"
+                onFocus={() => { if (Number(returnItem.quantity) === 1) handleChange('quantity', '') }}
+                onBlur={() => { if (returnItem.quantity === '') handleChange('quantity', '1') }}
                 onKeyDown={(event) => {
                       if (['ArrowUp', 'ArrowDown'].includes(event.key)) event.preventDefault()
                     }}
@@ -263,6 +264,10 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
 
       {/* Totals Calculation */}
       <div className="mt-6 space-y-3 pt-4 border-t border-[#edf0eb]">
+        {scheduledPromises.length > 0 && <div className="rounded-lg bg-[#f1f6ea] px-3 py-2 text-xs font-semibold text-[#155b4b]" aria-live="polite">
+          <p>{scheduledPromises.length} {scheduledPromises.length === 1 ? 'payment' : 'payments'} scheduled</p>
+          <p className="mt-0.5 font-medium">Next: Rs. {Number(scheduledPromises[0].amount).toLocaleString()} on {new Date(`${scheduledPromises[0].dueDate}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
+        </div>}
         <div className="flex justify-between items-center text-sm sm:text-base text-[#29443b]">
           <span>Sale subtotal</span>
           <strong className="font-bold">Rs. {subtotal.toLocaleString()}</strong>
@@ -276,7 +281,8 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
             type="number"
             className="w-full h-10 sm:h-11 px-3.5 rounded-xl border border-[#dfe4dc] text-sm sm:text-base text-[#29443b] focus:outline-none focus:border-[#155b4b] focus:ring-2 focus:ring-[#155b4b]/15"
             id="sale-discount"
-            value={discount}
+            value={discountInput ?? String(discount || '')}
+            placeholder="0"
             onKeyDown={(event) => {
               if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return
               if (!['Enter', 'PageUp', 'PageDown', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
@@ -290,7 +296,7 @@ export default function CurrentCart({ items, discount, onDiscountChange, onAddRe
               if (event.key === 'ArrowUp' || event.key === 'PageUp') root?.querySelector('#sale-return-code')?.focus()
               if (event.key === 'ArrowDown') root?.querySelector('#sale-save-preview:not(:disabled)')?.focus()
             }}
-            onChange={(event) => onDiscountChange(Number(event.target.value))}
+            onChange={(event) => onDiscountChange(event.target.value)}
             min="0"
             max={Math.max(0, subtotal)}
           />
