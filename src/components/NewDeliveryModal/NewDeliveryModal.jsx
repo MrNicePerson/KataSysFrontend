@@ -4,6 +4,7 @@ import { receivingBatchPreview } from '../../data/receiving.js';
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js';
 import FormDialog from '../FormDialog/FormDialog.jsx';
 import { BANK_OPTIONS } from '../Payment/Payment.jsx';
+import { initialDeliveryPrice, deliveryPriceForSave } from './deliveryPrice.js';
 
 const today = () => {
   const date = new Date();
@@ -146,7 +147,7 @@ export function DeliveryCart({ items, onRemove, onUpdate, editable = false, appe
           <td className="px-2 py-2 align-top">{editable ? <><input aria-label="Article number" className={inputClass} value={item.articleNumber ?? item.code ?? ''} onChange={(event) => onUpdate(item.id, 'articleNumber', event.target.value)} /><input aria-label="Brand name" placeholder="Brand name (optional)" className={`${inputClass} mt-1`} value={item.brandName ?? ''} onChange={(event) => onUpdate(item.id, 'brandName', event.target.value)} /></> : <><strong className="block break-words">{item.articleNumber || item.code || '—'}</strong><span className="block break-words">{item.brandName || (item.productType === 'tan' ? item.productName : '')}</span></>}<small className="mt-1 block break-words text-[#718078]">{item.productType === 'tan' && `${item.tanType || 'Tan'} · ${item.metersPerTan || 0} m / Tan · `}{item.batchNumber || '—'}</small></td>
           <td className="px-2 py-2">{editable ? <select aria-label="Season" className={inputClass} value={item.season || ''} onChange={(event) => onUpdate(item.id, 'season', event.target.value)}><option value="">—</option>{!['', 'Summer', 'Winter'].includes(item.season || '') && <option value={item.season}>{item.season}</option>}<option value="Summer">Summer</option><option value="Winter">Winter</option></select> : item.season || (item.productType === 'tan' ? 'Tan' : '—')}</td>
           <td className="px-2 py-2">{editable ? <input aria-label={item.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity'} type="number" min="1" step="1" className={inputClass} value={item.quantity} onChange={(event) => onUpdate(item.id, 'quantity', event.target.value)} /> : item.quantity}<small className="block text-[#718078]">{item.productType === 'tan' ? 'Tan' : 'suits'}</small></td>
-          {['unitCost', 'salePrice'].map((field) => <td key={field} className="px-2 py-2">{editable ? <input aria-label={field === 'unitCost' ? 'Buy price' : 'Sale price'} type="number" min="0" step="0.01" className={inputClass} value={item[field] ?? ''} onChange={(event) => onUpdate(item.id, field, event.target.value)} /> : money(item[field] || 0)}{item.productType === 'tan' && <small className="block text-[#718078]">/ Tan</small>}</td>)}
+          {['unitCost', 'salePrice'].map((field) => <td key={field} className="px-2 py-2">{editable ? <input aria-label={field === 'unitCost' ? 'Buy price' : 'Sale price'} type="number" min="0" step="0.01" placeholder="0" className={inputClass} value={item[field] ?? ''} onChange={(event) => onUpdate(item.id, field, event.target.value)} /> : money(item[field] || 0)}{item.productType === 'tan' && <small className="block text-[#718078]">/ Tan</small>}</td>)}
           <td className="px-2 py-2 font-semibold">{money(Number(item.quantity || 0) * Number(item.unitCost || 0))}</td>
           <td className="px-2 py-2"><button type="button" onClick={() => onRemove(item.id)} aria-label={`Remove ${item.productName || item.articleNumber || 'stock item'}`} className="rounded-md px-2 py-1 text-red-700 hover:bg-red-50">Remove</button></td>
         </tr>)}</tbody>
@@ -218,11 +219,11 @@ export function AddedStockCard({ items, onRemove, onUpdate, editable = false, sh
                 {item.productType === 'tan' && <div className="col-span-2 text-[#52645c]">{item.tanType} · {item.metersPerTan} m / Tan · Buy Rs. {Number(item.buyPricePerMeter || 0).toFixed(2)} / m · Sale Rs. {Number(item.salePricePerMeter || 0).toFixed(2)} / m</div>}
                 <div className="min-w-0">
                   <dt className="text-xs text-[#718078]">{item.productType === 'tan' ? 'Buy price per Tan' : 'Cost per suit'}</dt>
-                  <dd className="mt-0.5 font-semibold tabular-nums break-words">{editable ? <input aria-label={item.productType === 'tan' ? 'Buy price per Tan' : 'Purchase price per suit'} type="number" min="0" step="0.01" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.unitCost} onChange={(event) => onUpdate(item.id, "unitCost", event.target.value)} /> : money(item.unitCost)}</dd>
+                  <dd className="mt-0.5 font-semibold tabular-nums break-words">{editable ? <input aria-label={item.productType === 'tan' ? 'Buy price per Tan' : 'Purchase price per suit'} type="number" min="0" step="0.01" placeholder="0" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.unitCost} onChange={(event) => onUpdate(item.id, "unitCost", event.target.value)} /> : money(item.unitCost)}</dd>
                 </div>
                 <div className="min-w-0">
                   <dt className="text-xs text-[#718078]">{item.productType === 'tan' ? 'Sale price per Tan' : 'Sale price per suit'}</dt>
-                  <dd className="mt-0.5 font-semibold tabular-nums break-words">{editable ? <input aria-label={item.productType === 'tan' ? 'Sale price per Tan' : 'Sale price per suit'} type="number" min="0" step="0.01" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.salePrice} onChange={(event) => onUpdate(item.id, "salePrice", event.target.value)} /> : money(item.salePrice)}</dd>
+                  <dd className="mt-0.5 font-semibold tabular-nums break-words">{editable ? <input aria-label={item.productType === 'tan' ? 'Sale price per Tan' : 'Sale price per suit'} type="number" min="0" step="0.01" placeholder="0" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.salePrice} onChange={(event) => onUpdate(item.id, "salePrice", event.target.value)} /> : money(item.salePrice)}</dd>
                 </div>
                 <div className="col-span-2 pt-3 border-t border-[#edf0eb]">
                   <dt className="font-bold text-[#155b4b]">Total cost <span className="block text-xs font-normal text-[#718078]">Total purchase cost</span></dt>
@@ -465,8 +466,8 @@ export default function NewDeliveryModal({
   const [articleNumber, setArticleNumber] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [quantity, setQuantity] = useState("1");
-  const [unitCost, setUnitCost] = useState("0");
-  const [salePrice, setSalePrice] = useState("0");
+  const [unitCost, setUnitCost] = useState("");
+  const [salePrice, setSalePrice] = useState("");
   const [season, setSeason] = useState("Summer");
   const [productType, setProductType] = useState('suit');
   const [tanType, setTanType] = useState('');
@@ -477,6 +478,8 @@ export default function NewDeliveryModal({
   const [savedTanTypes, setSavedTanTypes] = useState(tanTypes);
   const [items, setItems] = useState(() => (initialPurchase?.items || []).map((item, index) => ({
     ...item,
+    unitCost: initialDeliveryPrice(item.unitCost),
+    salePrice: initialDeliveryPrice(item.salePrice),
     id: item.lineId || `legacy-line-${index}`,
     lineId: item.lineId || `legacy-line-${index}`,
     articleNumber: item.code || "",
@@ -536,8 +539,8 @@ export default function NewDeliveryModal({
     if (!product) return;
     setProductName(product.name || "");
     setArticleNumber(product.code || "");
-    setUnitCost(String(product.averageCost || 0));
-    setSalePrice(String(product.salePrice || 0));
+    setUnitCost(initialDeliveryPrice(product.averageCost));
+    setSalePrice(initialDeliveryPrice(product.salePrice));
     setSeason(product.season || "Summer");
   };
 
@@ -598,8 +601,8 @@ export default function NewDeliveryModal({
     setSelectedProductId("");
     setTanName('');
     setQuantity("1");
-    setUnitCost("0");
-    setSalePrice("0");
+    setUnitCost("");
+    setSalePrice("");
     setItemDraftDirty(false);
   };
 
@@ -669,7 +672,7 @@ export default function NewDeliveryModal({
       date: arrivalDate,
       arrivalDate,
       padNumber: padNumber.trim(),
-      items: items.map((item) => ({ ...item, lineId: item.lineId || (initialPurchase ? item.id : undefined), batchNumber: item.batchNumber || batchNumber })),
+      items: items.map((item) => ({ ...item, unitCost: deliveryPriceForSave(item.unitCost), salePrice: deliveryPriceForSave(item.salePrice), lineId: item.lineId || (initialPurchase ? item.id : undefined), batchNumber: item.batchNumber || batchNumber })),
       payments: payment.payments,
       bankDetails: payment.bankDetails,
       cheques: payment.cheques,
@@ -849,10 +852,9 @@ export default function NewDeliveryModal({
                   type="number"
                   min="0"
                   step="0.01"
+                  placeholder="0"
                   value={unitCost}
                   onChange={(event) => { setUnitCost(event.target.value); setItemDraftDirty(true) }}
-                  onFocus={() => { if (Number(unitCost) === 0) setUnitCost("") }}
-                  onBlur={() => { if (unitCost === "") setUnitCost("0") }}
                   error={errors.unitCost}
                 />
                 <Field
@@ -861,10 +863,9 @@ export default function NewDeliveryModal({
                   type="number"
                   min="0"
                   step="0.01"
+                  placeholder="0"
                   value={salePrice}
                   onChange={(event) => { setSalePrice(event.target.value); setItemDraftDirty(true) }}
-                  onFocus={() => { if (Number(salePrice) === 0) setSalePrice("") }}
-                  onBlur={() => { if (salePrice === "") setSalePrice("0") }}
                   error={errors.salePrice}
                 />
               </div>

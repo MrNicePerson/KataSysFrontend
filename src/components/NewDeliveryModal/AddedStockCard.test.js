@@ -5,6 +5,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { transformSync } from 'rolldown/utils'
 import { createEmptyDatabase, createAccount, receivePurchase } from '../../data/businessLogic.js'
+import { initialDeliveryPrice } from './deliveryPrice.js'
 
 async function componentUrl(url) {
   const path = new URL(url)
@@ -17,9 +18,21 @@ async function componentUrl(url) {
   }
   return `data:text/javascript;base64,${Buffer.from(resolved).toString('base64')}`
 }
-const { default: NewDeliveryModal, AddedStockCard, PaymentDetails, calculateStockPayment, prepareStockPayment, getReceivingBanks } = await import(await componentUrl(new URL('./NewDeliveryModal.jsx', import.meta.url).href))
+const { default: NewDeliveryModal, AddedStockCard, DeliveryCart, PaymentDetails, calculateStockPayment, prepareStockPayment, getReceivingBanks } = await import(await componentUrl(new URL('./NewDeliveryModal.jsx', import.meta.url).href))
 const render = (items) => renderToStaticMarkup(createElement(AddedStockCard, { items, onRemove() {} }))
 const item = { id: 'one', productName: 'Lawn Suit', articleNumber: 'L-1', batchNumber: 'BATCH-01', season: 'Summer', quantity: 3, unitCost: 1250.25, salePrice: 1700.5 }
+
+test('delivery editor price inputs preserve typed strings after an initial zero', () => {
+  let row = { ...item, unitCost: initialDeliveryPrice(0), salePrice: initialDeliveryPrice(0) }
+  const html = () => renderToStaticMarkup(createElement(DeliveryCart, { items: [row], editable: true, onUpdate() {} }))
+  assert.match(html(), /aria-label="Buy price"[^>]*placeholder="0"[^>]*value=""/)
+  for (const value of ['5', '50', '509', '5095']) row = { ...row, unitCost: value }
+  assert.match(html(), /aria-label="Buy price"[^>]*value="5095"/)
+  for (const value of ['0', '10', '0.50', '']) {
+    row = { ...row, salePrice: value }
+    assert.match(html(), new RegExp(`aria-label="Sale price"[^>]*value="${value.replace('.', '\\.') }"`))
+  }
+})
 
 test('added stock renders all details and the same purchase total as the backend', () => {
   const supplier = createAccount(createEmptyDatabase(), 'supplier', { name: 'Textiles', supplierCode: 'TX' })
