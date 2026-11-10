@@ -1,4 +1,4 @@
-export default function ReceiveTable({ deliveries = [], onSelect }) {
+export default function ReceiveTable({ deliveries = [], onSelect, onEdit }) {
   return (
     <div className="w-full overflow-x-auto rounded-2xl border border-[#e2e6df] bg-white shadow-panel">
       <table className="w-full text-left text-xs sm:text-sm min-w-[700px]">
@@ -10,7 +10,7 @@ export default function ReceiveTable({ deliveries = [], onSelect }) {
             <th className="px-4 sm:px-6 py-3.5">Delivery</th>
             <th className="px-4 sm:px-6 py-3.5">Total</th>
             <th className="px-4 sm:px-6 py-3.5">Paid</th>
-            <th className="px-4 sm:px-6 py-3.5 text-right">Bill</th>
+            <th className="px-4 sm:px-6 py-3.5 text-right">Actions</th>
           </tr>
         </thead>
         <tbody data-keyboard-list className="divide-y divide-[#edf0eb]">
@@ -23,7 +23,10 @@ export default function ReceiveTable({ deliveries = [], onSelect }) {
                 <td className="px-4 sm:px-6 py-4">{delivery[3]}</td>
                 <td className="px-4 sm:px-6 py-4 font-semibold text-[#173b32]">{delivery[4]}</td>
                 <td className="px-4 sm:px-6 py-4 text-[#155b4b] font-medium">{delivery[5]}</td>
-                <td className="px-4 sm:px-6 py-4 text-right"><button type="button" data-keyboard-primary className="px-3 py-1.5 rounded-lg border border-[#dfe4dc] text-[#173b32] font-semibold" onClick={() => onSelect?.(delivery[6])}>Details</button></td>
+                <td className="px-4 sm:px-6 py-4 text-right whitespace-nowrap">
+                  <button type="button" data-keyboard-primary className="px-3 py-1.5 rounded-lg border border-[#dfe4dc] text-[#173b32] font-semibold" onClick={() => onSelect?.(delivery[6])}>Details</button>
+                  <button type="button" className="ml-2 px-3 py-1.5 rounded-lg border border-[#dfe4dc] text-[#155b4b] font-semibold" onClick={() => onEdit?.(delivery[6])}>Edit</button>
+                </td>
               </tr>
             ))
           ) : (

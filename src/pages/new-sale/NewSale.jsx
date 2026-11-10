@@ -5,6 +5,7 @@ import AddItem from '../../components/AddItem/AddItem.jsx'
 import Payment from '../../components/Payment/Payment.jsx'
 import { calculatePaymentSummary } from '../../data/paymentCalculations.js'
 import { prepareSaleDraft } from '../../data/saleDraft.js'
+import { sellableProducts } from '../../data/sellableStock.js'
 
 const paymentMethodForDraft = (draft) => {
   const values = ['cash', 'bank', 'cheque'].filter((method) => Number(draft?.payments?.[method === 'bank' ? 'bankTransfer' : method] ?? draft?.payments?.[method] ?? 0) > 0)
@@ -13,7 +14,8 @@ const paymentMethodForDraft = (draft) => {
 
 export default function NewSale({ customers, products = [], bills = [], selectedCustomerId, onCustomerChange, onNewCustomer, onSaveBill, onHoldBill, initialDraft, onDraftLoaded, businessDate }) {
   const [items, setItems] = useState(() => prepareSaleDraft(initialDraft).items)
-  const [discount, setDiscount] = useState(() => initialDraft?.discount ?? 0)
+  const [discount, setDiscount] = useState(() => String(initialDraft?.discount ?? ''))
+  const [paymentPromises, setPaymentPromises] = useState(() => (initialDraft?.paymentPromises || []).map((promise, index) => ({ id: promise.id || `promise-${index}-${Date.now()}`, dueDate: promise.dueDate || '', amount: String(promise.amount ?? '') })))
   const [payments, setPayments] = useState(() => ({
     cash: String(initialDraft?.payments?.cash ?? ''),
     bank: String(initialDraft?.payments?.bankTransfer ?? initialDraft?.payments?.bank ?? ''),
@@ -178,8 +180,9 @@ export default function NewSale({ customers, products = [], bills = [], selected
   }, [customers, selectedCustomerId])
 
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price * (item.productType === 'tan' ? Number(item.metersPerTan || 0) : 1), 0)
-  const total = Math.max(0, subtotal - discount)
-  const availableProducts = products.filter((product) => product.active !== false && Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0) > 0)
+  const normalizedDiscount = Number(discount) || 0
+  const total = Math.max(0, subtotal - normalizedDiscount)
+  const availableProducts = sellableProducts(products)
   const customerProducts = (() => {
     if (!selectedCustomerId || selectedCustomerId === 'walk-in') return []
     const selectedCustomer = customers.find((customer) => String(customer.id) === String(selectedCustomerId))
@@ -206,7 +209,8 @@ export default function NewSale({ customers, products = [], bills = [], selected
 
   const clearSale = () => {
     setItems([])
-    setDiscount(0)
+    setDiscount('')
+    setPaymentPromises([])
     setPayments({ cash: '', bank: '', cheque: '' })
     setChequeDetails({ chequeNumber: '', bankName: '', chequeDate: '', dueDate: '' })
     setBankDetails({ bankName: '', accountNumber: '' })
@@ -323,7 +327,17 @@ export default function NewSale({ customers, products = [], bills = [], selected
     setSaving(true)
     try {
       const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId)
-      const saved = await onSaveBill({ ...bill, payments: { ...paymentSummary, bankTransfer: paymentSummary.bank, chequeDetails, bankDetails }, bankDetails, cheque: chequeDetails, due: paymentSummary.uncoveredBalance, paymentDue: chequeDetails.dueDate, previousBalance: Number(selectedCustomer?.balance ?? selectedCustomer?.openingBalance ?? 0), customerId: selectedCustomerId, paidInvoiceNumber, padInvoiceNumber: paidInvoiceNumber, customerPhone: phone, customerAddress: address })
+      const hasPromiseInput = paymentPromises.some((promise) => promise.dueDate || promise.amount)
+      if (hasPromiseInput) {
+        setSaleMessage('Payment promises are not available until the backend is updated. Remove the promise rows before saving.')
+        return
+      }
+      if (hasPromiseInput && !selectedCustomer?.id) {
+        setSaleMessage('Select a saved customer before scheduling payment promises.')
+        return
+      }
+      const validPromises = paymentPromises.filter((promise) => promise.dueDate && Number(promise.amount) > 0).map((promise) => ({ ...promise, amount: Number(promise.amount), customerId: selectedCustomer.id }))
+      const saved = await onSaveBill({ ...bill, discount: normalizedDiscount, paymentPromises: validPromises, payments: { ...paymentSummary, bankTransfer: paymentSummary.bank, chequeDetails, bankDetails }, bankDetails, cheque: chequeDetails, due: paymentSummary.uncoveredBalance, paymentDue: chequeDetails.dueDate, previousBalance: Number(selectedCustomer?.balance ?? selectedCustomer?.openingBalance ?? 0), customerId: selectedCustomerId, paidInvoiceNumber, padInvoiceNumber: paidInvoiceNumber, customerPhone: phone, customerAddress: address })
       if (!saved) return
       clearSale()
     } catch (error) {
@@ -339,7 +353,7 @@ export default function NewSale({ customers, products = [], bills = [], selected
     savingRef.current = true
     setSaving(true)
     try {
-      const held = await onHoldBill({ items, discount, total, payments, chequeDetails, bankDetails, paymentMethod, customerId: selectedCustomerId, kind })
+      const held = await onHoldBill({ items, discount: normalizedDiscount, total, payments, chequeDetails, bankDetails, paymentMethod, customerId: selectedCustomerId, paymentPromises, kind })
       if (!held) return
       setSaleMessage('Bill held.')
       clearSale()
@@ -393,6 +407,19 @@ export default function NewSale({ customers, products = [], bills = [], selected
             onAddressChange={setAddress}
           />
           </div>
+          <section className="rounded-2xl border border-[#e2e6df] bg-white p-4 sm:p-6 shadow-panel" aria-labelledby="payment-promises-title">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div><h2 id="payment-promises-title" className="text-[#173b32] text-lg font-semibold">Payment promises</h2><p className="mt-1 text-sm text-[#718078]">Schedule expected payments from the selected customer.</p></div>
+              <span className="rounded-full bg-[#f1f6ea] px-3 py-1 text-xs font-semibold text-[#557250]">{customers.find((customer) => String(customer.id) === String(selectedCustomerId))?.name || 'No customer selected'}</span>
+            </div>
+            {!customers.some((customer) => String(customer.id) === String(selectedCustomerId)) && <p className="mt-3 text-xs text-[#718078]">Choose a saved customer to schedule a promise.</p>}
+            <div className="mt-4 space-y-3">{paymentPromises.map((promise, index) => <div key={promise.id} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] items-end gap-3 rounded-xl border border-[#edf0eb] p-3">
+              <label className="flex flex-col gap-1 text-xs font-semibold text-[#29443b]">Due date<input type="date" value={promise.dueDate} onChange={(event) => setPaymentPromises((rows) => rows.map((row) => row.id === promise.id ? { ...row, dueDate: event.target.value } : row))} className="h-10 rounded-lg border border-[#dfe4dc] px-3 text-sm" /></label>
+              <label className="flex flex-col gap-1 text-xs font-semibold text-[#29443b]">Promised amount (Rs.)<input type="number" min="0.01" step="0.01" inputMode="decimal" placeholder="0" value={promise.amount} onChange={(event) => setPaymentPromises((rows) => rows.map((row) => row.id === promise.id ? { ...row, amount: event.target.value } : row))} className="h-10 rounded-lg border border-[#dfe4dc] px-3 text-sm" /></label>
+              <button type="button" aria-label={`Remove payment promise ${index + 1}`} onClick={() => setPaymentPromises((rows) => rows.filter((row) => row.id !== promise.id))} className="h-10 rounded-lg border border-[#e2e6df] px-3 text-sm font-semibold text-[#718078] hover:border-red-200 hover:bg-red-50 hover:text-red-700">Remove</button>
+            </div>)}</div>
+            <button type="button" onClick={() => setPaymentPromises((rows) => [...rows, { id: `promise-${Date.now()}-${Math.random()}`, dueDate: '', amount: '' }])} className="mt-3 h-10 rounded-lg border border-[#155b4b] px-4 text-sm font-semibold text-[#155b4b] hover:bg-[#f1f6ea]">+ Add another payment</button>
+          </section>
           <div data-sale-step="article">
           <AddItem products={availableProducts} onAddItem={addItem} onSkipEmptyItem={focusDiscount} />
           </div>
@@ -420,8 +447,10 @@ export default function NewSale({ customers, products = [], bills = [], selected
         <CurrentCart
             saving={saving}
             items={items}
-            discount={discount}
+            discount={normalizedDiscount}
+            discountInput={discount}
             onDiscountChange={setDiscount}
+            paymentPromises={paymentPromises}
             onAddReturn={addReturn} onReturnAdded={focusDiscount}
             onRemoveItem={(id) => setItems((currentItems) => currentItems.filter((item) => item.id !== id))}
             onUpdateItem={updateItem}

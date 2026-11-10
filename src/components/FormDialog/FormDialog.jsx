@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 
-export default function FormDialog({ title, fields, onClose, onSave }) {
+export default function FormDialog({ title, fields, onClose, onSave, onDelete, deleteLabel = 'Delete' }) {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const submittingRef = useRef(false)
@@ -101,6 +101,13 @@ export default function FormDialog({ title, fields, onClose, onSave }) {
           </div>
 
           <div data-keyboard-horizontal className="flex items-center justify-end gap-3 pt-4 border-t border-[#edf0eb]">
+            {onDelete && <button type="button" disabled={saving} className="mr-auto px-4 py-2 rounded-xl border border-red-200 text-red-700 text-xs sm:text-sm font-semibold disabled:opacity-60" onClick={async () => {
+              if (submittingRef.current || !window.confirm('Delete this supplier?')) return
+              submittingRef.current = true
+              setSaving(true)
+              setError('')
+              try { await onDelete() } catch (issue) { setError(issue.message || 'Could not delete this record.') } finally { submittingRef.current = false; setSaving(false) }
+            }}>{deleteLabel}</button>}
             <button
               className="px-4 py-2 rounded-xl border border-[#dfe4dc] text-xs sm:text-sm font-semibold text-[#12332d] hover:bg-[#f6f8f1] cursor-pointer"
               type="button"

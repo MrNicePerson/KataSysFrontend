@@ -8,8 +8,9 @@ import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 
 const money = (amount) => `Rs. ${Number(amount || 0).toLocaleString()}`
 
-export default function ReceiveStock({ suppliers = [], purchases = [], cheques = [], tanTypes = [], onSave, onAddTanType }) {
+export default function ReceiveStock({ suppliers = [], products = [], purchases = [], cheques = [], tanTypes = [], onSave, onAddTanType }) {
   const [adding, setAdding] = useState(false)
+  const [editingPurchase, setEditingPurchase] = useState(null)
   const [message, setMessage] = useState('')
   const [selectedPurchase, setSelectedPurchase] = useState(null)
   const detailsOpenerRef = useRef(null)
@@ -35,10 +36,16 @@ export default function ReceiveStock({ suppliers = [], purchases = [], cheques =
       const saved = await onSave(delivery)
       if (!saved) return
       setAdding(false)
-      setSelectedPurchase(saved)
-      setMessage(`Delivery ${receivingLabel(saved)} recorded. Receiving bill is ready to print.`)
+      setEditingPurchase(null)
+      if (!delivery.purchaseId) setSelectedPurchase(saved)
+      setMessage(delivery.appendStock
+        ? `Stock added to delivery ${receivingLabel(saved)}.`
+        : delivery.purchaseId
+          ? `Delivery ${receivingLabel(saved)} updated.`
+        : `Delivery ${receivingLabel(saved)} recorded. Receiving bill is ready to print.`)
     } catch (error) {
       setMessage(error.message || 'Could not save delivery.')
+      throw error
     }
   }
 
@@ -71,12 +78,16 @@ export default function ReceiveStock({ suppliers = [], purchases = [], cheques =
           type="button"
           onClick={() => setAdding(true)}
         >
-          + New delivery
+          + Add New Delivery
         </button>
       </div>
 
       <ReceiveStats stats={stats} />
-      <ReceiveTable deliveries={rows} onSelect={(id) => { detailsOpenerRef.current = document.activeElement; setSelectedPurchase(purchases.find((purchase) => purchase.id === id) || null) }} />
+      <ReceiveTable
+        deliveries={rows}
+        onSelect={(id) => { detailsOpenerRef.current = document.activeElement; setSelectedPurchase(purchases.find((purchase) => purchase.id === id) || null) }}
+        onEdit={(id) => { setEditingPurchase(purchases.find((purchase) => purchase.id === id) || null); setAdding(true) }}
+      />
 
       {selectedPurchase && <div className="fixed inset-0 z-50 bg-[#203832]/40 flex items-center justify-center p-3 sm:p-6" onClick={closeDetails}>
         <div ref={detailsKeyboard.ref} onKeyDown={detailsKeyboard.onKeyDown} role="dialog" aria-modal="true" aria-label="Receive Stock bill details" className="w-full max-w-3xl max-h-[90vh] overflow-y-auto p-5 sm:p-7 rounded-2xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
@@ -94,10 +105,13 @@ export default function ReceiveStock({ suppliers = [], purchases = [], cheques =
       {adding && (
         <NewDeliveryModal
           suppliers={suppliers}
+          products={products}
           purchases={purchases}
+          existingCheques={cheques}
+          initialPurchase={editingPurchase}
+          onClose={() => { setAdding(false); setEditingPurchase(null) }}
           tanTypes={tanTypes}
           onAddTanType={onAddTanType}
-          onClose={() => setAdding(false)}
           onSave={saveDelivery}
         />
       )}

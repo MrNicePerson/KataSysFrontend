@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Banknote, Landmark, ReceiptText, Split } from 'lucide-react';
 import { receivingBatchPreview } from '../../data/receiving.js';
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js';
+import FormDialog from '../FormDialog/FormDialog.jsx';
 import { BANK_OPTIONS } from '../Payment/Payment.jsx';
 
 const today = () => {
@@ -30,6 +31,7 @@ function Field({
   required,
   onFocus,
   onBlur,
+  disabled = false,
 }) {
   const id = `delivery-${name}`;
   return (
@@ -44,6 +46,7 @@ function Field({
           name={name}
           value={value}
           onChange={onChange}
+          disabled={disabled}
           aria-invalid={Boolean(error)}
           className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b]"
         >
@@ -60,6 +63,7 @@ function Field({
           type={type}
           value={value}
           onChange={onChange}
+          disabled={disabled}
           placeholder={placeholder}
           min={min}
           step={step}
@@ -124,7 +128,36 @@ function SeasonField({ value, onChange, error }) {
 const money = (amount) =>
   `Rs. ${Number(amount).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function AddedStockCard({ items, onRemove, paymentMethod = "cash", amountPaid = "0", splitCash = "0", splitBank = "0", bankDetails = {}, cheques = [] }) {
+export function DeliveryCart({ items, onRemove, onUpdate, editable = false, append = false }) {
+  const [query, setQuery] = useState('');
+  const filtered = items.filter((item) => [item.articleNumber, item.code, item.productName, item.batchNumber, item.season, item.tanType].some((value) => String(value || '').toLowerCase().includes(query.trim().toLowerCase())));
+  const total = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitCost || 0), 0);
+  const inputClass = 'w-full min-w-0 rounded-md border border-[#dfe4dc] bg-white px-2 py-1.5 text-sm text-[#173b32]';
+  return <aside aria-label={append ? 'New stock added' : 'Added stock'} className="min-h-0 min-w-0 flex flex-col overflow-hidden rounded-xl border border-[#e2e6df] bg-[#f7faf5]">
+    <div className="shrink-0 space-y-2 p-4">
+      <div className="flex items-center gap-3"><h3 className="text-lg font-bold text-[#173b32]">{append ? 'New stock added' : 'Added stock'}</h3><span className="rounded-md bg-[#e8f2e3] px-2 py-1 text-xs font-semibold text-[#155b4b]">{items.length} {items.length === 1 ? 'item' : 'items'}</span></div>
+      {append && <p className="text-xs text-[#718078]">Only items added in this session.</p>}
+      <input type="search" aria-label="Search added stock" placeholder="Search article, brand, batch number or season..." value={query} onChange={(event) => setQuery(event.target.value)} className={`${inputClass} h-10`} />
+    </div>
+    <div className="min-h-0 flex-1 overflow-auto">
+      <table className="w-full min-w-[690px] table-fixed text-left text-xs text-[#173b32]">
+        <thead className="sticky top-0 z-10 bg-[#e8f2e3]"><tr>{['Article / Brand', 'Season', 'Quantity', 'Buy price (Rs.)', 'Sale price (Rs.)', 'Total', 'Remove'].map((heading) => <th key={heading} scope="col" className="border-b border-[#dfe8dc] px-2 py-3 font-semibold">{heading}</th>)}</tr></thead>
+        <tbody className="divide-y divide-[#edf0eb] bg-white">{filtered.map((item) => <tr key={item.id}>
+          <td className="px-2 py-2 align-top">{editable ? <><input aria-label="Article number" className={inputClass} value={item.articleNumber ?? item.code ?? ''} onChange={(event) => onUpdate(item.id, 'articleNumber', event.target.value)} /><input aria-label="Brand name" placeholder="Brand name (optional)" className={`${inputClass} mt-1`} value={item.brandName ?? ''} onChange={(event) => onUpdate(item.id, 'brandName', event.target.value)} /></> : <><strong className="block break-words">{item.articleNumber || item.code || '—'}</strong><span className="block break-words">{item.brandName || (item.productType === 'tan' ? item.productName : '')}</span></>}<small className="mt-1 block break-words text-[#718078]">{item.productType === 'tan' && `${item.tanType || 'Tan'} · ${item.metersPerTan || 0} m / Tan · `}{item.batchNumber || '—'}</small></td>
+          <td className="px-2 py-2">{editable ? <select aria-label="Season" className={inputClass} value={item.season || ''} onChange={(event) => onUpdate(item.id, 'season', event.target.value)}><option value="">—</option>{!['', 'Summer', 'Winter'].includes(item.season || '') && <option value={item.season}>{item.season}</option>}<option value="Summer">Summer</option><option value="Winter">Winter</option></select> : item.season || (item.productType === 'tan' ? 'Tan' : '—')}</td>
+          <td className="px-2 py-2">{editable ? <input aria-label={item.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity'} type="number" min="1" step="1" className={inputClass} value={item.quantity} onChange={(event) => onUpdate(item.id, 'quantity', event.target.value)} /> : item.quantity}<small className="block text-[#718078]">{item.productType === 'tan' ? 'Tan' : 'suits'}</small></td>
+          {['unitCost', 'salePrice'].map((field) => <td key={field} className="px-2 py-2">{editable ? <input aria-label={field === 'unitCost' ? 'Buy price' : 'Sale price'} type="number" min="0" step="0.01" className={inputClass} value={item[field] ?? ''} onChange={(event) => onUpdate(item.id, field, event.target.value)} /> : money(item[field] || 0)}{item.productType === 'tan' && <small className="block text-[#718078]">/ Tan</small>}</td>)}
+          <td className="px-2 py-2 font-semibold">{money(Number(item.quantity || 0) * Number(item.unitCost || 0))}</td>
+          <td className="px-2 py-2"><button type="button" onClick={() => onRemove(item.id)} aria-label={`Remove ${item.productName || item.articleNumber || 'stock item'}`} className="rounded-md px-2 py-1 text-red-700 hover:bg-red-50">Remove</button></td>
+        </tr>)}</tbody>
+      </table>
+      {!filtered.length && <p className="p-5 text-center text-sm text-[#718078]">{items.length ? 'No matching stock items.' : 'No stock items added.'}</p>}
+    </div>
+    <div className="shrink-0 flex justify-between gap-4 border-t border-[#dfe8dc] bg-[#f7faf5] px-4 py-3 text-sm text-[#52645c]"><span>{items.length} {items.length === 1 ? 'product' : 'products'}</span><span>{append ? 'New stock total' : 'Stock total'} <strong className="ml-2 text-[#173b32]">{money(total)}</strong></span></div>
+  </aside>;
+}
+
+export function AddedStockCard({ items, onRemove, onUpdate, editable = false, showPaymentSummary = true, paymentMethod = "cash", amountPaid = "0", splitCash = "0", splitBank = "0", bankDetails = {}, cheques = [] }) {
   const stockTotal = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitCost || 0), 0);
   const cashPaid = paymentMethod === "split" ? Number(splitCash || 0) : paymentMethod === "cash" ? Number(amountPaid || 0) : 0;
   const bankPaid = paymentMethod === "split" ? Number(splitBank || 0) : paymentMethod === "bank" ? Number(amountPaid || 0) : 0;
@@ -156,7 +189,7 @@ export function AddedStockCard({ items, onRemove, paymentMethod = "cash", amount
             >
               <div className="flex items-start justify-between gap-2 font-bold mb-1">
                 <span className="min-w-0 break-words"><small className="block text-[10px] font-normal uppercase tracking-wide text-[#718078]">Product</small>
-                  {item.productName || item.articleNumber || "Stock item"}
+                  {editable ? <input aria-label="Product name" className="w-full mt-1 px-2 py-1 rounded border border-[#dfe4dc] font-semibold" value={item.productName || ""} onChange={(event) => onUpdate(item.id, "productName", event.target.value)} /> : item.productName || item.articleNumber || "Stock item"}
                 </span>
                 <button
                   type="button"
@@ -168,26 +201,28 @@ export function AddedStockCard({ items, onRemove, paymentMethod = "cash", amount
                 </button>
               </div>
               <small className="text-[#718078] block break-words">
-                {item.season}
-                {item.articleNumber ? ` · Article ${item.articleNumber}` : ""}
+                {editable
+                  ? <input aria-label="Article number" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.articleNumber ?? item.code ?? ""} onChange={(event) => onUpdate(item.id, "articleNumber", event.target.value)} />
+                  : `${item.season}${item.articleNumber ? ` · Article ${item.articleNumber}` : ""}`}
               </small>
               <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3">
+                {editable && <label className="col-span-2 text-xs text-[#718078]">Season<input aria-label="Season" className="mt-1 w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.season || ""} onChange={(event) => onUpdate(item.id, "season", event.target.value)} /></label>}
                 <div className="col-span-2 min-w-0">
                   <dt className="text-xs text-[#718078]">Batch number</dt>
                   <dd className="mt-0.5 font-semibold break-words">{item.batchNumber}</dd>
                 </div>
                 <div className="col-span-2">
                   <dt className="text-xs text-[#718078]">Quantity</dt>
-                <dd className="mt-0.5 font-semibold">{item.quantity} {item.productType === 'tan' ? 'Tan' : item.quantity === 1 ? 'suit' : 'suits'}</dd>
+                  <dd className="mt-0.5 font-semibold">{editable ? <input aria-label={item.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity'} type="number" min="1" step="1" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.quantity} onChange={(event) => onUpdate(item.id, "quantity", event.target.value)} /> : `${item.quantity} ${item.productType === 'tan' ? 'Tan' : item.quantity === 1 ? 'suit' : 'suits'}`}</dd>
                 </div>
                 {item.productType === 'tan' && <div className="col-span-2 text-[#52645c]">{item.tanType} · {item.metersPerTan} m / Tan · Buy Rs. {Number(item.buyPricePerMeter || 0).toFixed(2)} / m · Sale Rs. {Number(item.salePricePerMeter || 0).toFixed(2)} / m</div>}
                 <div className="min-w-0">
                   <dt className="text-xs text-[#718078]">{item.productType === 'tan' ? 'Buy price per Tan' : 'Cost per suit'}</dt>
-                  <dd className="mt-0.5 font-semibold tabular-nums break-words">{money(item.unitCost)}</dd>
+                  <dd className="mt-0.5 font-semibold tabular-nums break-words">{editable ? <input aria-label={item.productType === 'tan' ? 'Buy price per Tan' : 'Purchase price per suit'} type="number" min="0" step="0.01" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.unitCost} onChange={(event) => onUpdate(item.id, "unitCost", event.target.value)} /> : money(item.unitCost)}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="text-xs text-[#718078]">Sale price per suit</dt>
-                  <dd className="mt-0.5 font-semibold tabular-nums break-words">{money(item.salePrice)}</dd>
+                  <dt className="text-xs text-[#718078]">{item.productType === 'tan' ? 'Sale price per Tan' : 'Sale price per suit'}</dt>
+                  <dd className="mt-0.5 font-semibold tabular-nums break-words">{editable ? <input aria-label={item.productType === 'tan' ? 'Sale price per Tan' : 'Sale price per suit'} type="number" min="0" step="0.01" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.salePrice} onChange={(event) => onUpdate(item.id, "salePrice", event.target.value)} /> : money(item.salePrice)}</dd>
                 </div>
                 <div className="col-span-2 pt-3 border-t border-[#edf0eb]">
                   <dt className="font-bold text-[#155b4b]">Total cost <span className="block text-xs font-normal text-[#718078]">Total purchase cost</span></dt>
@@ -198,7 +233,7 @@ export function AddedStockCard({ items, onRemove, paymentMethod = "cash", amount
           ))}
         </ul>
       )}
-      <section className="mt-4 pt-4 border-t border-[#dfe8dc]" aria-label="Payment summary">
+      {showPaymentSummary && <section className="mt-4 pt-4 border-t border-[#dfe8dc]" aria-label="Payment summary">
         <h4 className="text-xs font-bold uppercase tracking-wider text-[#173b32] mb-3">Payment Summary</h4>
         <dl className="space-y-1.5 text-xs">
           {[["Stock Total", stockTotal], ["Cash Paid", cashPaid], ["Bank Paid", bankPaid], ["Cheque Paid", chequePaid], ["Total Paid", totalPaid], ["Remaining Supplier Balance", Math.max(0, stockTotal - totalPaid)]].map(([label, value], index) => (
@@ -209,7 +244,7 @@ export function AddedStockCard({ items, onRemove, paymentMethod = "cash", amount
         </dl>
         {bankPaid > 0 && <p className="mt-3 text-xs text-[#52645c] break-words"><strong className="text-[#173b32]">Bank:</strong> {bankDetails.bankName || "Selected bank"}</p>}
         {cheques.length > 0 && <div className="mt-3 space-y-1.5"><p className="text-xs font-semibold text-[#173b32]">Cheques</p>{cheques.map((cheque) => <p key={cheque.id || `${cheque.number}-${cheque.bank}`} className="flex justify-between gap-2 text-xs text-[#52645c]"><span className="min-w-0 break-words">{cheque.number || "Cheque"} · {cheque.bank || "Bank"}</span><span className="shrink-0 tabular-nums">{money(cheque.amount)}</span></p>)}</div>}
-      </section>
+      </section>}
     </aside>
   );
 }
@@ -274,7 +309,7 @@ export function ChequeDetails({ cheques, onChange, disabled }) {
       {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
       <button type="button" className="h-10 px-3 rounded-lg border border-[#155b4b] text-[#155b4b] text-sm font-semibold cursor-pointer" onClick={() => { const cheque = newCheque(); onChange([...cheques, cheque]); setEditingId(cheque.id); setError(""); }}>Add Another Cheque</button>
       <p role="status" className="text-sm font-bold text-[#155b4b]">Total Cheque Amount: {money(totalChequeAmount(cheques))}</p>
-      <p className="text-xs text-[#718078]">Cheques stay pending in the Cheque Register. Amount Paid and the supplier balance change when each cheque clears.</p>
+      <p className="text-xs text-[#718078]">Pending cheques are included in this delivery's payment total under the current supplier accounting rules and remain tracked in the Cheque Register until cleared.</p>
     </fieldset>
   );
 }
@@ -327,9 +362,9 @@ export function getReceivingBanks(purchases = []) {
   return [...banks.values()];
 }
 
-export function PaymentDetails({ items, method, amountPaid, onMethodChange, onAmountChange, error, bankDetails = {}, onBankDetailsChange, cheques = [], onChequesChange, splitCash = "0", splitBank = "0", onSplitCashChange, onSplitBankChange }) {
+export function PaymentDetails({ items, method, amountPaid, onMethodChange, onAmountChange, error, bankDetails = {}, onBankDetailsChange, cheques = [], onChequesChange, splitCash = "0", splitBank = "0", onSplitCashChange, onSplitBankChange, readOnly = false }) {
   const splitTotal = Number(splitCash || 0) + Number(splitBank || 0) + totalChequeAmount(cheques);
-  const summary = calculateStockPayment(items, method === "cheque" ? 0 : method === "split" ? splitTotal : amountPaid);
+  const summary = calculateStockPayment(items, method === "cheque" ? totalChequeAmount(cheques) : method === "split" ? splitTotal : amountPaid);
   const paymentError = summary.error || (method === "cheque" && totalChequeAmount(cheques) > summary.total + 0.005 ? "Total cheque amount cannot exceed the total stock cost." : "") || error;
   return (
     <section className="p-4 sm:p-5 rounded-xl bg-[#fafbf8] border border-[#e8ece3] space-y-4" aria-labelledby="delivery-payment-title">
@@ -343,7 +378,7 @@ export function PaymentDetails({ items, method, amountPaid, onMethodChange, onAm
           </div>
         ))}
       </dl>
-      <fieldset disabled={!items.length}>
+      <fieldset disabled={!items.length || readOnly}>
         <legend className="text-xs sm:text-sm font-semibold text-[#173b32] mb-2">Payment method</legend>
         <div className="grid grid-cols-2 gap-2">
           {[["cash", "Cash", Banknote], ["bank", "Bank", Landmark], ["cheque", "Cheque", ReceiptText], ["split", "Split Payment", Split]].map(([value, label, Icon]) => (
@@ -366,7 +401,7 @@ export function PaymentDetails({ items, method, amountPaid, onMethodChange, onAm
         </div>
       </fieldset>
       {(method === "bank" || method === "split") && (
-        <fieldset disabled={!items.length} className="space-y-3">
+        <fieldset disabled={!items.length || readOnly} className="space-y-3">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" role="group" aria-label="Bank logos" onKeyDown={(event) => {
             if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return
             const directions = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }
@@ -400,13 +435,12 @@ export function PaymentDetails({ items, method, amountPaid, onMethodChange, onAm
           {bankDetails.bankName && <p className="text-sm font-semibold text-[#173b32]">Bank Name: {bankDetails.bankName}</p>}
         </fieldset>
       )}
-      {method === "split" && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><Field label="Cash" name="splitCash" type="number" min="0" step="0.01" value={splitCash} onChange={(event) => onSplitCashChange(event.target.value)} onFocus={() => { if (Number(splitCash) === 0) onSplitCashChange("") }} onBlur={() => { if (splitCash === "") onSplitCashChange("0") }} /><Field label="Bank" name="splitBank" type="number" min="0" step="0.01" value={splitBank} onChange={(event) => onSplitBankChange(event.target.value)} onFocus={() => { if (Number(splitBank) === 0) onSplitBankChange("") }} onBlur={() => { if (splitBank === "") onSplitBankChange("0") }} /></div>}
-      {method === "cheque" || method === "split" ? <ChequeDetails cheques={cheques} onChange={onChequesChange} disabled={!items.length} /> : <label className="flex flex-col gap-1.5 text-xs sm:text-sm font-semibold text-[#173b32]" htmlFor="delivery-amount-paid">
+      {method === "split" && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><Field label="Cash" name="splitCash" type="number" min="0" step="0.01" value={splitCash} disabled={readOnly} onChange={(event) => onSplitCashChange(event.target.value)} onFocus={() => { if (Number(splitCash) === 0) onSplitCashChange("") }} onBlur={() => { if (splitCash === "") onSplitCashChange("0") }} /><Field label="Bank" name="splitBank" type="number" min="0" step="0.01" value={splitBank} disabled={readOnly} onChange={(event) => onSplitBankChange(event.target.value)} onFocus={() => { if (Number(splitBank) === 0) onSplitBankChange("") }} onBlur={() => { if (splitBank === "") onSplitBankChange("0") }} /></div>}
+      {method === "cheque" || method === "split" ? <ChequeDetails cheques={cheques} onChange={onChequesChange} disabled={!items.length || readOnly} /> : <label className="flex flex-col gap-1.5 text-xs sm:text-sm font-semibold text-[#173b32]" htmlFor="delivery-amount-paid">
         {method === "bank" ? "Payment Amount" : "Amount Paid"}
-        <input id="delivery-amount-paid" name="amountPaid" type="number" min="0" max={summary.total} step="0.01" value={amountPaid} disabled={!items.length} onFocus={() => { if (Number(amountPaid) === 0) onAmountChange("") }} onBlur={() => { if (amountPaid === "") onAmountChange("0") }} onKeyDown={(event) => { if (["PageUp", "PageDown"].includes(event.key)) event.preventDefault() }} onChange={(event) => onAmountChange(event.target.value)} aria-invalid={Boolean(paymentError)} aria-describedby={paymentError ? "delivery-payment-error" : undefined} className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b] disabled:opacity-50" />
+        <input id="delivery-amount-paid" name="amountPaid" type="number" min="0" max={summary.total} step="0.01" value={amountPaid} disabled={!items.length || readOnly} onFocus={() => { if (Number(amountPaid) === 0) onAmountChange("") }} onBlur={() => { if (amountPaid === "") onAmountChange("0") }} onKeyDown={(event) => { if (["PageUp", "PageDown"].includes(event.key)) event.preventDefault() }} onChange={(event) => onAmountChange(event.target.value)} aria-invalid={Boolean(paymentError)} aria-describedby={paymentError ? "delivery-payment-error" : undefined} className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm text-[#173b32] focus:outline-none focus:border-[#155b4b] disabled:opacity-50" />
       </label>}
       {!items.length && <p className="text-xs text-[#718078]">Add stock items to enter payment details.</p>}
-      {method === "split" && <p className="text-xs text-[#718078]">This method is available for preview. Saving a payment with this method will be available when its details are added. You can still save this delivery unpaid with Amount Paid set to 0.</p>}
       {paymentError && <p id="delivery-payment-error" className="text-xs text-red-600" role="alert">{paymentError}</p>}
     </section>
   );
@@ -416,16 +450,20 @@ export default function NewDeliveryModal({
   onClose,
   onSave,
   suppliers = [],
+  products = [],
   purchases = [],
+  existingCheques = [],
+  initialPurchase = null,
   tanTypes = [],
   onAddTanType,
 }) {
-  const [supplier, setSupplier] = useState("");
-  const [arrivalDate, setArrivalDate] = useState(today());
-  const batchNumber = receivingBatchNumber(suppliers.find((entry) => entry.id === supplier), arrivalDate, purchases);
-  const [padNumber, setPadNumber] = useState("");
+  const [supplier, setSupplier] = useState(initialPurchase?.supplierId || "");
+  const [arrivalDate, setArrivalDate] = useState(initialPurchase?.date || today());
+  const [padNumber, setPadNumber] = useState(initialPurchase?.padNumber || "");
+  const [appendPadNumber, setAppendPadNumber] = useState("");
   const [productName, setProductName] = useState("");
   const [articleNumber, setArticleNumber] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [unitCost, setUnitCost] = useState("0");
   const [salePrice, setSalePrice] = useState("0");
@@ -435,24 +473,79 @@ export default function NewDeliveryModal({
   const [tanName, setTanName] = useState('');
   const [metersPerTan, setMetersPerTan] = useState('100');
   const [addingType, setAddingType] = useState(false);
+  const [showTanTypeDialog, setShowTanTypeDialog] = useState(false);
   const [savedTanTypes, setSavedTanTypes] = useState(tanTypes);
-  const [items, setItems] = useState([]);
-  const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [amountPaid, setAmountPaid] = useState("0");
-  const [splitCash, setSplitCash] = useState("0");
-  const [splitBank, setSplitBank] = useState("0");
-  const [cheques, setCheques] = useState(() => [newCheque()]);
-  const [bankDetails, setBankDetails] = useState({ bankName: "" });
+  const [items, setItems] = useState(() => (initialPurchase?.items || []).map((item, index) => ({
+    ...item,
+    id: item.lineId || `legacy-line-${index}`,
+    lineId: item.lineId || `legacy-line-${index}`,
+    articleNumber: item.code || "",
+    brandName: item.brandName ?? (item.productType === 'tan' ? item.productName : String(item.productName || '').trim().toLowerCase() === String(item.code || '').trim().toLowerCase() ? '' : item.productName || ''),
+  })));
+  const [appendItems, setAppendItems] = useState([]);
+  const [addingStock, setAddingStock] = useState(false);
+  const [itemDraftDirty, setItemDraftDirty] = useState(false);
+  const batchNumber = initialPurchase?.batchNumber || receivingBatchNumber(suppliers.find((entry) => entry.id === supplier), arrivalDate, purchases);
+  const appendBatchNumber = initialPurchase
+    ? receivingBatchNumber(suppliers.find((entry) => entry.id === initialPurchase.supplierId), initialPurchase.date, purchases)
+    : "";
+  const initialChequeEntries = initialPurchase?.cheques?.length
+    ? initialPurchase.cheques
+    : existingCheques.filter((entry) => entry.sourceType === "purchase" && entry.referenceId === initialPurchase?.id && entry.status !== "Cancelled");
+  const [paymentMethod, setPaymentMethod] = useState(() => {
+    const methods = Object.entries(initialPurchase?.payments || {}).filter(([, amount]) => Number(amount) > 0).map(([method]) => method)
+    return methods.length > 1 ? "split" : methods[0] || "cash"
+  });
+  const [amountPaid, setAmountPaid] = useState(() => String(Number(initialPurchase?.payments?.cash || 0) + Number(initialPurchase?.payments?.bank || 0)));
+  const [splitCash, setSplitCash] = useState(() => String(initialPurchase?.payments?.cash || 0));
+  const [splitBank, setSplitBank] = useState(() => String(initialPurchase?.payments?.bank || 0));
+  const [cheques, setCheques] = useState(() => initialChequeEntries.length
+    ? initialChequeEntries.map((entry) => ({ ...entry }))
+    : [newCheque()]);
+  const [bankDetails, setBankDetails] = useState(initialPurchase?.bankDetails || { bankName: "" });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
+  const idempotencyRef = useRef(null);
+  const appendIdempotencyRef = useRef(null);
   const keyboard = useKeyboardScope({ onEscape: onClose, trapFocus: true });
+  const saveTanType = async ({ name }) => {
+    setAddingType(true);
+    try {
+      const saved = await onAddTanType?.(name);
+      if (!saved?.name) throw new Error('Could not save the Tan type.');
+      setSavedTanTypes((current) => current.some((item) => item.name.toLowerCase() === saved.name.toLowerCase()) ? current : [saved, ...current]);
+      setTanType(saved.name);
+      setErrors((current) => ({ ...current, tanType: '', productName: '' }));
+      setShowTanTypeDialog(false);
+      return saved;
+    } finally {
+      setAddingType(false);
+    }
+  };
+  const updateItem = (id, field, value) => setItems((current) => current.map((item) => item.id !== id ? item : ({
+    ...item,
+    [field]: value,
+    ...(field === "brandName" ? { productName: value || item.articleNumber || item.code || item.productName } : {}),
+    ...(field === "articleNumber" ? { code: value } : {}),
+  })));
+  const existingSupplierProducts = products.filter((product) => product.active !== false && (!product.supplierId || product.supplierId === supplier));
+  const selectExistingProduct = (productId) => {
+    setSelectedProductId(productId);
+    const product = products.find((entry) => entry.id === productId);
+    if (!product) return;
+    setProductName(product.name || "");
+    setArticleNumber(product.code || "");
+    setUnitCost(String(product.averageCost || 0));
+    setSalePrice(String(product.salePrice || 0));
+    setSeason(product.season || "Summer");
+  };
 
   useEffect(() => {
     const opener = document.activeElement;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    keyboard.ref.current?.querySelector("#delivery-supplier")?.focus();
+    keyboard.ref.current?.querySelector(initialPurchase ? "#delivery-arrivalDate" : "#delivery-supplier")?.focus();
     return () => {
       document.body.style.overflow = previousOverflow;
       if (opener?.isConnected) opener.focus();
@@ -461,7 +554,10 @@ export default function NewDeliveryModal({
 
   const addItem = () => {
     const nextErrors = {};
-    const trimmedBatch = batchNumber.trim();
+    const itemBatchNumber = initialPurchase && addingStock ? appendBatchNumber : batchNumber;
+    const trimmedBatch = itemBatchNumber.trim();
+    const itemUnitCost = Number(unitCost);
+    const itemSalePrice = Number(salePrice);
     if (!trimmedBatch) nextErrors.batchNumber = "Choose a supplier with a Supplier Code to generate the batch number.";
     if (productType === 'suit' && !articleNumber.trim())
       nextErrors.articleNumber = "Please enter the article name or design number.";
@@ -470,69 +566,152 @@ export default function NewDeliveryModal({
     if (productType === 'tan' && (!Number.isFinite(Number(metersPerTan)) || Number(metersPerTan) <= 0)) nextErrors.metersPerTan = 'Meters per Tan must be greater than zero.';
     if (!Number.isInteger(Number(quantity)) || Number(quantity) <= 0)
       nextErrors.quantity = "Quantity must be greater than 0.";
+    if (!Number.isFinite(itemUnitCost) || itemUnitCost < 0) nextErrors.unitCost = "Enter a valid non-negative cost.";
+    if (!Number.isFinite(itemSalePrice) || itemSalePrice < 0) nextErrors.salePrice = "Enter a valid non-negative sale price.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
-    setItems((current) => [
-      ...current,
-      {
+    const newItem = {
         id: `${Date.now()}-${Math.random()}`,
+        existingProductId: selectedProductId || undefined,
         batchNumber: trimmedBatch,
+        padNumber: initialPurchase && addingStock ? appendPadNumber.trim() : padNumber.trim(),
         productType,
         tanType: productType === 'tan' ? tanType : '',
         tanName: productType === 'tan' ? tanName.trim() : '',
         metersPerTan: productType === 'tan' ? Number(metersPerTan) : undefined,
-        buyPricePerMeter: productType === 'tan' ? (Number(unitCost) || 0) / Number(metersPerTan) : undefined,
-        salePricePerMeter: productType === 'tan' ? (Number(salePrice) || 0) / Number(metersPerTan) : undefined,
+        buyPricePerMeter: productType === 'tan' ? itemUnitCost / Number(metersPerTan) : undefined,
+        salePricePerMeter: productType === 'tan' ? itemSalePrice / Number(metersPerTan) : undefined,
         productName: productType === 'tan' ? tanName.trim() : productName.trim() || articleNumber.trim(),
+        brandName: productType === 'tan' ? tanName.trim() : productName.trim(),
         articleNumber: productType === 'tan' ? '' : articleNumber.trim(),
         quantity: Number(quantity),
-        unitCost: Number(unitCost) || 0,
-        salePrice: Number(salePrice) || 0,
+        unitCost: itemUnitCost,
+        salePrice: itemSalePrice,
         season: productType === 'tan' ? '' : season,
-      },
-    ]);
+    };
+    if (initialPurchase && addingStock) setAppendItems((current) => [...current, newItem]);
+    else setItems((current) => [...current, newItem]);
     setErrors({});
-    setProductName(""); setArticleNumber(""); setTanName('');
+    setProductName("");
+    setArticleNumber("");
+    setSelectedProductId("");
+    setTanName('');
     setQuantity("1");
+    setUnitCost("0");
+    setSalePrice("0");
+    setItemDraftDirty(false);
   };
 
   const saveDelivery = async (event) => {
     event.preventDefault();
     if (savingRef.current) return;
     const nextErrors = {};
-    if (!supplier) nextErrors.supplier = "Choose a supplier.";
-    if (!arrivalDate) nextErrors.arrivalDate = "Choose an arrival date.";
-    if (!batchNumber) nextErrors.batchNumber = "Choose a supplier with a Supplier Code to generate the batch number.";
-    if (items.length === 0)
+    if (initialPurchase && addingStock) {
+      if (!appendBatchNumber) nextErrors.batchNumber = "A unique batch number could not be generated for this supplier.";
+      if (appendItems.length === 0) nextErrors.items = "Add at least one new stock item before saving.";
+      if (itemDraftDirty) nextErrors.items = "Add the current item to this delivery before saving.";
+    } else {
+      if (!supplier) nextErrors.supplier = "Choose a supplier.";
+      if (!arrivalDate) nextErrors.arrivalDate = "Choose an arrival date.";
+      if (!batchNumber) nextErrors.batchNumber = "Choose a supplier with a Supplier Code to generate the batch number.";
+      if (items.length === 0 && !initialPurchase)
       nextErrors.items = "Add at least one stock item before saving.";
-    const payment = prepareStockPayment(items, amountPaid, paymentMethod, bankDetails, cheques, { cash: splitCash, bank: splitBank });
-    if (payment.error) nextErrors.payment = payment.error;
+      if (itemDraftDirty) nextErrors.items = "Add the current item to the delivery before saving.";
+    }
+    const payment = initialPurchase && addingStock
+      ? null
+      : prepareStockPayment(items, amountPaid, paymentMethod, bankDetails, cheques, { cash: splitCash, bank: splitBank });
+    if (payment?.error) nextErrors.payment = payment.error;
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
     savingRef.current = true;
     setSaving(true);
     try {
-      await onSave({
+      if (initialPurchase && addingStock) {
+        const signature = JSON.stringify(appendItems.map(({ existingProductId, productName, brandName, articleNumber, padNumber, quantity, unitCost, salePrice, season, productType, tanType, metersPerTan }) => ({
+          existingProductId,
+          productName,
+          brandName,
+          articleNumber,
+          padNumber,
+          quantity,
+          unitCost,
+          salePrice,
+          season,
+          productType,
+          tanType,
+          metersPerTan,
+        })));
+        if (appendIdempotencyRef.current?.signature !== signature) {
+          appendIdempotencyRef.current = {
+            signature,
+            key: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          };
+        }
+        await onSave({
+          purchaseId: initialPurchase.id,
+          supplierId: initialPurchase.supplierId,
+          appendStock: true,
+          appendItems: appendItems.map((item) => ({
+            ...item,
+            code: item.articleNumber,
+            batchNumber: appendBatchNumber,
+          })),
+          appendIdempotencyKey: appendIdempotencyRef.current.key,
+        });
+        return;
+      }
+      const payload = {
+      ...(initialPurchase ? { purchaseId: initialPurchase.id } : {}),
       supplierId: supplier,
+      date: arrivalDate,
       arrivalDate,
       padNumber: padNumber.trim(),
-      items: items.map((item) => ({ ...item, batchNumber })),
+      items: items.map((item) => ({ ...item, lineId: item.lineId || (initialPurchase ? item.id : undefined), batchNumber: item.batchNumber || batchNumber })),
       payments: payment.payments,
       bankDetails: payment.bankDetails,
       cheques: payment.cheques,
       chequeDetails: null,
       createdAt: new Date().toISOString(),
-      });
+      };
+      if (!initialPurchase) {
+        const signature = JSON.stringify({
+          supplierId: payload.supplierId,
+          date: payload.date,
+          padNumber: payload.padNumber,
+          items: payload.items.map(({ productId, existingProductId, productName, brandName, code, padNumber, size, quantity, unitCost, salePrice, season, rackLocation, batchNumber }) => ({ productId, existingProductId, productName, brandName, code, padNumber, size, quantity, unitCost, salePrice, season, rackLocation, batchNumber })),
+          payments: payload.payments,
+          bankDetails: payload.bankDetails,
+          cheques: payload.cheques,
+        });
+        if (idempotencyRef.current?.signature !== signature) {
+          idempotencyRef.current = {
+            signature,
+            key: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          };
+        }
+        payload.idempotencyKey = idempotencyRef.current.key;
+      }
+      await onSave(payload);
+    } catch (error) {
+      setErrors((current) => ({ ...current, save: error.message || "Could not save delivery." }));
     } finally {
       savingRef.current = false;
       setSaving(false);
     }
   };
+  const draftQuantity = Number(quantity);
+  const draftCost = Number(unitCost);
+  const draftForTotals = itemDraftDirty ? [{
+    quantity: Number.isInteger(draftQuantity) && draftQuantity > 0 ? draftQuantity : 0,
+    unitCost: Number.isFinite(draftCost) && draftCost >= 0 ? draftCost : 0,
+  }] : [];
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#203832]/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+    <>
+    <div className="fixed inset-0 z-50 bg-[#203832]/40 backdrop-blur-xs flex items-center justify-center p-2 sm:p-5">
       <section
         ref={keyboard.ref}
         onKeyDownCapture={(event) => {
@@ -540,17 +719,17 @@ export default function NewDeliveryModal({
         }}
         onKeyDown={keyboard.onKeyDown}
         data-keyboard-scope
-        className="w-full max-w-4xl p-5 sm:p-7 rounded-2xl bg-white border border-[#e2e6df] shadow-2xl max-h-[92vh] overflow-y-auto"
+        className="flex h-[min(900px,96dvh)] w-full max-w-[1400px] min-h-0 flex-col overflow-hidden rounded-2xl bg-white border border-[#e2e6df] shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="new-delivery-title"
       >
-        <header className="flex items-center justify-between pb-4 mb-5 border-b border-[#edf0eb]">
+        <header className="shrink-0 flex items-center justify-between px-5 sm:px-7 py-4 border-b border-[#edf0eb]">
           <h2
             id="new-delivery-title"
             className="text-[#173b32] text-xl sm:text-2xl font-bold"
           >
-            Receive a new delivery
+            {initialPurchase ? addingStock ? "Add stock to this delivery" : "Edit received delivery" : "New delivery"}
           </h2>
           <button
             type="button"
@@ -562,19 +741,23 @@ export default function NewDeliveryModal({
           </button>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-          <form className="space-y-6" onSubmit={saveDelivery} noValidate>
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3 overflow-hidden p-3 sm:p-4 lg:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.4fr)] lg:grid-rows-1">
+          <form id="delivery-form" className="min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1" onSubmit={saveDelivery} noValidate>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field
                 label="Supplier"
                 name="supplier"
                 value={supplier}
-                onChange={(event) => setSupplier(event.target.value)}
+                onChange={(event) => {
+                  setSupplier(event.target.value)
+                  setSelectedProductId("")
+                }}
                 options={[
                   ["", "Choose one"],
                   ...suppliers.map((entry) => [entry.id, entry.name]),
                 ]}
                 error={errors.supplier}
+                disabled={Boolean(initialPurchase)}
               />
               <Field
                 label="Arrival date"
@@ -583,12 +766,13 @@ export default function NewDeliveryModal({
                 value={arrivalDate}
                 onChange={(event) => setArrivalDate(event.target.value)}
                 error={errors.arrivalDate}
+                disabled={Boolean(initialPurchase && addingStock)}
               />
             </div>
 
-            <div className="p-4 sm:p-5 rounded-xl bg-[#fafbf8] border border-[#e8ece3] space-y-4">
+            {(!initialPurchase || addingStock) && <div className="p-4 sm:p-5 rounded-xl bg-[#fafbf8] border border-[#e8ece3] space-y-4">
               <h3 className="text-sm font-bold text-[#173b32] uppercase tracking-wider">
-                Item details
+                {addingStock ? "New items for this delivery" : "Item details"}
               </h3>
               <div className="grid grid-cols-2 gap-1 rounded-xl border border-[#dfe4dc] bg-white p-1">
                 {['suit', 'tan'].map((type) => <button key={type} type="button" onClick={() => setProductType(type)} className={`h-10 rounded-lg capitalize font-semibold ${productType === type ? 'bg-[#e8f2e3] text-[#155b4b]' : 'text-[#52645c]'}`}>{type}</button>)}
@@ -597,7 +781,7 @@ export default function NewDeliveryModal({
                 <Field
                   label="Batch number (automatic)"
                   name="batchNumber"
-                  value={batchNumber}
+                  value={addingStock ? appendBatchNumber : batchNumber}
                   placeholder="Select supplier and bill date"
                   readOnly
                   error={errors.batchNumber}
@@ -605,37 +789,44 @@ export default function NewDeliveryModal({
                 <Field
                   label="Pad number (optional)"
                   name="padNumber"
-                  value={padNumber}
-                  onChange={(event) => setPadNumber(event.target.value)}
+                  value={addingStock ? appendPadNumber : padNumber}
+                  onChange={(event) => addingStock ? setAppendPadNumber(event.target.value) : setPadNumber(event.target.value)}
                   placeholder="Enter supplier pad number"
                 />
                 {productType === 'suit' && <Field
                   label="Article / design number"
                   name="articleNumber"
                   value={articleNumber}
-                  onChange={(event) => setArticleNumber(event.target.value)}
+                  onChange={(event) => { setArticleNumber(event.target.value); setItemDraftDirty(true) }}
                   placeholder="Please enter the article name or design number"
                   required
                   error={errors.articleNumber}
                 />}
+                {productType === 'suit' && <label className="flex flex-col gap-1.5 text-xs sm:text-sm font-semibold text-[#173b32]" htmlFor="delivery-existing-product">
+                  Existing product (optional)
+                  <select id="delivery-existing-product" value={selectedProductId} onChange={(event) => { selectExistingProduct(event.target.value); setItemDraftDirty(true) }} className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm">
+                    <option value="">Create a new stock product</option>
+                    {existingSupplierProducts.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.code}</option>)}
+                  </select>
+                </label>}
                 {productType === 'suit' && <Field
                   label="Brand Name (optional)"
                   name="productName"
                   value={productName}
-                  onChange={(event) => setProductName(event.target.value)}
+                  onChange={(event) => { setProductName(event.target.value); setItemDraftDirty(true) }}
                   placeholder="e.g. Lawn Suit"
                   error={errors.productName}
                 />}
                 {productType === 'suit' && <SeasonField
                   value={season}
-                  onChange={setSeason}
+                  onChange={(value) => { setSeason(value); setItemDraftDirty(true) }}
                   error={errors.season}
                 />}
               </div>
 
               {productType === 'tan' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Tan type" name="tanType" value={tanType} onChange={(event) => setTanType(event.target.value)} options={[["", "Choose type"], ...savedTanTypes.map((entry) => [entry.name, entry.name])]} error={errors.tanType || errors.productName} />
-                <div className="flex items-end"><button type="button" disabled={addingType} onClick={async () => { const name = window.prompt('New Tan type name'); if (!name?.trim()) return; setAddingType(true); try { const saved = await onAddTanType?.(name.trim()); if (!saved?.name) throw new Error('Could not save the Tan type.'); const entry = saved; setSavedTanTypes((current) => current.some((item) => item.name.toLowerCase() === entry.name.toLowerCase()) ? current : [entry, ...current]); setTanType(entry.name); setErrors((current) => ({ ...current, tanType: '', productName: '' })); } catch (error) { setErrors((current) => ({ ...current, tanType: error.message || 'Could not save the Tan type.' })); } finally { setAddingType(false); } }} className="h-11 px-4 rounded-xl border border-[#155b4b] text-[#155b4b] font-semibold">+ Add type</button></div>
+                <div className="flex items-end"><button type="button" disabled={addingType} onClick={() => setShowTanTypeDialog(true)} className="h-11 px-4 rounded-xl border border-[#155b4b] text-[#155b4b] font-semibold">+ Add type</button></div>
                 <Field label="Tan name" name="tanName" value={tanName} onChange={(event) => setTanName(event.target.value)} placeholder="e.g. Premium Cotton" required error={errors.productName} />
               </div>}
 
@@ -646,7 +837,7 @@ export default function NewDeliveryModal({
                   type="number"
                   min="1"
                   value={quantity}
-                  onChange={(event) => setQuantity(event.target.value)}
+                  onChange={(event) => { setQuantity(event.target.value); setItemDraftDirty(true) }}
                   onFocus={() => { if (Number(quantity) === 0) setQuantity("") }}
                   onBlur={() => { if (quantity === "") setQuantity("1") }}
                   error={errors.quantity}
@@ -657,20 +848,24 @@ export default function NewDeliveryModal({
                   name="unitCost"
                   type="number"
                   min="0"
+                  step="0.01"
                   value={unitCost}
-                  onChange={(event) => setUnitCost(event.target.value)}
+                  onChange={(event) => { setUnitCost(event.target.value); setItemDraftDirty(true) }}
                   onFocus={() => { if (Number(unitCost) === 0) setUnitCost("") }}
                   onBlur={() => { if (unitCost === "") setUnitCost("0") }}
+                  error={errors.unitCost}
                 />
                 <Field
                   label={productType === 'tan' ? 'Sale price per Tan (Rs.)' : 'Sale price'}
                   name="salePrice"
                   type="number"
                   min="0"
+                  step="0.01"
                   value={salePrice}
-                  onChange={(event) => setSalePrice(event.target.value)}
+                  onChange={(event) => { setSalePrice(event.target.value); setItemDraftDirty(true) }}
                   onFocus={() => { if (Number(salePrice) === 0) setSalePrice("") }}
                   onBlur={() => { if (salePrice === "") setSalePrice("0") }}
+                  error={errors.salePrice}
                 />
               </div>
               {productType === 'tan' && <div className="grid grid-cols-2 gap-3 rounded-xl bg-[#e2f5f3] p-3 text-sm"><div>Buy price / meter<strong className="block">Rs. {(Number(unitCost || 0) / Number(metersPerTan || 1)).toFixed(2)}</strong></div><div>Sale price / meter<strong className="block">Rs. {(Number(salePrice || 0) / Number(metersPerTan || 1)).toFixed(2)}</strong></div></div>}
@@ -681,21 +876,45 @@ export default function NewDeliveryModal({
                 data-enter-next
                 onClick={addItem}
               >
-                ＋ Add item to delivery
+                + Add Item to Delivery
               </button>
+              {initialPurchase && addingStock && <button
+                type="button"
+                className="w-full h-10 rounded-xl border border-[#dfe4dc] text-[#52645c] hover:bg-[#f7faf5] text-xs sm:text-sm font-semibold cursor-pointer"
+                onClick={() => {
+                  setAddingStock(false);
+                  setErrors({});
+                  requestAnimationFrame(() => keyboard.ref.current?.querySelector('#delivery-add-stock')?.focus());
+                }}
+              >
+                ← Back to Edit Received Delivery
+              </button>}
               {errors.items && (
                 <small className="text-red-600 text-xs block" role="alert">
                   {errors.items}
                 </small>
               )}
-            </div>
+            </div>}
 
+            {initialPurchase && !addingStock && <button
+              id="delivery-add-stock"
+              type="button"
+              className="w-full h-11 rounded-xl border border-[#155b4b] text-[#155b4b] hover:bg-[#e8f2e3] text-xs sm:text-sm font-semibold transition-all cursor-pointer"
+              onClick={() => {
+                setAddingStock(true);
+                setErrors({});
+                requestAnimationFrame(() => keyboard.ref.current?.querySelector(productType === 'tan' ? '#delivery-tanType' : '#delivery-articleNumber')?.focus());
+              }}
+            >
+              + Add Stock to This Delivery
+            </button>}
             <PaymentDetails
-              items={items}
+              items={[...(addingStock ? [...items, ...appendItems] : items), ...draftForTotals]}
               method={paymentMethod}
               amountPaid={amountPaid}
               splitCash={splitCash}
               splitBank={splitBank}
+              readOnly={Boolean(initialPurchase && addingStock)}
               onSplitCashChange={setSplitCash}
               onSplitBankChange={setSplitBank}
               cheques={cheques}
@@ -718,30 +937,34 @@ export default function NewDeliveryModal({
               }}
               error={errors.payment}
             />
+            {initialPurchase && errors.items && <p className="text-sm text-red-600" role="alert">{errors.items}</p>}
 
-            <button
-              disabled={saving}
-              className="w-full h-12 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] text-white text-sm sm:text-base font-bold shadow-md transition-all cursor-pointer active:scale-98"
-              type="submit"
-            >
-              {saving ? "Saving…" : "Save delivery & add stock"}
-            </button>
-          </form>
+</form>
 
-          <AddedStockCard
-            items={items.map((item) => ({ ...item, batchNumber }))}
+          {initialPurchase ? <DeliveryCart key={addingStock ? 'append' : 'edit'} items={(addingStock ? appendItems : items).map((item) => ({ ...item, batchNumber: item.batchNumber || (addingStock ? appendBatchNumber : batchNumber) }))} editable={!addingStock} append={addingStock} onUpdate={updateItem} onRemove={(id) => !addingStock && !window.confirm('Remove this stock item from the delivery? Save the delivery to apply this change.') ? undefined : addingStock ? setAppendItems((current) => current.filter((item) => item.id !== id)) : setItems((current) => current.filter((item) => item.id !== id))} /> : <div className="min-h-0 min-w-0 overflow-y-auto"><AddedStockCard
+            items={(addingStock ? appendItems : items).map((item) => ({ ...item, batchNumber: item.batchNumber || (addingStock ? appendBatchNumber : batchNumber) }))}
+            editable={Boolean(initialPurchase && !addingStock)}
+            showPaymentSummary={!addingStock}
+            onUpdate={updateItem}
             paymentMethod={paymentMethod}
             amountPaid={amountPaid}
             splitCash={splitCash}
             splitBank={splitBank}
             bankDetails={bankDetails}
             cheques={cheques}
-            onRemove={(id) =>
-              setItems((current) => current.filter((item) => item.id !== id))
-            }
-          />
+            onRemove={(id) => initialPurchase && !addingStock && !window.confirm('Remove this stock item from the delivery? Save the delivery to apply this change.') ? undefined : addingStock
+              ? setAppendItems((current) => current.filter((item) => item.id !== id))
+              : setItems((current) => current.filter((item) => item.id !== id))}
+          /></div>}
         </div>
+        <footer className="shrink-0 flex flex-wrap items-center justify-end gap-3 border-t border-[#edf0eb] px-4 sm:px-6 py-3">
+          {errors.save && <p className="mr-auto text-sm text-red-600" role="alert">{errors.save}</p>}
+          <button type="button" disabled={saving} onClick={onClose} className="h-10 rounded-xl border border-[#dfe4dc] px-5 text-sm font-semibold text-[#173b32] disabled:opacity-50">Cancel</button>
+          <button type="submit" form="delivery-form" disabled={saving} className="h-10 rounded-xl bg-[#155b4b] px-5 text-sm font-bold text-white hover:bg-[#104b3e] disabled:opacity-50">{saving ? 'Saving...' : initialPurchase ? addingStock ? 'Save changes to delivery' : 'Save delivery changes' : 'Save Delivery & Add Stock'}</button>
+        </footer>
       </section>
     </div>
+    {showTanTypeDialog && <FormDialog title="Add Tan type" fields={[{ name: 'name', label: 'Tan type name', required: true }]} onClose={() => setShowTanTypeDialog(false)} onSave={saveTanType} />}
+    </>
   );
 }
