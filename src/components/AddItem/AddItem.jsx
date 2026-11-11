@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
+import { matchesProductSearch, exactProductMatch } from '../../data/productSearch.js'
 import { availableSellableQuantity, sellableProducts } from '../../data/sellableStock.js'
 
 export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
@@ -28,23 +29,8 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
   ].filter(Boolean).join(' · ')
   const productArticle = (product) => product.articleNumber || product.article || product.code
 
-  const matchesQuery = (product, query) => [
-    product.name,
-    product.tanType,
-    product.productName,
-    product.shade,
-    product.colour,
-    product.color,
-    product.code,
-    product.articleNumber,
-    product.article,
-    product.articleName,
-    product.batchNumber,
-    product.size,
-  ].filter(Boolean).some((value) => String(value).toLowerCase().includes(query))
-
   const query = name.trim().toLowerCase()
-  const suggestions = productRecords.filter((product) => product.active !== false && (!query || matchesQuery(product, query)))
+  const suggestions = productRecords.filter((product) => product.active !== false && (!query || matchesProductSearch(product, query)))
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -86,7 +72,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
       onSkipEmptyItem?.()
       return
     }
-    const product = productRecords.find((entry) => entry.id === selectedProduct?.id) || (!selectedProduct && productRecords.find((entry) => entry.name?.trim().toLowerCase() === name.trim().toLowerCase()))
+    const product = productRecords.find((entry) => entry.id === selectedProduct?.id) || (!selectedProduct && productRecords.find((entry) => exactProductMatch(entry, name)))
     if (selectedProduct && !product) return
     onAddItem({
       productId: product?.id,
@@ -128,7 +114,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
         setSuggestionsOpen(true)
         setActiveSuggestion(0)
       } else if (suggestions.length && suggestionsOpen) {
-        selectProduct(suggestions[activeSuggestion >= 0 ? activeSuggestion : 0])
+        selectProduct(suggestions[activeSuggestion >= 0 ? activeSuggestion : 0] || suggestions[0])
       } else {
         quantityRef.current?.focus()
       }
@@ -171,16 +157,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
               setActiveSuggestion(-1)
               setSuggestionsOpen(true)
               const normalized = event.target.value.trim().toLowerCase()
-              const match = productRecords.find(
-                (product) =>
-                  product.name?.trim().toLowerCase() === normalized ||
-                  product.productName?.trim().toLowerCase() === normalized ||
-                  product.itemName?.trim().toLowerCase() === normalized ||
-                  product.itemCode?.trim().toLowerCase() === normalized ||
-                  product.code?.trim().toLowerCase() === normalized ||
-                  product.articleNumber?.trim().toLowerCase() === normalized ||
-                  product.article?.trim().toLowerCase() === normalized
-              )
+              const match = productRecords.find((product) => exactProductMatch(product, normalized))
               setPrice(match ? String(match.productType === 'tan' ? match.salePricePerMeter || 0 : match.salePrice || 0) : '')
             }}
             onKeyDown={handleSearchKeyDown}
