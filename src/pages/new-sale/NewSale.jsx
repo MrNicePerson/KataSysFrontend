@@ -14,6 +14,7 @@ const paymentMethodForDraft = (draft) => {
   const values = ['cash', 'bank', 'cheque'].filter((method) => Number(draft?.payments?.[method === 'bank' ? 'bankTransfer' : method] ?? draft?.payments?.[method] ?? 0) > 0)
   return values.length > 1 ? 'split' : values[0] || 'cash'
 }
+const newSaleCheque = (values = {}) => ({ id: values.id || `sale-cheque-${Date.now()}-${Math.random()}`, number: values.number || values.chequeNumber || '', bank: values.bank || values.bankName || '', amount: String(values.amount ?? ''), issued: values.issued || values.chequeDate || '', expectedClearanceDate: values.expectedClearanceDate || values.dueDate || '' })
 
 export default function NewSale({ customers, products = [], bills = [], returns = [], selectedCustomerId, onCustomerChange, onNewCustomer, onSaveBill, onHoldBill, initialDraft, onDraftLoaded, businessDate }) {
   const [items, setItems] = useState(() => prepareSaleDraft(initialDraft).items)
@@ -31,6 +32,12 @@ export default function NewSale({ customers, products = [], bills = [], returns 
     chequeDate: initialDraft?.payments?.chequeDetails?.chequeDate ?? initialDraft?.chequeDetails?.chequeDate ?? initialDraft?.cheque?.chequeDate ?? initialDraft?.cheque?.issued ?? '',
     dueDate: initialDraft?.payments?.chequeDetails?.dueDate ?? initialDraft?.chequeDetails?.dueDate ?? initialDraft?.cheque?.dueDate ?? initialDraft?.cheque?.expectedClearanceDate ?? '',
   }))
+  const [cheques, setCheques] = useState(() => {
+    const saved = initialDraft?.cheques ?? initialDraft?.payments?.cheques
+    if (Array.isArray(saved) && saved.length) return saved.map((entry) => newSaleCheque(entry))
+    const legacy = initialDraft?.payments?.chequeDetails ?? initialDraft?.chequeDetails ?? initialDraft?.cheque ?? {}
+    return [newSaleCheque({ ...legacy, amount: initialDraft?.payments?.cheque ?? '' })]
+  })
   const [bankDetails, setBankDetails] = useState(() => initialDraft?.payments?.bankDetails ?? initialDraft?.bankDetails ?? { bankName: '', accountNumber: '' })
   const [paymentMethod, setPaymentMethod] = useState(() => paymentMethodForDraft(initialDraft))
   const [saleMessage, setSaleMessage] = useState('')
@@ -228,6 +235,7 @@ export default function NewSale({ customers, products = [], bills = [], returns 
     setRefundType('cash')
     setPayments({ cash: '', bank: '', cheque: '' })
     setChequeDetails({ chequeNumber: '', bankName: '', chequeDate: '', dueDate: '' })
+    setCheques([newSaleCheque()])
     setBankDetails({ bankName: '', accountNumber: '' })
     setPaymentMethod('cash')
   }
@@ -237,14 +245,25 @@ export default function NewSale({ customers, products = [], bills = [], returns 
     setPayments((currentPayments) => ({ ...currentPayments, [method]: sanitizedValue }))
   }
 
+  const changeCheques = (nextCheques) => {
+    const rows = typeof nextCheques === 'function' ? nextCheques(cheques) : nextCheques
+    const totalChequeAmount = rows.reduce((sum, cheque) => sum + Number(cheque.amount || 0), 0)
+    setCheques(rows)
+    setPayments((current) => ({ ...current, cheque: totalChequeAmount ? String(totalChequeAmount) : '' }))
+    const first = rows[0]
+    setChequeDetails(first ? { chequeNumber: first.number, bankName: first.bank, chequeDate: first.issued, dueDate: first.expectedClearanceDate } : { chequeNumber: '', bankName: '', chequeDate: '', dueDate: '' })
+  }
+
   const changePaymentMethod = (method) => {
     setPaymentMethod(method)
     if (method !== 'split') {
       setPayments((currentPayments) => ({
         cash: method === 'cash' ? currentPayments.cash : '',
         bank: method === 'bank' ? currentPayments.bank : '',
-        cheque: method === 'cheque' ? currentPayments.cheque : '',
+        cheque: method === 'cheque' ? (cheques.reduce((sum, cheque) => sum + Number(cheque.amount || 0), 0) || '') : '',
       }))
+    } else {
+      setPayments((currentPayments) => ({ ...currentPayments, cheque: cheques.reduce((sum, cheque) => sum + Number(cheque.amount || 0), 0) || '' }))
     }
   }
 
@@ -347,8 +366,9 @@ export default function NewSale({ customers, products = [], bills = [], returns 
       setSaleMessage('Enter a bank name for the bank payment.')
       return
     }
-    if (paymentSummary.cheque > 0 && (!chequeDetails.chequeNumber.trim() || !chequeDetails.bankName.trim() || !chequeDetails.chequeDate)) {
-      setSaleMessage('Enter cheque number, cheque bank, and cheque date before saving the bill.')
+    const activeCheques = cheques.filter((cheque) => cheque.number || cheque.bank || cheque.amount || cheque.issued || cheque.expectedClearanceDate)
+    if (paymentSummary.cheque > 0 && (!activeCheques.length || activeCheques.some((cheque) => !cheque.number.trim() || !cheque.bank.trim() || !Number.isFinite(Number(cheque.amount)) || Number(cheque.amount) <= 0 || !cheque.issued || cheque.expectedClearanceDate && !/^\d{4}-\d{2}-\d{2}$/.test(cheque.expectedClearanceDate)) || Math.abs(activeCheques.reduce((sum, cheque) => sum + Number(cheque.amount || 0), 0) - paymentSummary.cheque) > 0.005)) {
+      setSaleMessage('Each cheque needs a number, bank, issue date and positive amount. Cheque amounts must match the cheque total.')
       return
     }
     savingRef.current = true
@@ -356,14 +376,15 @@ export default function NewSale({ customers, products = [], bills = [], returns 
     try {
       const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId)
       const promises = validatePaymentPromises(paymentPromises, { customerId: selectedCustomerId, customers, due: paymentSummary.uncoveredBalance })
-      const signature = JSON.stringify({ bill, paymentPromises: promises, refundType, payments, chequeDetails, bankDetails, customerId: selectedCustomerId })
+      const chequeRows = paymentSummary.cheque > 0 ? activeCheques.map(({ number, bank, amount, issued, expectedClearanceDate }) => ({ number: number.trim(), bank: bank.trim(), amount: Number(amount), issued, expectedClearanceDate: expectedClearanceDate || '' })) : []
+      const signature = JSON.stringify({ bill, paymentPromises: promises, refundType, payments, cheques: chequeRows, bankDetails, customerId: selectedCustomerId })
       if (idempotencyRef.current?.signature !== signature) {
         idempotencyRef.current = {
           signature,
           key: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         }
       }
-      const saved = await onSaveBill({ ...bill, paymentPromises: promises, refundType, idempotencyKey: idempotencyRef.current.key, payments: { ...paymentSummary, bankTransfer: paymentSummary.bank, chequeDetails, bankDetails }, bankDetails, cheque: chequeDetails, due: paymentSummary.uncoveredBalance, paymentDue: chequeDetails.dueDate, previousBalance: Number(selectedCustomer?.balance ?? selectedCustomer?.openingBalance ?? 0), customerId: selectedCustomerId, paidInvoiceNumber, padInvoiceNumber: paidInvoiceNumber, customerPhone: phone, customerAddress: address })
+      const saved = await onSaveBill({ ...bill, paymentPromises: promises, refundType, idempotencyKey: idempotencyRef.current.key, payments: { ...paymentSummary, bankTransfer: paymentSummary.bank, chequeDetails, cheques: chequeRows, bankDetails }, bankDetails, cheque: chequeRows[0] ? { ...chequeRows[0], chequeNumber: chequeRows[0].number, bankName: chequeRows[0].bank, chequeDate: chequeRows[0].issued, dueDate: chequeRows[0].expectedClearanceDate } : chequeDetails, cheques: chequeRows, due: paymentSummary.uncoveredBalance, paymentDue: chequeDetails.dueDate, previousBalance: Number(selectedCustomer?.balance ?? selectedCustomer?.openingBalance ?? 0), customerId: selectedCustomerId, paidInvoiceNumber, padInvoiceNumber: paidInvoiceNumber, customerPhone: phone, customerAddress: address })
       if (!saved) return
       clearSale()
     } catch (error) {
@@ -379,7 +400,7 @@ export default function NewSale({ customers, products = [], bills = [], returns 
     savingRef.current = true
     setSaving(true)
     try {
-      const held = await onHoldBill({ items, discount: normalizedDiscount, total, payments, chequeDetails, bankDetails, paymentMethod, refundType, paymentPromises, customerId: selectedCustomerId, kind })
+      const held = await onHoldBill({ items, discount: normalizedDiscount, total, payments, chequeDetails, cheques, bankDetails, paymentMethod, refundType, paymentPromises, customerId: selectedCustomerId, kind })
       if (!held) return
       setSaleMessage('Bill held.')
       clearSale()
@@ -447,6 +468,8 @@ export default function NewSale({ customers, products = [], bills = [], returns 
             onBankDetailsChange={setBankDetails}
             chequeDetails={chequeDetails}
             onChequeDetailsChange={setChequeDetails}
+            cheques={cheques}
+            onChequesChange={changeCheques}
           />
           </div>
           <section className="rounded-2xl border border-[#e2e6df] bg-white p-4 sm:p-6 shadow-panel" aria-labelledby="payment-promises-title">
