@@ -147,7 +147,7 @@ export function DeliveryCart({ items, onRemove, onUpdate, editable = false, appe
         <tbody className="divide-y divide-[#edf0eb] bg-white">{filtered.map((item) => <tr key={item.id}>
           <td className="px-2 py-2 align-top">{editable ? <><input aria-label="Article number" className={inputClass} value={item.articleNumber ?? item.code ?? ''} onChange={(event) => onUpdate(item.id, 'articleNumber', event.target.value)} /><input aria-label="Brand name" placeholder="Brand name (optional)" className={`${inputClass} mt-1`} value={item.brandName ?? ''} onChange={(event) => onUpdate(item.id, 'brandName', event.target.value)} /></> : <><strong className="block break-words">{item.articleNumber || item.code || '—'}</strong><span className="block break-words">{item.brandName || (item.productType === 'tan' ? item.productName : '')}</span></>}<small className="mt-1 block break-words text-[#718078]">{item.productType === 'tan' && `${item.tanType || 'Tan'} · ${item.metersPerTan || 0} m / Tan · `}{item.batchNumber || '—'}</small></td>
           <td className="px-2 py-2">{editable ? <select aria-label="Season" className={inputClass} value={item.season || ''} onChange={(event) => onUpdate(item.id, 'season', event.target.value)}><option value="">—</option>{!['', 'Summer', 'Winter'].includes(item.season || '') && <option value={item.season}>{item.season}</option>}<option value="Summer">Summer</option><option value="Winter">Winter</option></select> : item.season || (item.productType === 'tan' ? 'Tan' : '—')}</td>
-          <td className="px-2 py-2">{editable ? <input aria-label={item.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity'} type="number" min="1" step="1" className={inputClass} value={item.quantity} onChange={(event) => onUpdate(item.id, 'quantity', event.target.value)} /> : item.quantity}<small className="block text-[#718078]">{item.productType === 'tan' ? 'Tan' : 'suits'}</small></td>
+          <td className="px-2 py-2">{editable ? <input aria-label={item.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity'} type="number" min="1" step="1" className={inputClass} value={item.quantity} onFocus={() => { if (Number(item.quantity) === 1) onUpdate(item.id, 'quantity', '') }} onBlur={() => { if (item.quantity === '') onUpdate(item.id, 'quantity', '1') }} onChange={(event) => onUpdate(item.id, 'quantity', event.target.value)} /> : item.quantity}<small className="block text-[#718078]">{item.productType === 'tan' ? 'Tan' : 'suits'}</small></td>
           {['unitCost', 'salePrice'].map((field) => <td key={field} className="px-2 py-2">{editable ? <input aria-label={field === 'unitCost' ? 'Buy price' : 'Sale price'} type="number" min="0" step="0.01" placeholder="0" className={inputClass} value={item[field] ?? ''} onChange={(event) => onUpdate(item.id, field, event.target.value)} /> : money(item[field] || 0)}{item.productType === 'tan' && <small className="block text-[#718078]">/ Tan</small>}</td>)}
           <td className="px-2 py-2 font-semibold">{money(Number(item.quantity || 0) * Number(item.unitCost || 0))}</td>
           <td className="px-2 py-2"><button type="button" onClick={() => onRemove(item.id)} aria-label={`Remove ${item.productName || item.articleNumber || 'stock item'}`} className="rounded-md px-2 py-1 text-red-700 hover:bg-red-50">Remove</button></td>
@@ -215,7 +215,7 @@ export function AddedStockCard({ items, onRemove, onUpdate, editable = false, sh
                 </div>
                 <div className="col-span-2">
                   <dt className="text-xs text-[#718078]">Quantity</dt>
-                  <dd className="mt-0.5 font-semibold">{editable ? <input aria-label={item.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity'} type="number" min="1" step="1" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.quantity} onChange={(event) => onUpdate(item.id, "quantity", event.target.value)} /> : `${item.quantity} ${item.productType === 'tan' ? 'Tan' : item.quantity === 1 ? 'suit' : 'suits'}`}</dd>
+                  <dd className="mt-0.5 font-semibold">{editable ? <input aria-label={item.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity'} type="number" min="1" step="1" className="w-full px-2 py-1 rounded border border-[#dfe4dc]" value={item.quantity} onFocus={() => { if (Number(item.quantity) === 1) onUpdate(item.id, "quantity", "") }} onBlur={() => { if (item.quantity === "") onUpdate(item.id, "quantity", "1") }} onChange={(event) => onUpdate(item.id, "quantity", event.target.value)} /> : `${item.quantity} ${item.productType === 'tan' ? 'Tan' : item.quantity === 1 ? 'suit' : 'suits'}`}</dd>
                 </div>
                 {item.productType === 'tan' && <div className="col-span-2 text-[#52645c]">{item.tanType} · {item.metersPerTan} m / Tan · Buy Rs. {Number(item.buyPricePerMeter || 0).toFixed(2)} / m · Sale Rs. {Number(item.salePricePerMeter || 0).toFixed(2)} / m</div>}
                 <div className="min-w-0">
@@ -898,7 +898,7 @@ export default function NewDeliveryModal({
                   min="1"
                   value={quantity}
                   onChange={(event) => { setQuantity(event.target.value); setItemDraftDirty(true) }}
-                  onFocus={() => { if (Number(quantity) === 0) setQuantity("") }}
+                  onFocus={() => { if (Number(quantity) === 1) setQuantity("") }}
                   onBlur={() => { if (quantity === "") setQuantity("1") }}
                   error={errors.quantity}
                 />
@@ -1001,7 +1001,7 @@ export default function NewDeliveryModal({
 
           {initialPurchase ? <DeliveryCart key={addingStock ? 'append' : 'edit'} items={(addingStock ? appendItems : items).map((item) => ({ ...item, batchNumber: item.batchNumber || (addingStock ? appendBatchNumber : batchNumber) }))} editable={!addingStock} append={addingStock} onUpdate={updateItem} onRemove={(id) => !addingStock && !window.confirm('Remove this stock item from the delivery? Save the delivery to apply this change.') ? undefined : addingStock ? setAppendItems((current) => current.filter((item) => item.id !== id)) : setItems((current) => current.filter((item) => item.id !== id))} /> : <div className="min-h-0 min-w-0 overflow-y-auto"><AddedStockCard
             items={(addingStock ? appendItems : items).map((item) => ({ ...item, batchNumber: item.batchNumber || (addingStock ? appendBatchNumber : batchNumber) }))}
-            editable={Boolean(initialPurchase && !addingStock)}
+            editable={!addingStock}
             showPaymentSummary={!addingStock}
             onUpdate={updateItem}
             paymentMethod={paymentMethod}
