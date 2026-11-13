@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import BillReceipt from '../../pages/bill-receipt/BillReceipt.jsx'
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 
@@ -39,9 +40,10 @@ export default function AccountStatement({ statement, type, products = [], onClo
     </div>
   )
 
-  return (
-    <div className="fixed inset-0 z-[60] bg-[#173b32]/45 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto print:bg-white print:static print:block print:p-0">
-      <style>{`@page { size: auto; margin: 12mm; } @media print { body * { visibility: hidden !important; } #account-statement-print, #account-statement-print * { visibility: visible !important; } #account-statement-print { position: absolute; inset: 0; width: 100%; max-width: none; max-height: none; padding: 0; background: white; color: #172d27; box-shadow: none; overflow: visible; } .statement-controls { display: none !important; } .statement-no-print { display: none !important; } }`}</style>
+  return createPortal((
+    <div id="account-statement-print-root">
+      <style>{`@page { size: auto; margin: 12mm; } @media print { body > *:not(#account-statement-print-root) { display: none !important; } #account-statement-print-root { position: static !important; display: block !important; width: 100% !important; height: auto !important; max-height: none !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; } #account-statement-print-root, #account-statement-print-root * { visibility: visible !important; } #account-statement-print { position: static !important; inset: auto !important; display: block !important; width: 100% !important; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 0 !important; background: white !important; color: #172d27 !important; box-shadow: none !important; overflow: visible !important; } .statement-controls, .statement-no-print { display: none !important; } }`}</style>
+      <div className="fixed inset-0 z-[60] bg-[#173b32]/45 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto print:bg-white print:static print:block print:p-0">
       <section ref={keyboard.ref} onKeyDown={keyboard.onKeyDown} role="dialog" aria-modal="true" aria-label={`${type === 'supplier' ? 'Supplier' : 'Customer'} account statement`} id="account-statement-print" className="w-full max-w-5xl max-h-[94vh] overflow-y-auto rounded-2xl bg-[#f7faf7] shadow-2xl print:max-h-none print:overflow-visible print:rounded-none print:shadow-none">
         <header className="flex flex-wrap items-start justify-between gap-5 border-b border-[#e2e9e2] bg-white px-5 py-5 sm:px-8 sm:py-7">
           <div className="flex items-start gap-4">
@@ -112,6 +114,7 @@ export default function AccountStatement({ statement, type, products = [], onClo
           </div>
         </div>
       </section>
+      </div>
     </div>
-  )
+  ), document.body)
 }
