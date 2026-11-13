@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react'
 import BillReceipt from '../../pages/bill-receipt/BillReceipt.jsx'
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 
+const money = (amount) => `Rs. ${Number(amount || 0).toLocaleString('en-PK', { maximumFractionDigits: 2 })}`
+const displayDate = (value) => {
+  if (!value) return '—'
+  const [year, month, day] = String(value).slice(0, 10).split('-').map(Number)
+  if (!year || !month || !day) return value
+  return new Date(year, month - 1, day).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
 export default function AccountStatement({ statement, type, products = [], onClose }) {
   const [viewingBill, setViewingBill] = useState(null)
   const keyboard = useKeyboardScope({ onEscape: onClose, trapFocus: true })
@@ -10,9 +18,20 @@ export default function AccountStatement({ statement, type, products = [], onClo
     keyboard.ref.current?.querySelector('button')?.focus()
     return () => opener?.isConnected && opener.focus?.()
   }, [])
+
   const account = type === 'supplier' ? statement.supplier : statement.customer
   const ledger = statement.ledger
   const salesById = new Map((type === 'customer' ? statement.sales || [] : []).map((sale) => [sale.id, sale]))
+  const chronological = [...(ledger.entries || [])].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+  let runningBalance = 0
+  const rows = chronological.map((entry) => {
+    runningBalance += entry.direction === 'debit' ? Number(entry.amount || 0) : entry.direction === 'credit' ? -Number(entry.amount || 0) : 0
+    return { ...entry, runningBalance }
+  }).reverse()
+  const closingBalance = Number(account.balance ?? ledger.storedBalance ?? ledger.calculatedBalance ?? 0)
+  const debitTotal = ledger.entries.reduce((sum, entry) => sum + (entry.direction === 'debit' ? Number(entry.amount || 0) : 0), 0)
+  const creditTotal = ledger.entries.reduce((sum, entry) => sum + (entry.direction === 'credit' ? Number(entry.amount || 0) : 0), 0)
+  const title = type === 'supplier' ? 'Supplier statement' : 'Customer statement'
 
   if (viewingBill) return (
     <div className="fixed inset-0 z-[60] bg-[#203832]/40 flex items-center justify-center p-3 sm:p-6 overflow-y-auto print:bg-white print:static print:block print:p-0">
@@ -21,42 +40,76 @@ export default function AccountStatement({ statement, type, products = [], onClo
   )
 
   return (
-    <div className="fixed inset-0 z-[60] bg-[#203832]/40 flex items-center justify-center p-3 sm:p-6 overflow-y-auto print:bg-white print:static print:block print:p-0">
-      <style>{`@media print { body * { visibility: hidden !important; } #account-statement-print, #account-statement-print * { visibility: visible !important; } #account-statement-print { position: absolute; inset: 0; width: 100%; padding: 16mm; background: white; color: black; } .statement-controls { display: none !important; } }`}</style>
-      <section ref={keyboard.ref} onKeyDown={keyboard.onKeyDown} role="dialog" aria-modal="true" aria-label={`${type === 'supplier' ? 'Supplier' : 'Customer'} account statement`} id="account-statement-print" className="w-full max-w-3xl max-h-[92vh] overflow-y-auto p-5 sm:p-8 bg-white rounded-xl border border-[#e2e6df] print:max-w-none print:max-h-none print:overflow-visible print:border-0 print:p-0">
-        <header className="flex items-start justify-between gap-4 border-b border-[#e2e6df] pb-4">
-          <div>
-            <p className="text-xs uppercase font-bold text-[#718078]">KataSys · Account statement</p>
-            <h1 className="mt-1 text-2xl font-bold text-[#173b32]">{account.name}</h1>
-            {type === 'supplier' && <p className="mt-1 text-sm font-semibold text-[#155b4b]">Supplier code: {account.supplierCode || '—'}</p>}
-            <p className="mt-1 text-sm text-[#718078]">{account.phone || 'No phone'} · {account.address || account.city || 'No address'}</p>
+    <div className="fixed inset-0 z-[60] bg-[#173b32]/45 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto print:bg-white print:static print:block print:p-0">
+      <style>{`@page { size: auto; margin: 12mm; } @media print { body * { visibility: hidden !important; } #account-statement-print, #account-statement-print * { visibility: visible !important; } #account-statement-print { position: absolute; inset: 0; width: 100%; max-width: none; max-height: none; padding: 0; background: white; color: #172d27; box-shadow: none; overflow: visible; } .statement-controls { display: none !important; } .statement-no-print { display: none !important; } }`}</style>
+      <section ref={keyboard.ref} onKeyDown={keyboard.onKeyDown} role="dialog" aria-modal="true" aria-label={`${type === 'supplier' ? 'Supplier' : 'Customer'} account statement`} id="account-statement-print" className="w-full max-w-5xl max-h-[94vh] overflow-y-auto rounded-2xl bg-[#f7faf7] shadow-2xl print:max-h-none print:overflow-visible print:rounded-none print:shadow-none">
+        <header className="flex flex-wrap items-start justify-between gap-5 border-b border-[#e2e9e2] bg-white px-5 py-5 sm:px-8 sm:py-7">
+          <div className="flex items-start gap-4">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#155b4b] text-lg font-black text-white">AT</div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#718078]">Abbas Textile Wholesale · Account ledger</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#173b32] sm:text-3xl">{account.name}</h1>
+              <p className="mt-1 text-sm text-[#64756d]">{[account.phone, account.address || account.city].filter(Boolean).join(' · ') || 'No contact details provided'}</p>
+              {type === 'supplier' && <p className="mt-1 text-xs font-semibold text-[#155b4b]">Supplier code: {account.supplierCode || '—'}</p>}
+            </div>
           </div>
-          <div className="text-right text-sm">
-            <span className="block text-[#718078]">{type === 'supplier' ? 'Payable / advance' : 'Due / advance'}</span>
-            <strong className="text-lg text-[#173b32]">Rs. {Math.abs(Number(account.balance || 0)).toLocaleString()} {Number(account.balance || 0) < 0 ? 'advance' : ''}</strong>
-          </div>
+          <div className="statement-no-print flex items-center gap-2 rounded-full border border-[#dfe8de] bg-[#f7faf5] px-3 py-1.5 text-xs font-semibold text-[#52645c]">{title}</div>
         </header>
-        <p className="my-4 text-xs text-[#718078]">Printed {new Date().toLocaleString()}</p>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-left text-sm">
-            <thead className="border-b border-[#dfe4dc] text-xs uppercase text-[#718078]"><tr><th className="py-2">Date</th><th className="py-2">Description</th><th className="py-2 text-right">Debit</th><th className="py-2 text-right">Credit</th></tr></thead>
-            <tbody className="divide-y divide-[#edf0eb]">
-              {ledger.entries.map((entry) => <tr key={entry.id}>
-                <td className="py-2 pr-3 whitespace-nowrap">{entry.date || '—'}</td>
-                <td className="py-2">
-                  <span>{entry.title}</span>
-                  {salesById.has(entry.id) && <button type="button" aria-label={`View bill ${salesById.get(entry.id).number || entry.title}`} onClick={() => setViewingBill(salesById.get(entry.id))} className="statement-controls ml-3 inline-flex min-h-9 items-center rounded-lg border border-[#dfe4dc] px-3 text-xs font-semibold text-[#155b4b] hover:bg-[#eaf3e7] focus-visible:outline-2 focus-visible:outline-[#155b4b]">View bill</button>}
-                </td>
-                <td className="py-2 text-right">{entry.direction === 'debit' ? `Rs. ${Number(entry.amount).toLocaleString()}` : '—'}</td>
-                <td className="py-2 text-right">{entry.direction === 'credit' ? `Rs. ${Number(entry.amount).toLocaleString()}` : '—'}</td>
-              </tr>)}
-              {!ledger.entries.length && <tr><td colSpan="4" className="py-8 text-center text-[#718078]">No account entries recorded.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-        <div className="statement-controls mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="h-10 px-4 rounded-lg border border-[#dfe4dc] text-sm font-semibold">Close</button>
-          <button type="button" onClick={() => window.print()} className="h-10 px-4 rounded-lg bg-[#155b4b] text-white text-sm font-semibold">Print statement</button>
+
+        <div className="space-y-5 px-4 py-5 sm:px-8 sm:py-7">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-[#dfe8de] bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#718078]">{closingBalance < 0 ? 'Advance balance' : type === 'supplier' ? 'Payable balance' : 'Amount due'}</p>
+              <p className={`mt-1 text-2xl font-bold tabular-nums ${closingBalance > 0 ? 'text-[#a33c35]' : 'text-[#155b4b]'}`}>{money(Math.abs(closingBalance))}</p>
+              <p className="mt-1 text-xs text-[#718078]">{closingBalance < 0 ? 'Credit / advance' : closingBalance > 0 ? 'Outstanding' : 'Settled'}</p>
+            </div>
+            <div className="rounded-xl border border-[#dfe8de] bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#718078]">Total debit</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-[#173b32]">{money(debitTotal)}</p>
+              <p className="mt-1 text-xs text-[#718078]">Charges and increases</p>
+            </div>
+            <div className="rounded-xl border border-[#dfe8de] bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#718078]">Total credit</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-[#173b32]">{money(creditTotal)}</p>
+              <p className="mt-1 text-xs text-[#718078]">Payments, returns and reductions</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#718078]">
+            <span>{rows.length} ledger {rows.length === 1 ? 'entry' : 'entries'}</span>
+            <span>Printed {new Date().toLocaleString('en-PK')}</span>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-[#dfe8de] bg-white">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="bg-[#edf4ed] text-[11px] uppercase tracking-wide text-[#5f7167]"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Entry / comment</th><th className="px-4 py-3 text-right">Debit</th><th className="px-4 py-3 text-right">Credit</th><th className="px-4 py-3 text-right">Balance</th></tr></thead>
+                <tbody className="divide-y divide-[#edf0eb]">
+                  {rows.map((entry) => <tr key={entry.id} className="align-top hover:bg-[#fbfdfb]">
+                    <td className="whitespace-nowrap px-4 py-3 text-xs font-medium text-[#64756d]">{displayDate(entry.date)}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-[#173b32]">{entry.title}</div>
+                      {entry.reason && <p className="mt-1 max-w-xl whitespace-pre-wrap text-xs leading-relaxed text-[#718078]">Reason: {entry.reason}</p>}
+                      {salesById.has(entry.id) && <button type="button" aria-label={`View bill ${salesById.get(entry.id).number || entry.title}`} onClick={() => setViewingBill(salesById.get(entry.id))} className="statement-controls mt-2 inline-flex min-h-8 items-center rounded-lg border border-[#dfe4dc] px-3 text-xs font-semibold text-[#155b4b] hover:bg-[#eaf3e7] focus-visible:outline-2 focus-visible:outline-[#155b4b]">View invoice</button>}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-[#a33c35]">{entry.direction === 'debit' ? money(entry.amount) : '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-[#155b4b]">{entry.direction === 'credit' ? money(entry.amount) : '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-[#173b32]">{money(Math.abs(entry.runningBalance))}<span className="ml-1 text-[10px] font-medium text-[#718078]">{entry.runningBalance < 0 ? 'advance' : 'due'}</span></td>
+                  </tr>)}
+                  {!rows.length && <tr><td colSpan="5" className="px-4 py-10 text-center text-sm text-[#718078]">No account entries recorded.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#dfe8de] bg-[#f7faf5] px-4 py-3 text-xs text-[#64756d]">
+              <span>Closing balance</span>
+              <strong className="text-sm text-[#173b32]">{closingBalance < 0 ? 'Advance' : 'Due'} · {money(Math.abs(closingBalance))}</strong>
+            </footer>
+          </div>
+
+          <div className="statement-controls flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="h-10 rounded-lg border border-[#dfe4dc] bg-white px-4 text-sm font-semibold text-[#173b32]">Close</button>
+            <button type="button" onClick={() => window.print()} className="h-10 rounded-lg bg-[#155b4b] px-5 text-sm font-semibold text-white">Print statement</button>
+          </div>
         </div>
       </section>
     </div>
