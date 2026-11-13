@@ -1,12 +1,20 @@
-import { useState } from 'react'
+import { paymentPromiseStates } from '../../data/paymentPromises.js'
+import { useRef, useState } from 'react'
 import { calculateAccountLedger } from '../../data/businessLogic.js'
 import RecoveryAll from './RecoveryAll.jsx'
 
-export default function CustomerKhata({ customers = [], payments = [], sales = [], returns = [], installments = [], onNewCustomer, onPayment, onBulkRecovery, onInstallmentPayment, onStatement }) {
+export default function CustomerKhata({ customers = [], payments = [], sales = [], returns = [], installments = [], banks = [], businessDate, canEdit = false, canDelete = false, onNewCustomer, onUpdateCustomer, onDeleteCustomer, onPayment, onBulkRecovery, onInstallmentPayment, onStatement }) {
   const [query, setQuery] = useState('')
   const [recoveryOpen, setRecoveryOpen] = useState(false)
   const [message, setMessage] = useState('')
-  const displayed = customers.filter((customer) => `${customer.name} ${customer.city || ''} ${customer.phone || ''}`.toLowerCase().includes(query.toLowerCase()))
+  const [editing, setEditing] = useState(null)
+  const [editDraft, setEditDraft] = useState(null)
+  const [paymentCustomer, setPaymentCustomer] = useState(null)
+  const [paymentDraft, setPaymentDraft] = useState(null)
+  const [modalError, setModalError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const paymentKey = useRef(null)
+  const displayed = customers.filter((customer) => customer.active !== false && `${customer.name} ${customer.city || ''} ${customer.phone || ''}`.toLowerCase().includes(query.toLowerCase()))
   const amountToReceive = customers.reduce((sum, customer) => sum + Math.max(0, Number(customer.balance || 0)), 0)
   const advanceBalance = customers.reduce((sum, customer) => sum + Math.max(0, -Number(customer.balance || 0)), 0)
   const stats = [
@@ -16,13 +24,40 @@ export default function CustomerKhata({ customers = [], payments = [], sales = [
     ['Transactions', payments.length + sales.length + returns.length],
   ]
 
-  const receivePayment = async (customer) => {
-    const amount = Number(window.prompt(`Cash received from ${customer.name} (Rs.)`, ''))
-    if (Number.isFinite(amount) && amount > Number(customer.balance || 0)) {
-      setMessage(`Cash recovery for ${customer.name} cannot exceed the outstanding balance.`)
-      return
-    }
-    if (Number.isFinite(amount) && amount > 0) await onPayment?.({ accountId: customer.id, amount, method: 'cash', note: 'Khata payment' })
+  const receivePayment = (customer) => {
+    paymentKey.current = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`
+    setPaymentCustomer(customer)
+    setPaymentDraft({ amount: '', date: businessDate || new Date().toISOString().slice(0, 10), method: 'cash', bankId: '', bankName: '', accountNumber: '' })
+    setModalError('')
+  }
+
+  const recordPayment = async (event) => {
+    event.preventDefault()
+    const amount = Number(paymentDraft.amount)
+    if (!Number.isFinite(amount) || amount <= 0) { setModalError('Enter an amount greater than zero.'); return }
+    if (amount > Number(paymentCustomer.balance || 0)) { setModalError('Amount cannot exceed the current outstanding balance.'); return }
+    if (!paymentDraft.date || !/^\d{4}-\d{2}-\d{2}$/.test(paymentDraft.date)) { setModalError('Choose a valid payment date.'); return }
+    const bank = banks.find((entry) => entry.id === paymentDraft.bankId)
+    const bankDetails = paymentDraft.method === 'bank' ? { bankName: bank?.name || paymentDraft.bankName.trim(), accountNumber: bank?.accountNumber || paymentDraft.accountNumber.trim(), ...(bank ? { bankAccountId: bank.id } : {}) } : null
+    if (paymentDraft.method === 'bank' && !bankDetails.bankName) { setModalError('Select a bank or enter bank details.'); return }
+    setSaving(true); setModalError('')
+    try {
+      const saved = await onPayment?.({ accountId: paymentCustomer.id, amount, date: paymentDraft.date, method: paymentDraft.method, bankDetails, idempotencyKey: paymentKey.current, note: 'Khata recovery' })
+      if (!saved) throw new Error('Payment could not be recorded.')
+      setMessage(`Rs. ${amount.toLocaleString()} ${paymentDraft.method} recovery recorded for ${paymentCustomer.name}.`)
+      setPaymentCustomer(null); setPaymentDraft(null)
+    } catch (error) { setModalError(error.message || 'Payment could not be recorded.') }
+    finally { setSaving(false) }
+  }
+
+  const editCustomer = (customer) => { setEditing(customer); setEditDraft({ name: customer.name || '', phone: customer.phone || '', address: customer.address || '', city: customer.city || '', email: customer.email || '' }); setModalError('') }
+  const saveCustomer = async (event) => {
+    event.preventDefault()
+    if (!editDraft.name.trim()) { setModalError('Customer name is required.'); return }
+    setSaving(true); setModalError('')
+    try { const saved = await onUpdateCustomer?.(editing.id, editDraft); if (!saved) throw new Error('Customer details could not be saved.'); setEditing(null) }
+    catch (error) { setModalError(error.message || 'Customer details could not be saved.') }
+    finally { setSaving(false) }
   }
 
   const ledgerFor = (customer) => calculateAccountLedger({ customers, payments, sales, returns }, 'customer', customer.id).entries
@@ -97,6 +132,7 @@ export default function CustomerKhata({ customers = [], payments = [], sales = [
           const balance = Number(customer.balance || 0)
           const initials = customer.name.split(/\s+/).slice(0, 2).map((word) => word[0]).join('').toUpperCase()
           const ledger = ledgerFor(customer)
+          const promises = paymentPromiseStates({ customers: [customer], sales })
 
           return (
             <article data-keyboard-row tabIndex={0} className="p-5 sm:p-6 rounded-2xl bg-white border border-[#e2e6df] shadow-panel flex flex-col gap-4" key={customer.id}>
@@ -114,6 +150,7 @@ export default function CustomerKhata({ customers = [], payments = [], sales = [
                   </small>
                 </div>
               </div>
+              {(canEdit || canDelete) && <div className="flex gap-2">{canEdit && <button type="button" onClick={() => editCustomer(customer)} className="rounded-lg border px-3 py-2 text-xs font-semibold">Edit details</button>}{canDelete && <button type="button" onClick={async () => { const linked = sales.some((sale) => sale.customerId === customer.id) || payments.some((payment) => payment.customerId === customer.id) || returns.some((entry) => entry.customerId === customer.id) || installments.some((entry) => entry.customerId === customer.id); const action = linked || Number(customer.balance || 0) !== 0 ? 'deactivate and preserve its linked financial history' : 'permanently delete'; if (!window.confirm(`Are you sure you want to ${action} for ${customer.name}?`)) return; try { const result = await onDeleteCustomer?.(customer.id); if (result?.deactivated) setMessage(`${customer.name} was deactivated. Linked history was retained.`) } catch (error) { setMessage(error.message || 'Customer could not be removed.') } }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">Delete</button>}</div>}
 
               <div className="p-3.5 rounded-xl bg-[#fafbf8] border border-[#edf0eb] flex justify-between items-center">
                 <span className="text-xs font-semibold text-[#718078]">Balance</span>
@@ -139,6 +176,7 @@ export default function CustomerKhata({ customers = [], payments = [], sales = [
 
               <button type="button" data-keyboard-primary onClick={() => onStatement?.(customer.id)} className="w-full h-9 rounded-lg border border-[#dfe4dc] text-xs font-semibold text-[#173b32]">View / print statement</button>
 
+              {promises.length > 0 && <div className="mt-3 text-sm"><strong>Payment promises (not payments)</strong>{promises.map((promise) => <p key={promise.id}>{promise.saleNumber} · {promise.dueDate} · Rs. {Number(promise.amount).toLocaleString()} · {promise.status}</p>)}</div>}
               <details className="mt-auto group">
                 <summary className="text-xs sm:text-sm font-semibold text-[#173b32] cursor-pointer select-none">
                   Account ledger ({ledger.length})
@@ -176,6 +214,7 @@ export default function CustomerKhata({ customers = [], payments = [], sales = [
           </div>
         </section>
       )}
+      {(editing || paymentCustomer) && <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="presentation"><form onSubmit={editing ? saveCustomer : recordPayment} role="dialog" aria-modal="true" aria-labelledby="khata-modal-title" className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-5 shadow-xl"><div><h2 id="khata-modal-title" className="text-xl font-bold text-[#173b32]">{editing ? `Edit ${editing.name}` : `Record cash received from ${paymentCustomer.name}`}</h2>{paymentCustomer && <p className="mt-1 text-sm">Outstanding balance: Rs. {Number(paymentCustomer.balance || 0).toLocaleString()}</p>}</div>{editing ? <div className="grid gap-3 sm:grid-cols-2">{[['name','Name'],['phone','Phone'],['email','Email'],['city','City'],['address','Address']].map(([key,label]) => <label key={key} className="grid gap-1 text-sm font-semibold">{label}<input required={key==='name'} value={editDraft[key]} onChange={(event)=>setEditDraft((current)=>({...current,[key]:event.target.value}))} className="h-10 rounded-lg border px-3 font-normal" /></label>)}<p className="sm:col-span-2 text-xs text-[#718078]">Account balance is calculated from sales, returns and received payments. Record a dated recovery or correction through the ledger; this form does not overwrite balances or past invoices.</p></div> : <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-sm font-semibold">Amount received (Rs.)<input type="number" min="0.01" step="0.01" required autoFocus value={paymentDraft.amount} onChange={(event)=>setPaymentDraft((current)=>({...current,amount:event.target.value}))} className="h-10 rounded-lg border px-3 font-normal" /></label><label className="grid gap-1 text-sm font-semibold">Payment date<input type="date" required value={paymentDraft.date} onChange={(event)=>setPaymentDraft((current)=>({...current,date:event.target.value}))} className="h-10 rounded-lg border px-3 font-normal" /></label><label className="grid gap-1 text-sm font-semibold sm:col-span-2">Payment method<select value={paymentDraft.method} onChange={(event)=>setPaymentDraft((current)=>({...current,method:event.target.value}))} className="h-10 rounded-lg border px-3 font-normal"><option value="cash">Cash</option><option value="bank">Bank</option></select></label>{paymentDraft.method==='bank' && <><label className="grid gap-1 text-sm font-semibold sm:col-span-2">Bank account<select value={paymentDraft.bankId} onChange={(event)=>setPaymentDraft((current)=>({...current,bankId:event.target.value}))} className="h-10 rounded-lg border px-3 font-normal"><option value="">{banks.length ? 'Select bank or enter details' : 'Enter bank details below'}</option>{banks.map((bank)=><option value={bank.id} key={bank.id}>{bank.name}</option>)}</select></label>{!paymentDraft.bankId && <label className="grid gap-1 text-sm font-semibold">Bank name<input value={paymentDraft.bankName} onChange={(event)=>setPaymentDraft((current)=>({...current,bankName:event.target.value}))} className="h-10 rounded-lg border px-3 font-normal" /></label>}{!paymentDraft.bankId && <label className="grid gap-1 text-sm font-semibold">Account number<input value={paymentDraft.accountNumber} onChange={(event)=>setPaymentDraft((current)=>({...current,accountNumber:event.target.value}))} className="h-10 rounded-lg border px-3 font-normal" /></label>}</>}</div>}{modalError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{modalError}</p>}<div className="flex justify-end gap-2"><button type="button" disabled={saving} onClick={()=>{setEditing(null);setPaymentCustomer(null)}} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button disabled={saving} className="rounded-lg bg-[#155b4b] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving?'Saving...':editing?'Save customer':'Record payment'}</button></div></form></div>}
     </main>
   )
 }

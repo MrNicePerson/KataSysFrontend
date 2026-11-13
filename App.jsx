@@ -125,7 +125,7 @@ export default function App() {
   }, [language])
 
   const can = (permission, action = 'view') => user?.role === 'admin' || hasModulePermission(user?.permissions, permission, action) || permission === 'settings' && action === 'view' && hasModuleView(user?.permissions, 'activityHistory')
-  const customers = database.customers || []
+  const customers = (database.customers || []).filter((customer) => customer.active !== false)
   const suppliers = database.suppliers || []
   const savedBills = database.sales || []
   const heldBills = database.heldOrders || []
@@ -144,8 +144,11 @@ export default function App() {
     }
   }, [token, user, authLoading, currentPage, editingBillId, serverSaleDayStatus])
 
+  const workspaceRequestRef = useRef(0)
   const refreshWorkspace = async (activeToken = token) => {
+    const request = ++workspaceRequestRef.current
     const workspace = await getWorkspace(activeToken)
+    if (request !== workspaceRequestRef.current) return workspace.database
     setDatabase({ ...createEmptyDatabase(), ...workspace.database })
     setUser(workspace.user)
     setLanguage(workspace.language === 'ur' ? 'ur' : 'en')
@@ -221,7 +224,11 @@ export default function App() {
       setOperationError('')
       try {
         const result = await apiRequest(path, { token, method, body })
-        if (refresh) await refreshWorkspace(token)
+        if (refresh) {
+          try { await refreshWorkspace(token) } catch (error) {
+            setOperationError(`Changes saved, but refresh failed. Reconnect and refresh before editing again: ${error.message}`)
+          }
+        }
         return result
       } catch (error) {
         setOperationError(error.message)
@@ -293,7 +300,7 @@ export default function App() {
 
   const saveBill = async (bill) => {
     if (editingBillId) {
-      const saved = await mutate(`sales/${editingBillId}`, { method: 'PATCH', body: { items: bill.items.map((item) => ({ lineId: item.lineId, quantity: item.quantity, price: item.price })), discount: bill.discount, payments: { cash: bill.payments?.cash, bank: bill.payments?.bank ?? bill.payments?.bankTransfer, cheque: bill.payments?.cheque }, bankDetails: bill.bankDetails, cheque: bill.cheque, padInvoiceNumber: bill.padInvoiceNumber, customerPhone: bill.customerPhone, customerAddress: bill.customerAddress }, refresh: false })
+      const saved = await mutate(`sales/${editingBillId}`, { method: 'PATCH', body: { paymentPromises: bill.paymentPromises, items: bill.items.map((item) => ({ lineId: item.lineId, quantity: item.quantity, price: item.price })), discount: bill.discount, payments: { cash: bill.payments?.cash, bank: bill.payments?.bank ?? bill.payments?.bankTransfer, cheque: bill.payments?.cheque }, bankDetails: bill.bankDetails, cheque: bill.cheque, padInvoiceNumber: bill.padInvoiceNumber, customerPhone: bill.customerPhone, customerAddress: bill.customerAddress }, refresh: false })
       if (!saved) return null
       try {
         await refreshWorkspace(token)
@@ -409,7 +416,7 @@ export default function App() {
 
   const updateStockProduct = async (id, changes) => {
     const saved = await mutate(`products/${id}`, { method: 'PATCH', body: changes, throwOnError: true })
-    if (saved) setDatabase((current) => ({ ...current, products: current.products.map((product) => product.id === id ? saved : product) }))
+    // The awaited workspace refresh is authoritative for every screen.
     return saved
   }
 
@@ -417,10 +424,7 @@ export default function App() {
     const saved = await (delivery.purchaseId
       ? mutate(`purchases/${delivery.purchaseId}`, { method: 'PATCH', body: delivery, throwOnError: true })
       : mutate('purchases', { body: delivery, throwOnError: true }))
-    if (saved?.updatedProducts?.length) {
-      const updated = new Map(saved.updatedProducts.map((product) => [product.id, product]))
-      setDatabase((current) => ({ ...current, products: current.products.map((product) => updated.get(product.id) || product) }))
-    }
+    // Includes added/deleted batch records, purchases and supplier balances.
     return saved
   }
 
@@ -442,7 +446,7 @@ export default function App() {
       : activePage === 'supplier-returns' ? <SupplierReturns purchases={database.purchases} returns={database.supplierReturns} onSubmit={(input) => mutate('returns/suppliers', { body: input })} />
       : activePage === 'claims' ? <Claims claims={database.claims} products={database.products} suppliers={suppliers} customers={customers} onCreate={(input) => mutate('claims', { body: input })} onStatusChange={(id, status) => changeStatus(`claims/${id}/status`, status)} onUpdateDetails={(id, details) => mutate(`claims/${id}`, { method: 'PATCH', body: details })} />
       : activePage === 'suppliers' ? <Suppliers suppliers={suppliers} products={database.products} purchases={database.purchases} payments={database.payments} returns={database.supplierReturns} claims={database.claims} cheques={database.cheques} onCreate={(supplier) => mutate('suppliers', { body: supplier })} onUpdate={(id, supplier) => mutate(`suppliers/${id}`, { method: 'PATCH', body: supplier, throwOnError: true })} onDelete={(id) => mutate(`suppliers/${id}`, { method: 'DELETE', throwOnError: true })} onPayment={(payment) => mutate(`suppliers/${payment.accountId}/payments`, { body: payment })} onStatement={(id) => showStatement('supplier', id)} />
-      : activePage === 'khata' ? <CustomerKhata customers={customers} payments={database.payments} sales={savedBills} returns={database.returns} installments={database.installments} onNewCustomer={() => { setCustomerReturnPage('khata'); setCurrentPage('new-customer') }} onPayment={(payment) => mutate(`customers/${payment.accountId}/payments`, { body: payment })} onBulkRecovery={(input) => mutate('customers/recovery/bulk', { body: input })} onInstallmentPayment={(id, payment) => mutate(`customers/installments/${id}/payments`, { body: payment })} onStatement={(id) => showStatement('customer', id)} />
+      : activePage === 'khata' ? <CustomerKhata customers={database.customers} banks={database.bankAccounts || []} businessDate={saleDay.date || new Date().toISOString().slice(0, 10)} canEdit={can('customers', 'edit')} canDelete={can('customers', 'delete')} onUpdateCustomer={(id, changes) => mutate(`customers/${id}`, { method: 'PATCH', body: changes, throwOnError: true })} onDeleteCustomer={(id) => mutate(`customers/${id}`, { method: 'DELETE', throwOnError: true })} payments={database.payments} sales={savedBills} returns={database.returns} installments={database.installments} onNewCustomer={() => { setCustomerReturnPage('khata'); setCurrentPage('new-customer') }} onPayment={(payment) => mutate(`customers/${payment.accountId}/payments`, { body: payment, throwOnError: true })} onBulkRecovery={(input) => mutate('customers/recovery/bulk', { body: input })} onInstallmentPayment={(id, payment) => mutate(`customers/installments/${id}/payments`, { body: payment })} onStatement={(id) => showStatement('customer', id)} />
       : activePage === 'cheques' ? <ChequeRegister cheques={database.cheques} customers={customers} suppliers={suppliers} onCreate={(cheque) => mutate('cheques', { body: cheque })} onStatusChange={(id, status) => changeStatus(`cheques/${id}/status`, status)} />
       : activePage === 'expenses' ? <ShopExpenses expenses={database.expenses} financeEntries={database.financeEntries} onCreate={(entry) => mutate('finance/entries', { body: entry })} />
       : activePage === 'closing' ? <DailyClosing database={database} user={user} branchId={branchId} initialTab={dailyClosingInitialTab} onSave={saveDailyRecord} onDelete={(id) => mutate(`finance/daily-closing/${id}`, { method: 'DELETE' })} onReviewStock={() => navigateTo('stock')} onAddBank={(account) => mutate('finance/banks', { body: account })} onUpdateBank={(id, changes) => mutate(`finance/banks/${id}`, { method: 'PATCH', body: changes })} onSaveBankBalances={(input) => mutate('finance/banks/balances', { body: input })} onRecordBankTransaction={(id, transaction) => mutate(`finance/banks/${id}/transactions`, { body: transaction })} onCreateCheque={(cheque) => mutate('cheques', { body: cheque })} onUpdateChequeStatus={(id, status, details) => mutate(`cheques/${id}/status`, { method: 'PATCH', body: { status, ...details } })} onUpdateChequeDetails={(id, details) => mutate(`cheques/${id}/details`, { method: 'PATCH', body: details })} />

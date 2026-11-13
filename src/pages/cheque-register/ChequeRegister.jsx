@@ -1,10 +1,14 @@
 import { useState } from 'react'
+import DateDmyInput from '../../components/DateDmyInput.jsx'
+import { formatDmyDate } from '../../data/dateDmy.js'
 
 export default function ChequeRegister({ cheques = [], customers = [], suppliers = [], onStatusChange, onCreate }) {
   const [adding, setAdding] = useState(false)
   const [direction, setDirection] = useState('received')
   const [partyId, setPartyId] = useState('')
   const [message, setMessage] = useState('')
+  const [issued, setIssued] = useState('')
+  const [expectedClearanceDate, setExpectedClearanceDate] = useState('')
   const parties = direction === 'received' ? customers : suppliers
 
   const submitCheque = async (event) => {
@@ -18,12 +22,14 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
         amount: Number(form.get('amount')),
         number: form.get('number'),
         bank: form.get('bank'),
-        issued: form.get('issued'),
-        expectedClearanceDate: form.get('expectedClearanceDate'),
+        issued,
+        expectedClearanceDate,
       })
       if (!saved) return
       setAdding(false)
       setPartyId('')
+      setIssued('')
+      setExpectedClearanceDate('')
       setMessage('Cheque recorded.')
     } catch (error) {
       setMessage(error.message)
@@ -68,8 +74,8 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
             <label className="text-xs font-semibold text-[#173b32]">Cheque number<input name="number" className="mt-1 w-full h-10 px-3 rounded-lg border border-[#dfe4dc]" /></label>
             <label className="text-xs font-semibold text-[#173b32]">Bank<input name="bank" className="mt-1 w-full h-10 px-3 rounded-lg border border-[#dfe4dc]" /></label>
             <label className="text-xs font-semibold text-[#173b32]">Amount<input name="amount" type="number" min="0.01" step="0.01" required className="mt-1 w-full h-10 px-3 rounded-lg border border-[#dfe4dc]" /></label>
-            <label className="text-xs font-semibold text-[#173b32]">Issued<input name="issued" type="date" className="mt-1 w-full h-10 px-3 rounded-lg border border-[#dfe4dc]" /></label>
-            <label className="text-xs font-semibold text-[#173b32]">Expected clearance<input name="expectedClearanceDate" type="date" className="mt-1 w-full h-10 px-3 rounded-lg border border-[#dfe4dc]" /></label>
+            <label className="text-xs font-semibold text-[#173b32]">Issued<DateDmyInput name="issued" required value={issued} onChange={(event) => setIssued(event.target.value)} className="mt-1 w-full h-10 px-3 rounded-lg border border-[#dfe4dc]" /></label>
+            <label className="text-xs font-semibold text-[#173b32]">Expected clearance<DateDmyInput name="expectedClearanceDate" value={expectedClearanceDate} onChange={(event) => setExpectedClearanceDate(event.target.value)} className="mt-1 w-full h-10 px-3 rounded-lg border border-[#dfe4dc]" /></label>
             <button className="self-end h-10 rounded-lg bg-[#155b4b] text-white text-sm font-semibold" type="submit">Save cheque</button>
           </form>
         )}
@@ -108,7 +114,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
                           </td>
                           <td className="px-4 sm:px-6 py-4 font-medium">{cheque.party || '—'}</td>
                           <td className="px-4 sm:px-6 py-4 font-semibold text-[#173b32]">{money(cheque.amount)}</td>
-                          <td className="px-4 sm:px-6 py-4 text-[#718078]">{cheque.issued}<small className="block">Expected: {cheque.expectedClearanceDate || '—'}</small></td>
+                          <td className="px-4 sm:px-6 py-4 text-[#718078]">{formatDmyDate(cheque.issued)}<small className="block">Expected: {formatDmyDate(cheque.expectedClearanceDate) || '—'}</small></td>
                           <td className="px-4 sm:px-6 py-4">
                             <span
                               className={`px-2.5 py-1 rounded-md text-xs font-semibold ${

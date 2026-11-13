@@ -4,6 +4,7 @@ import StockTools from '../../components/StockTools/StockTools.jsx'
 import StockTable from '../../components/StockTable/StockTable.jsx'
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 import { localDateString } from '../../data/businessLogic.js'
+import { productEditToken } from '../../data/stockEditToken.js'
 import { stockValuation } from '../../data/stockValuation.js'
 
 const csvCell = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`
@@ -52,7 +53,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
 
   const openEdit = (product) => {
     setEditingProduct(product)
-    setEditValues({ stockQuantity: String(product.stockQuantity ?? 0), averageCost: String(product.averageCost ?? 0), salePrice: String(product.salePrice ?? 0) })
+    setEditValues({ name: product.name || '', code: product.article || product.code || '', season: product.season || '', brandName: product.brandName || '', stockQuantity: String(product.stockQuantity ?? 0), averageCost: String(product.averageCost ?? 0), salePrice: String(product.salePrice ?? 0) })
     setEditError('')
   }
   const saveProduct = async (event) => {
@@ -60,7 +61,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
     setEditSaving(true)
     setEditError('')
     try {
-      const saved = await onUpdateProduct(editingProduct.id, { ...editValues, expectedStockQuantity: editingProduct.stockQuantity ?? 0 })
+      const saved = await onUpdateProduct(editingProduct.id, { ...editValues, expectedProductToken: productEditToken(editingProduct), expectedStockQuantity: editingProduct.stockQuantity ?? 0 })
       if (!saved) throw new Error('Could not save stock changes.')
       setEditingProduct(null)
     } catch (error) { setEditError(error.message || 'Could not save stock changes.') }
@@ -151,6 +152,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
       {editingProduct && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#203832]/50 p-4">
         <form ref={editKeyboard.ref} onKeyDown={editKeyboard.onKeyDown} onSubmit={saveProduct} className="w-full max-w-md rounded-2xl bg-white p-5 sm:p-6 shadow-2xl space-y-4" role="dialog" aria-modal="true" aria-labelledby="edit-stock-title">
           <div><h2 id="edit-stock-title" className="text-xl font-bold text-[#173b32]">Edit stock</h2><p className="mt-1 text-sm text-[#718078]">{editingProduct.article || editingProduct.code || editingProduct.name} · {editingProduct.batchNumber || '—'}</p></div>
+          {[['code', 'Article / design'], ['name', 'Name'], ['brandName', 'Brand'], ['season', 'Season']].map(([field, label]) => <label key={field} className="flex flex-col gap-1 text-sm">{label}<input value={editValues[field]} onChange={(event) => setEditValues((current) => ({ ...current, [field]: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3" /></label>)}
           {[['stockQuantity', editingProduct.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity (suits)', '1'], ['averageCost', editingProduct.productType === 'tan' ? 'Purchase cost per Tan (Rs.)' : 'Purchase cost per suit (Rs.)', '0.01'], ['salePrice', editingProduct.productType === 'tan' ? 'Sale price per Tan (Rs.)' : 'Sale price per suit (Rs.)', '0.01']].map(([field, label, step]) => <label key={field} className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">{label}<input type="number" min="0" step={step} required value={editValues[field]} onChange={(event) => setEditValues((current) => ({ ...current, [field]: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 font-normal" /></label>)}
           {editError && <p role="alert" className="text-sm text-red-700">{editError}</p>}
           <div className="flex flex-wrap justify-between gap-2">{onDeleteProduct && <button type="button" disabled={editSaving} onClick={deleteProduct} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">Delete</button>}<div className="ml-auto flex gap-2"><button type="button" disabled={editSaving} onClick={() => setEditingProduct(null)} className="rounded-lg border border-[#dfe4dc] px-4 py-2 text-sm font-semibold">Cancel</button><button type="submit" disabled={editSaving} className="rounded-lg bg-[#155b4b] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{editSaving ? 'Saving...' : 'Save changes'}</button></div></div>

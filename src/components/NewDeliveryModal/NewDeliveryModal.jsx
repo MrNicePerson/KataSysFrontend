@@ -4,6 +4,7 @@ import { receivingBatchPreview } from '../../data/receiving.js';
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js';
 import FormDialog from '../FormDialog/FormDialog.jsx';
 import { BANK_OPTIONS } from '../Payment/Payment.jsx';
+import { productEditToken, purchaseEditToken } from '../../data/stockEditToken.js';
 import { initialDeliveryPrice, deliveryPriceForSave } from './deliveryPrice.js';
 
 const today = () => {
@@ -458,6 +459,7 @@ export default function NewDeliveryModal({
   tanTypes = [],
   onAddTanType,
 }) {
+  const [editSnapshot] = useState(() => ({ expectedPurchaseToken: purchaseEditToken(initialPurchase), expectedProductTokens: Object.fromEntries((initialPurchase?.items || []).map((item) => [item.productId, productEditToken(products.find((product) => product.id === item.productId))])) }));
   const [supplier, setSupplier] = useState(initialPurchase?.supplierId || "");
   const [arrivalDate, setArrivalDate] = useState(initialPurchase?.date || today());
   const [padNumber, setPadNumber] = useState(initialPurchase?.padNumber || "");
@@ -476,7 +478,10 @@ export default function NewDeliveryModal({
   const [addingType, setAddingType] = useState(false);
   const [showTanTypeDialog, setShowTanTypeDialog] = useState(false);
   const [savedTanTypes, setSavedTanTypes] = useState(tanTypes);
-  const [items, setItems] = useState(() => (initialPurchase?.items || []).map((item, index) => ({
+  const [items, setItems] = useState(() => (initialPurchase?.items || []).map((saved) => {
+    const product = products.find((entry) => entry.id === saved.productId)
+    return product ? { ...saved, productName: product.name, code: product.code, brandName: product.brandName, season: product.season, size: product.size, rackLocation: product.rackLocation, salePrice: product.salePrice, unitCost: product.averageCost, metersPerTan: product.metersPerTan, tanType: product.tanType } : saved
+  }).map((item, index) => ({
     ...item,
     unitCost: initialDeliveryPrice(item.unitCost),
     salePrice: initialDeliveryPrice(item.salePrice),
@@ -604,27 +609,74 @@ export default function NewDeliveryModal({
     setUnitCost("");
     setSalePrice("");
     setItemDraftDirty(false);
+    requestAnimationFrame(() => keyboard.ref.current?.querySelector(productType === 'tan' ? '#delivery-tanType' : '#delivery-articleNumber')?.focus());
+  };
+
+  const buildCurrentItem = () => {
+    const nextErrors = {};
+    const itemBatchNumber = initialPurchase && addingStock ? appendBatchNumber : batchNumber;
+    const trimmedBatch = itemBatchNumber.trim();
+    const itemUnitCost = Number(unitCost);
+    const itemSalePrice = Number(salePrice);
+    if (!trimmedBatch) nextErrors.batchNumber = "Choose a supplier with a Supplier Code to generate the batch number.";
+    if (productType === 'suit' && !articleNumber.trim()) nextErrors.articleNumber = "Please enter the article name or design number.";
+    if (productType === 'suit' && !season) nextErrors.season = "Choose a season.";
+    if (productType === 'tan' && (!tanType || !tanName.trim())) nextErrors.productName = 'Choose a Tan type and enter its name.';
+    if (productType === 'tan' && (!Number.isFinite(Number(metersPerTan)) || Number(metersPerTan) <= 0)) nextErrors.metersPerTan = 'Meters per Tan must be greater than zero.';
+    if (!Number.isInteger(Number(quantity)) || Number(quantity) <= 0) nextErrors.quantity = "Quantity must be greater than 0.";
+    if (!Number.isFinite(itemUnitCost) || itemUnitCost < 0) nextErrors.unitCost = "Enter a valid non-negative cost.";
+    if (!Number.isFinite(itemSalePrice) || itemSalePrice < 0) nextErrors.salePrice = "Enter a valid non-negative sale price.";
+    if (Object.keys(nextErrors).length) return { item: null, errors: nextErrors };
+    return { item: {
+      id: `${Date.now()}-${Math.random()}`,
+      existingProductId: selectedProductId || undefined,
+      batchNumber: trimmedBatch,
+      padNumber: initialPurchase && addingStock ? appendPadNumber.trim() : padNumber.trim(),
+      productType,
+      tanType: productType === 'tan' ? tanType : '',
+      tanName: productType === 'tan' ? tanName.trim() : '',
+      metersPerTan: productType === 'tan' ? Number(metersPerTan) : undefined,
+      buyPricePerMeter: productType === 'tan' ? itemUnitCost / Number(metersPerTan) : undefined,
+      salePricePerMeter: productType === 'tan' ? itemSalePrice / Number(metersPerTan) : undefined,
+      productName: productType === 'tan' ? tanName.trim() : productName.trim() || articleNumber.trim(),
+      brandName: productType === 'tan' ? tanName.trim() : productName.trim(),
+      articleNumber: productType === 'tan' ? '' : articleNumber.trim(),
+      quantity: Number(quantity),
+      unitCost: itemUnitCost,
+      salePrice: itemSalePrice,
+      season: productType === 'tan' ? '' : season,
+    }, errors: {}};
   };
 
   const saveDelivery = async (event) => {
     event.preventDefault();
     if (savingRef.current) return;
     const nextErrors = {};
+    let currentDraftItem = null;
+    if (itemDraftDirty) {
+      const draft = buildCurrentItem();
+      if (!draft.item) {
+        setErrors(draft.errors);
+        return;
+      }
+      currentDraftItem = draft.item;
+    }
+    const appendingStock = Boolean(initialPurchase && addingStock);
+    const itemsToSave = !appendingStock && currentDraftItem ? [...items, currentDraftItem] : items;
+    const appendItemsToSave = appendingStock && currentDraftItem ? [...appendItems, currentDraftItem] : appendItems;
     if (initialPurchase && addingStock) {
       if (!appendBatchNumber) nextErrors.batchNumber = "A unique batch number could not be generated for this supplier.";
-      if (appendItems.length === 0) nextErrors.items = "Add at least one new stock item before saving.";
-      if (itemDraftDirty) nextErrors.items = "Add the current item to this delivery before saving.";
+      if (appendItemsToSave.length === 0) nextErrors.items = "Add at least one new stock item before saving.";
     } else {
       if (!supplier) nextErrors.supplier = "Choose a supplier.";
       if (!arrivalDate) nextErrors.arrivalDate = "Choose an arrival date.";
       if (!batchNumber) nextErrors.batchNumber = "Choose a supplier with a Supplier Code to generate the batch number.";
-      if (items.length === 0 && !initialPurchase)
+      if (itemsToSave.length === 0 && !initialPurchase)
       nextErrors.items = "Add at least one stock item before saving.";
-      if (itemDraftDirty) nextErrors.items = "Add the current item to the delivery before saving.";
     }
     const payment = initialPurchase && addingStock
       ? null
-      : prepareStockPayment(items, amountPaid, paymentMethod, bankDetails, cheques, { cash: splitCash, bank: splitBank });
+      : prepareStockPayment(itemsToSave, amountPaid, paymentMethod, bankDetails, cheques, { cash: splitCash, bank: splitBank });
     if (payment?.error) nextErrors.payment = payment.error;
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
@@ -633,19 +685,24 @@ export default function NewDeliveryModal({
     setSaving(true);
     try {
       if (initialPurchase && addingStock) {
-        const signature = JSON.stringify(appendItems.map(({ existingProductId, productName, brandName, articleNumber, padNumber, quantity, unitCost, salePrice, season, productType, tanType, metersPerTan }) => ({
+        const signature = JSON.stringify(appendItemsToSave.map(({ existingProductId, productName, brandName, articleNumber, padNumber, size, rackLocation, quantity, unitCost, salePrice, season, productType, tanType, tanName, metersPerTan, buyPricePerMeter, salePricePerMeter }) => ({
           existingProductId,
           productName,
           brandName,
           articleNumber,
           padNumber,
+          size,
+          rackLocation,
           quantity,
           unitCost,
           salePrice,
           season,
           productType,
           tanType,
+          tanName,
           metersPerTan,
+          buyPricePerMeter,
+          salePricePerMeter,
         })));
         if (appendIdempotencyRef.current?.signature !== signature) {
           appendIdempotencyRef.current = {
@@ -657,7 +714,7 @@ export default function NewDeliveryModal({
           purchaseId: initialPurchase.id,
           supplierId: initialPurchase.supplierId,
           appendStock: true,
-          appendItems: appendItems.map((item) => ({
+          appendItems: appendItemsToSave.map((item) => ({
             ...item,
             code: item.articleNumber,
             batchNumber: appendBatchNumber,
@@ -667,12 +724,12 @@ export default function NewDeliveryModal({
         return;
       }
       const payload = {
-      ...(initialPurchase ? { purchaseId: initialPurchase.id } : {}),
+      ...(initialPurchase ? { purchaseId: initialPurchase.id, ...editSnapshot } : {}),
       supplierId: supplier,
       date: arrivalDate,
       arrivalDate,
       padNumber: padNumber.trim(),
-      items: items.map((item) => ({ ...item, unitCost: deliveryPriceForSave(item.unitCost), salePrice: deliveryPriceForSave(item.salePrice), lineId: item.lineId || (initialPurchase ? item.id : undefined), batchNumber: item.batchNumber || batchNumber })),
+      items: itemsToSave.map((item) => ({ ...item, unitCost: deliveryPriceForSave(item.unitCost), salePrice: deliveryPriceForSave(item.salePrice), lineId: item.lineId || (initialPurchase ? item.id : undefined), batchNumber: item.batchNumber || batchNumber })),
       payments: payment.payments,
       bankDetails: payment.bankDetails,
       cheques: payment.cheques,
@@ -684,7 +741,7 @@ export default function NewDeliveryModal({
           supplierId: payload.supplierId,
           date: payload.date,
           padNumber: payload.padNumber,
-          items: payload.items.map(({ productId, existingProductId, productName, brandName, code, padNumber, size, quantity, unitCost, salePrice, season, rackLocation, batchNumber }) => ({ productId, existingProductId, productName, brandName, code, padNumber, size, quantity, unitCost, salePrice, season, rackLocation, batchNumber })),
+          items: payload.items.map(({ productId, existingProductId, productName, brandName, code, padNumber, size, quantity, unitCost, salePrice, season, rackLocation, batchNumber, productType, tanType, tanName, metersPerTan, buyPricePerMeter, salePricePerMeter }) => ({ productId, existingProductId, productName, brandName, code, padNumber, size, quantity, unitCost, salePrice, season, rackLocation, batchNumber, productType, tanType, tanName, metersPerTan, buyPricePerMeter, salePricePerMeter })),
           payments: payload.payments,
           bankDetails: payload.bankDetails,
           cheques: payload.cheques,

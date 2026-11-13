@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { matchesProductSearch, exactProductMatch } from '../../data/productSearch.js'
+import { initialSaleQuantity, moveSuggestion, saleQuantity } from '../../data/saleQuantity.js'
 import { availableSellableQuantity, sellableProducts } from '../../data/sellableStock.js'
 
 export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
   const [name, setName] = useState('')
-  const [quantity, setQuantity] = useState(1)
+  const [quantity, setQuantity] = useState(initialSaleQuantity)
   const [price, setPrice] = useState('')
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
@@ -13,6 +14,8 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
   const quantityRef = useRef(null)
   const priceRef = useRef(null)
   const fieldRef = useRef(null)
+  const suggestionListRef = useRef(null)
+  const quantityTouchedRef = useRef(false)
   const productRecords = sellableProducts(products)
 
   const articleLabel = (product) => product.articleName || product.articleNumber || product.article || product.itemCode || product.code || product.productName || product.itemName || product.name
@@ -31,6 +34,12 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
 
   const query = name.trim().toLowerCase()
   const suggestions = productRecords.filter((product) => product.active !== false && (!query || matchesProductSearch(product, query)))
+  const highlightedIndex = activeSuggestion >= 0 && activeSuggestion < suggestions.length ? activeSuggestion : -1
+
+  useEffect(() => {
+    if (highlightedIndex < 0) return
+    suggestionListRef.current?.querySelector(`[data-option-index="${highlightedIndex}"]`)?.scrollIntoView?.({ block: 'nearest' })
+  }, [highlightedIndex, suggestions.length])
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -48,6 +57,17 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
     setActiveSuggestion(-1)
     quantityRef.current?.focus()
   }
+
+  useEffect(() => {
+    if (!selectedProduct) return
+    const latest = products.find((product) => product.id === selectedProduct.id)
+    if (!latest || availableSellableQuantity(latest) <= 0 || latest.active === false) { setSelectedProduct(null); setName(''); setPrice(''); return }
+    if (latest !== selectedProduct) {
+      setSelectedProduct(latest)
+      setName(articleLabel(latest))
+      setPrice(String(latest.productType === 'tan' ? latest.salePricePerMeter ?? '' : latest.salePrice ?? ''))
+    }
+  }, [products])
 
   const handleArticlePageKey = (event) => {
     if (event.key !== 'PageDown' && event.key !== 'PageUp') return false
@@ -76,6 +96,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
     if (selectedProduct && !product) return
     onAddItem({
       productId: product?.id,
+      configuredSalePrice: product ? Number(product.productType === 'tan' ? product.salePricePerMeter : product.salePrice) : undefined,
       code: product?.code || product?.articleNumber || product?.itemCode || name.trim(),
       name: product ? (product.name || product.productName || articleLabel(product)) : name.trim(),
       articleNumber: product?.articleNumber || product?.article || product?.itemCode || product?.code || '',
@@ -84,11 +105,12 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
       tanType: product?.tanType || '', batchNumber: product?.batchNumber || '', metersPerTan: Number(product?.metersPerTan || 0),
       salePricePerMeter: Number(product?.salePricePerMeter || 0),
       availableQuantity: product ? availableSellableQuantity(product) : undefined,
-      quantity: Number(quantity) || 1,
+      quantity: saleQuantity(quantity),
       price: Number(price) || 0,
     })
     setName('')
-    setQuantity(1)
+    setQuantity(initialSaleQuantity)
+    quantityTouchedRef.current = false
     setPrice('')
     setSelectedProduct(null)
     setSuggestionsOpen(false)
@@ -103,11 +125,11 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
     if (event.key === 'ArrowDown' && suggestions.length) {
       event.preventDefault()
       setSuggestionsOpen(true)
-      setActiveSuggestion((index) => (index + 1) % suggestions.length)
+      setActiveSuggestion((index) => moveSuggestion(index, 1, suggestions.length))
     } else if (event.key === 'ArrowUp' && suggestions.length) {
       event.preventDefault()
       setSuggestionsOpen(true)
-      setActiveSuggestion((index) => (index - 1 + suggestions.length) % suggestions.length)
+      setActiveSuggestion((index) => moveSuggestion(index, -1, suggestions.length))
     } else if (event.key === 'Enter') {
       event.preventDefault()
       if (suggestions.length && !suggestionsOpen) {
@@ -119,6 +141,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
         quantityRef.current?.focus()
       }
     } else if (event.key === 'Escape') {
+      event.preventDefault()
       setSuggestionsOpen(false)
       setActiveSuggestion(-1)
     }
@@ -151,6 +174,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
             onClick={() => {
               if (suggestions.length) setSuggestionsOpen(true)
             }}
+            onFocus={() => { if (suggestions.length) setSuggestionsOpen(true) }}
             onChange={(event) => {
               setName(event.target.value)
               setSelectedProduct(null)
@@ -165,6 +189,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
             aria-autocomplete="list"
             aria-expanded={suggestionsOpen && suggestions.length > 0}
             aria-controls="sale-product-suggestions"
+            aria-activedescendant={highlightedIndex >= 0 ? `sale-product-option-${highlightedIndex}` : undefined}
           />
 
           {suggestionsOpen && suggestions.length > 0 && (
@@ -172,6 +197,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
               className="absolute z-30 left-0 right-0 top-[calc(100%+6px)] max-h-60 overflow-y-auto rounded-xl border border-[#e2e6df] bg-white shadow-xl divide-y divide-[#edf0eb]"
               id="sale-product-suggestions"
               role="listbox"
+              ref={suggestionListRef}
             >
               {suggestions.map((product, index) => (
                 <button
@@ -182,6 +208,8 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
                   }`}
                   type="button"
                   key={product.id}
+                  id={`sale-product-option-${index}`}
+                  data-option-index={index}
                   role="option"
                   aria-selected={index === (activeSuggestion < 0 ? 0 : activeSuggestion)}
                   onMouseEnter={() => setActiveSuggestion(index)}
@@ -189,7 +217,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
                   onClick={() => selectProduct(product)}
                 >
               {product.productType === 'tan' ? <span className="text-xs font-bold text-[#7a5a2a]">Tan</span> : <><span className="w-fit rounded bg-[#e8f2e3] px-2 py-0.5 text-xs font-bold text-[#155b4b]">Suit</span>{productArticle(product) && <span className="text-sm sm:text-base text-black font-bold">Article: {productArticle(product)}</span>}</>}
-                  {product.productType === 'tan' ? <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:text-[13px]"><strong>Tan name: {product.name}</strong><span>Type: {product.tanType}</span><span>Batch: {product.batchNumber}</span><span>Available: {Math.max(0, Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0))} Tan</span><span>Total length: {product.metersPerTan} meters / Tan</span><strong>Total price: Rs. {Number(product.salePrice || 0).toLocaleString()} / Tan</strong><span>Per meter: Rs. {Number(product.salePricePerMeter || 0).toLocaleString()}</span></div> : <><span className="text-xs sm:text-[13px] font-normal text-[#12332d]">Brand Name: {product.name || product.productName}</span><span className="text-xs sm:text-[13px] text-[#718078] font-medium">{productDetails(product)}</span></>}
+                  {product.productType === 'tan' ? <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:text-[13px]"><strong>Tan name: {product.name}</strong><span>Type: {product.tanType}</span><span>Batch: {product.batchNumber}</span><span>Available: {Math.max(0, Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0))} Tan</span><span>Total length: {product.metersPerTan} meters / Tan</span><strong>Total price: Rs. {Number(product.salePrice || 0).toLocaleString()} / Tan</strong><span>Per meter: Rs. {Number(product.salePricePerMeter || 0).toLocaleString()}</span></div> : <><span className="text-xs sm:text-[13px] font-normal text-[#12332d]">Brand Name: {product.brandName || product.name || product.productName}</span><span className="text-xs sm:text-[13px] text-[#718078] font-medium">{productDetails(product)}</span></>}
                 </button>
               ))}
             </div>
@@ -204,8 +232,21 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
               name="quantity"
               type="number"
               value={quantity}
-              onChange={(event) => setQuantity(event.target.value)}
+              onFocus={(event) => event.currentTarget.select()}
+              onChange={(event) => { quantityTouchedRef.current = true; setQuantity(event.target.value) }}
+              onPaste={(event) => {
+                if (quantityTouchedRef.current || quantity !== initialSaleQuantity) return
+                const pasted = event.clipboardData.getData('text').trim()
+                if (!/^\d+$/.test(pasted)) return
+                event.preventDefault(); quantityTouchedRef.current = true; setQuantity(pasted)
+              }}
               onKeyDown={(event) => {
+                if (!quantityTouchedRef.current && quantity === initialSaleQuantity && /^\d$/.test(event.key)) {
+                  event.preventDefault(); quantityTouchedRef.current = true; setQuantity(event.key); return
+                }
+                if (!quantityTouchedRef.current && quantity === initialSaleQuantity && ['Backspace', 'Delete'].includes(event.key)) {
+                  event.preventDefault(); quantityTouchedRef.current = true; setQuantity(''); return
+                }
                 if (handleArticlePageKey(event)) return
                 if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
                   event.preventDefault()

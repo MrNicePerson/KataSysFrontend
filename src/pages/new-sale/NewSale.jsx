@@ -1,3 +1,5 @@
+import { refreshCartStock } from '../../data/cartStock.js'
+import { validatePaymentPromises } from '../../data/paymentPromises.js'
 import { returnRefundAmount } from '../../data/inputValidation.js'
 import { useEffect, useRef, useState } from 'react'
 import CustomerInvoice from '../../components/CustomerInvoice/CustomerInvoice.jsx'
@@ -216,6 +218,8 @@ export default function NewSale({ customers, products = [], bills = [], returns 
       .sort((left, right) => String(right.purchasedAt || '').localeCompare(String(left.purchasedAt || '')))
   })()
 
+  useEffect(() => { setItems((current) => refreshCartStock(current, products)) }, [products])
+
   const clearSale = () => {
     idempotencyRef.current = null
     setItems([])
@@ -324,6 +328,16 @@ export default function NewSale({ customers, products = [], bills = [], returns 
 
   const saveBill = async (bill) => {
     if (savingRef.current) return
+    const currentStock = refreshCartStock(items, products)
+    const changedPrices = currentStock.filter((item) => item.stockPriceChanged)
+    if (changedPrices.length) {
+      if (window.confirm('Stock price or tan length changed. Apply current stock prices to the affected cart rows? Review the total and save again.')) setItems(currentStock.map((item) => item.stockPriceChanged ? { ...item, price: item.nextStockPrice, configuredSalePrice: item.nextStockPrice, metersPerTan: item.nextMetersPerTan, stockPriceChanged: false } : item))
+      setSaleMessage('Review the updated stock prices and save again.')
+      return
+    }
+    if (currentStock.some((item) => !item.isReturn && !item.originalSaleId && (item.stockUnavailable || currentStock.filter((row) => row.productId === item.productId && !row.isReturn).reduce((sum, row) => sum + Number(row.quantity), 0) > item.availableQuantity))) { setSaleMessage('Some cart items no longer have enough available stock. Update the cart before saving.'); return }
+    const invalidChequeDate = ['#sale-cheque-date', '#sale-cheque-due-date'].map((selector) => saleRootRef.current?.querySelector(selector)).find((field) => field && !field.validity.valid)
+    if (invalidChequeDate) { invalidChequeDate.reportValidity(); setSaleMessage('Enter cheque dates as a real day/month/year date.'); return }
     const paymentSummary = calculatePaymentSummary(bill.total, payments)
     if (paymentSummary.excessPayment > 0) {
       setSaleMessage(`Payment exceeds bill total by Rs. ${paymentSummary.excessPayment.toLocaleString()}.`)
@@ -341,18 +355,15 @@ export default function NewSale({ customers, products = [], bills = [], returns 
     setSaving(true)
     try {
       const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId)
-      if (paymentPromises.some((promise) => promise.dueDate || promise.amount)) {
-        setSaleMessage('Payment promises are not available until the backend is updated. Remove the promise rows before saving.')
-        return
-      }
-      const signature = JSON.stringify({ bill, refundType, payments, chequeDetails, bankDetails, customerId: selectedCustomerId })
+      const promises = validatePaymentPromises(paymentPromises, { customerId: selectedCustomerId, customers, due: paymentSummary.uncoveredBalance })
+      const signature = JSON.stringify({ bill, paymentPromises: promises, refundType, payments, chequeDetails, bankDetails, customerId: selectedCustomerId })
       if (idempotencyRef.current?.signature !== signature) {
         idempotencyRef.current = {
           signature,
           key: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         }
       }
-      const saved = await onSaveBill({ ...bill, refundType, idempotencyKey: idempotencyRef.current.key, payments: { ...paymentSummary, bankTransfer: paymentSummary.bank, chequeDetails, bankDetails }, bankDetails, cheque: chequeDetails, due: paymentSummary.uncoveredBalance, paymentDue: chequeDetails.dueDate, previousBalance: Number(selectedCustomer?.balance ?? selectedCustomer?.openingBalance ?? 0), customerId: selectedCustomerId, paidInvoiceNumber, padInvoiceNumber: paidInvoiceNumber, customerPhone: phone, customerAddress: address })
+      const saved = await onSaveBill({ ...bill, paymentPromises: promises, refundType, idempotencyKey: idempotencyRef.current.key, payments: { ...paymentSummary, bankTransfer: paymentSummary.bank, chequeDetails, bankDetails }, bankDetails, cheque: chequeDetails, due: paymentSummary.uncoveredBalance, paymentDue: chequeDetails.dueDate, previousBalance: Number(selectedCustomer?.balance ?? selectedCustomer?.openingBalance ?? 0), customerId: selectedCustomerId, paidInvoiceNumber, padInvoiceNumber: paidInvoiceNumber, customerPhone: phone, customerAddress: address })
       if (!saved) return
       clearSale()
     } catch (error) {

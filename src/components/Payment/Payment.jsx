@@ -1,4 +1,5 @@
 import { adjacentControl } from '../../keyboard/navigation.js'
+import DateDmyInput from '../DateDmyInput.jsx'
 import { calculatePaymentSummary } from '../../data/paymentCalculations.js'
 
 export const BANK_OPTIONS = [
@@ -148,10 +149,10 @@ export default function Payment({ total, payments, chequeDetails, bankDetails = 
             <input id="sale-cheque-bank" value={chequeDetails.bankName} onChange={(event) => updateChequeDetails('bankName', event.target.value)} className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm font-normal text-[#173b32] focus:outline-none focus:border-[#155b4b]" />
           </label>
           <label className="flex flex-col gap-1.5 text-xs sm:text-sm font-semibold text-[#173b32]" htmlFor="sale-cheque-date">Cheque Date
-            <input id="sale-cheque-date" type="date" onKeyDown={preventDateStepping} value={chequeDetails.chequeDate} onChange={(event) => updateChequeDetails('chequeDate', event.target.value)} className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm font-normal text-[#173b32] focus:outline-none focus:border-[#155b4b]" />
+            <DateDmyInput id="sale-cheque-date" onKeyDown={preventDateStepping} value={chequeDetails.chequeDate} onChange={(event) => updateChequeDetails('chequeDate', event.target.value)} className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm font-normal text-[#173b32] focus:outline-none focus:border-[#155b4b]" />
           </label>
           <label className="flex flex-col gap-1.5 text-xs sm:text-sm font-semibold text-[#173b32]" htmlFor="sale-cheque-due-date">Due / Clearing Date (optional)
-            <input id="sale-cheque-due-date" type="date" onKeyDown={preventDateStepping} value={chequeDetails.dueDate} onChange={(event) => updateChequeDetails('dueDate', event.target.value)} className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm font-normal text-[#173b32] focus:outline-none focus:border-[#155b4b]" />
+            <DateDmyInput id="sale-cheque-due-date" onKeyDown={preventDateStepping} value={chequeDetails.dueDate} onChange={(event) => updateChequeDetails('dueDate', event.target.value)} className="w-full h-11 px-3.5 rounded-xl border border-[#dfe4dc] bg-white text-sm font-normal text-[#173b32] focus:outline-none focus:border-[#155b4b]" />
           </label>
         </fieldset>
       )}

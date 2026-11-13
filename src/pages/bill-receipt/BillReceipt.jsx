@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
+import { formatDmyDate } from '../../data/dateDmy.js'
 import abbasTextileLogo from '../../assets/abbas-textile-logo.jpeg'
 
 export default function BillReceipt({ bill, products = [], onClose, onEdit, closeLabel = 'Close', secondaryActionLabel, onSecondaryAction, hidePrint = false, modal = false }) {
@@ -229,7 +230,7 @@ export default function BillReceipt({ bill, products = [], onClose, onEdit, clos
           {chequeRows.length ? <table className="cheque-table">
             <thead><tr><th>#</th><th>Cheque No.</th><th>Bank</th><th>Amount</th><th>Cheque Date</th><th>Due Date</th><th>Status</th></tr></thead>
             <tbody>{chequeRows.map((entry, index) => <tr key={entry.id || `${entry.number || 'cheque'}-${index}`}>
-              <td>{index + 1}</td><td>{entry.number || entry.chequeNumber || '—'}</td><td>{entry.bank || entry.bankName || '—'}</td><td>Rs. {plainMoney(entry.amount ?? (chequeRows.length === 1 ? cheque : 0))}</td><td>{receiptDate(entry.issued || entry.date || entry.chequeDate)}</td><td>{receiptDate(entry.dueDate || entry.expectedClearanceDate)}</td><td>{entry.status || 'Pending'}</td>
+              <td>{index + 1}</td><td>{entry.number || entry.chequeNumber || '—'}</td><td>{entry.bank || entry.bankName || '—'}</td><td>Rs. {plainMoney(entry.amount ?? (chequeRows.length === 1 ? cheque : 0))}</td><td>{formatDmyDate(entry.issued || entry.date || entry.chequeDate)}</td><td>{formatDmyDate(entry.dueDate || entry.expectedClearanceDate)}</td><td>{entry.status || 'Pending'}</td>
             </tr>)}</tbody>
           </table> : <div className="p-2">Cheque payment: Rs. {plainMoney(cheque)} · Individual cheque information was not saved.</div>}
         </section>}
