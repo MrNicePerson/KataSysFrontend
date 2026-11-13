@@ -83,6 +83,17 @@ export default function App() {
   const navigationOpenerRef = useRef(null)
   const pendingMutationRef = useRef(new Set())
 
+  useEffect(() => {
+    const blurNumberInputOnWheel = (event) => {
+      const input = event.target
+      if (input instanceof HTMLInputElement && input.type === 'number' && input === document.activeElement) {
+        input.blur()
+      }
+    }
+    document.addEventListener('wheel', blurNumberInputOnWheel, true)
+    return () => document.removeEventListener('wheel', blurNumberInputOnWheel, true)
+  }, [])
+
   const openNavigation = () => {
     navigationOpenerRef.current = document.activeElement
     setSidebarOpen(true)
