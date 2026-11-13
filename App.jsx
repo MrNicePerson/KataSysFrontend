@@ -382,6 +382,7 @@ export default function App() {
       claim: 'claims',
       order: 'orders',
       customer: 'khata',
+      'payment-promise': 'khata',
       supplier: 'suppliers',
       'supplier-payment': 'suppliers',
       settings: 'settings',
