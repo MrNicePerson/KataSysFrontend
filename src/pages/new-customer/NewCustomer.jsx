@@ -1,9 +1,15 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 export default function NewCustomer({ onCancel, onSave }) {
   const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const submittingRef = useRef(false)
   const handleSubmit = async (event) => {
     event.preventDefault()
+    if (submittingRef.current) return
+    submittingRef.current = true
+    setSaving(true)
+    setError('')
     const formData = new FormData(event.currentTarget)
     try {
       const saved = await onSave({
@@ -13,13 +19,15 @@ export default function NewCustomer({ onCancel, onSave }) {
         city: formData.get('city').trim(),
         openingBalance: Number(formData.get('openingBalance')),
       })
-      if (!saved) {
+      if (saved === null || saved === false) {
         setError('Could not save the customer. Check the error message above and try again.')
         return
       }
-      setError('')
     } catch (issue) {
       setError(issue.message || 'Could not save the customer.')
+    } finally {
+      submittingRef.current = false
+      setSaving(false)
     }
   }
 
@@ -108,10 +116,11 @@ export default function NewCustomer({ onCancel, onSave }) {
 
           <div className="pt-2">
             <button
-              className="w-full h-12 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] text-white text-sm sm:text-base font-bold shadow-md cursor-pointer transition-all active:scale-98"
+              className="w-full h-12 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] text-white text-sm sm:text-base font-bold shadow-md cursor-pointer transition-all active:scale-98 disabled:cursor-wait disabled:opacity-60"
               type="submit"
+              disabled={saving}
             >
-              Save customer
+              {saving ? 'Saving...' : 'Save customer'}
             </button>
           </div>
         </form>

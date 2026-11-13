@@ -277,6 +277,7 @@ export default function App() {
     if (!saved) return null
     if (customerReturnPage === 'new-sale') setSelectedCustomerId(saved.id)
     setCurrentPage(customerReturnPage)
+    return saved
   }
 
   const showInvoice = async (sale, returnPage = 'bills') => {
