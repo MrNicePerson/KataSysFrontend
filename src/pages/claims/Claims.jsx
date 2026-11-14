@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import FormDialog from '../../components/FormDialog/FormDialog.jsx'
 
-export default function Claims({ claims = [], products = [], suppliers = [], customers = [], onCreate, onStatusChange, onUpdateDetails }) {
+export default function Claims({ claims = [], products = [], suppliers = [], customers = [], onCreate, onAddDefectiveStock, onStatusChange, onUpdateDetails }) {
   const [productId, setProductId] = useState('')
   const [supplierId, setSupplierId] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [description, setDescription] = useState('')
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [directDefectOpen, setDirectDefectOpen] = useState(false)
   const [editingClaim, setEditingClaim] = useState(null)
 
   const submit = async (event) => {
@@ -95,6 +97,10 @@ export default function Claims({ claims = [], products = [], suppliers = [], cus
           </label>
         </div>
 
+        {onAddDefectiveStock && <button type="button" onClick={() => { setError(''); setDirectDefectOpen(true) }} className="rounded-lg border border-[#155b4b] px-4 py-2 text-xs font-semibold text-[#155b4b] hover:bg-[#eaf3e7]">
+          + Product not available? Add it directly as defective
+        </button>}
+
         <button
           type="submit"
           className="h-11 px-6 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] text-white text-xs sm:text-sm font-bold shadow-xs cursor-pointer active:scale-98"
@@ -103,6 +109,23 @@ export default function Claims({ claims = [], products = [], suppliers = [], cus
         </button>
         {error && <p className="text-red-600 text-xs sm:text-sm" role="alert">{error}</p>}
       </form>
+
+      {notice && <p className="mb-4 rounded-lg bg-[#eaf3e7] p-3 text-sm text-[#155b4b]" role="status">{notice}</p>}
+      {directDefectOpen && <FormDialog title="Add unavailable item as defective stock" fields={[
+        { name: 'article', label: 'Article / suit name (optional)', defaultValue: '', required: false },
+        { name: 'brandName', label: 'Brand (optional)', defaultValue: '', required: false },
+        { name: 'batchNumber', label: 'Batch (optional)', defaultValue: '', required: false },
+        { name: 'quantity', label: 'Quantity (suits)', type: 'number', min: '1', step: '1', defaultValue: '', required: true },
+        { name: 'averageCost', label: 'Purchase cost per suit (optional)', type: 'number', min: '0', step: '0.01', defaultValue: '', required: false },
+        { name: 'reason', label: 'Reason / defect detail (optional)', defaultValue: '', required: false },
+      ]} onClose={() => setDirectDefectOpen(false)} onSave={async (details) => {
+        if (!onAddDefectiveStock) return null
+        const saved = await onAddDefectiveStock({ ...details, reason: details.reason || '' })
+        if (!saved) return null
+        setDirectDefectOpen(false)
+        setNotice('Item added to defective / quarantine stock only. No supplier claim was created and saleable stock was not increased.')
+        return saved
+      }} />}
 
       <div className="w-full overflow-x-auto rounded-2xl border border-[#e2e6df] bg-white shadow-panel">
         <table className="w-full text-left text-xs sm:text-sm min-w-[700px]">
