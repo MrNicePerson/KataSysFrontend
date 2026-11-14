@@ -13,7 +13,7 @@ export default function StockTools({ query, onQueryChange, onReview, onExport })
         className="h-11 sm:h-12 px-4 rounded-xl border border-[#dfe4dc] bg-white hover:bg-[#f6f8f1] text-[#173b32] text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap shadow-2xs"
         onClick={onExport}
       >
-        Export stock CSV
+        Export stock audit (Excel)
       </button>
       <button
         type="button"

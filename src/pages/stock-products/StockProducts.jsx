@@ -6,24 +6,16 @@ import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 import { localDateString } from '../../data/businessLogic.js'
 import { productEditToken } from '../../data/stockEditToken.js'
 import { stockValuation } from '../../data/stockValuation.js'
+import { formatDmyDate } from '../../data/dateDmy.js'
+import { createStockAuditWorkbook } from '../../data/stockAuditWorkbook.js'
 
-const csvCell = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`
-
-function exportStockCsv(products) {
+function exportStockAudit(products, valuation) {
   const date = localDateString()
-  const rows = [
-    ['Audit date', 'Product type', 'Article / Tan name', 'Brand / Tan type', 'Supplier', 'Batch Number', 'Available whole units', 'Meters per Tan', 'Buy price per Tan', 'Buy price per meter', 'Sale price per Tan', 'Sale price per meter', 'Available stock value'],
-    ...products.map((product) => {
-      const available = Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0)
-      const cost = Number(product.averageCost || 0)
-      return [date, product.productType === 'tan' ? 'Tan' : 'Suit', product.productType === 'tan' ? product.name : product.article || product.code || '', product.productType === 'tan' ? product.tanType : product.name || '', product.supplier === '-' ? '' : product.supplier, product.batch === '-' ? '' : product.batch, available, product.productType === 'tan' ? product.metersPerTan : '', product.productType === 'tan' ? cost : '', product.productType === 'tan' ? product.buyPricePerMeter : '', product.productType === 'tan' ? product.salePrice : '', product.productType === 'tan' ? product.salePricePerMeter : '', available * cost]
-    }),
-  ]
-  const csv = `\uFEFF${rows.map((row) => row.map(csvCell).join(',')).join('\r\n')}`
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+  const blob = createStockAuditWorkbook(products, valuation, formatDmyDate(date))
+  const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `stock-audit-${date}.csv`
+  link.download = `stock-audit-${date}.xlsx`
   document.body.appendChild(link)
   link.click()
   link.remove()
@@ -147,7 +139,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
       </div>
 
       <StockStats stats={stats} />
-      <StockTools query={query} onQueryChange={setQuery} onReview={openReview} onExport={() => exportStockCsv(products)} />
+      <StockTools query={query} onQueryChange={setQuery} onReview={openReview} onExport={() => exportStockAudit(products, valuation)} />
       <StockTable products={filtered} onEdit={onUpdateProduct ? openEdit : undefined} />
       {editingProduct && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#203832]/50 p-4">
         <form ref={editKeyboard.ref} onKeyDown={editKeyboard.onKeyDown} onSubmit={saveProduct} className="w-full max-w-md rounded-2xl bg-white p-5 sm:p-6 shadow-2xl space-y-4" role="dialog" aria-modal="true" aria-labelledby="edit-stock-title">
