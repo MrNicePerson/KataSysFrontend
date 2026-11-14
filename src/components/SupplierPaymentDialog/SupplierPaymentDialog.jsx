@@ -74,8 +74,9 @@ export default function SupplierPaymentDialog({ supplier, onClose, onSave }) {
     <fieldset className="space-y-3 rounded-xl border border-[#edf0eb] bg-[#fafbf8] p-3">
       <div className="flex items-center justify-between gap-2">
         <legend className="text-sm font-semibold text-[#173b32]">Cheque details</legend>
-        <button type="button" onClick={() => setCheques((rows) => [...rows, newCheque(date)])} className="h-8 rounded-lg border border-[#155b4b] px-3 text-xs font-semibold text-[#155b4b]">+ Add cheque</button>
+        <button type="button" onClick={() => setCheques((rows) => [...rows, newCheque(date)])} className="h-8 rounded-lg border border-[#155b4b] px-3 text-xs font-semibold text-[#155b4b]">+ Add another cheque</button>
       </div>
+      <p className="text-xs text-[#718078]">Enter one row for each cheque. Cheque amounts must add up to the cheque payment amount.</p>
       {cheques.map((chequeRow, index) => <div key={chequeRow.id} className="grid grid-cols-1 gap-3 rounded-lg border border-[#e6ece5] bg-white p-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs font-semibold text-[#173b32]">Cheque number<input value={chequeRow.number} onChange={(event) => updateCheque(chequeRow.id, 'number', event.target.value)} className={inputClass} /></label>
         <label className="flex flex-col gap-1 text-xs font-semibold text-[#173b32]">Cheque bank<input value={chequeRow.bank} onChange={(event) => updateCheque(chequeRow.id, 'bank', event.target.value)} className={inputClass} /></label>
@@ -113,7 +114,7 @@ export default function SupplierPaymentDialog({ supplier, onClose, onSave }) {
             <label className="flex flex-col gap-1 text-xs font-semibold text-[#173b32]">Account (optional)<input value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} className={inputClass} /></label>
           </div>}
 
-          {chequesEditor(method === 'cheque' ? amountOf(amount) : amountOf(chequeAmount))}
+          {chequesEditor(method === 'cheque' || method === 'split' && amountOf(chequeAmount) > 0)}
 
           {method === 'split' && <p className="rounded-lg bg-[#eaf3e7] px-3 py-2 text-sm font-semibold text-[#155b4b]">Total payment: Rs. {selectedAmount.toLocaleString()}</p>}
           {(method === 'cheque' || method === 'split' && amountOf(chequeAmount) > 0) && <p className="text-xs text-[#718078]">Cheque amount stays payable until the cheque is cleared.</p>}
