@@ -4,17 +4,16 @@ import { calculateAccountLedger } from '../../data/businessLogic.js'
 import ReceivingDetails from '../../components/ReceivingDetails/ReceivingDetails.jsx'
 import { receivingLabel } from '../../data/receiving.js'
 import { receivingForProduct } from '../../data/receivingTrace.js'
+import SupplierPaymentDialog from '../../components/SupplierPaymentDialog/SupplierPaymentDialog.jsx'
 
 export default function Suppliers({ suppliers = [], products = [], purchases = [], payments = [], returns = [], claims = [], cheques = [], onCreate, onUpdate, onDelete, onPayment, onStatement }) {
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [payingSupplier, setPayingSupplier] = useState(null)
   const due = suppliers.reduce((sum, supplier) => sum + Math.max(0, Number(supplier.balance || 0)), 0)
   const filtered = suppliers.filter((supplier) => `${supplier.name} ${supplier.supplierCode || ''} ${supplier.city || ''} ${supplier.phone || ''}`.toLowerCase().includes(query.toLowerCase()))
-  const pay = (supplier) => {
-    const amount = Number(window.prompt(`Cash paid to ${supplier.name} (Rs.)`, ''))
-    if (Number.isFinite(amount) && amount > 0) onPayment?.({ accountId: supplier.id, amount, method: 'cash' })
-  }
+  const pay = (supplier) => setPayingSupplier(supplier)
   const ledgerFor = (supplier) => calculateAccountLedger({ suppliers, purchases, payments, supplierReturns: returns, claims }, 'supplier', supplier.id).entries
 
   const stats = [
@@ -114,7 +113,7 @@ export default function Suppliers({ suppliers = [], products = [], purchases = [
                   className="w-full h-10 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] text-white text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer active:scale-98"
                   onClick={() => pay(supplier)}
                 >
-                  Record cash payment
+                  Record payment
                 </button>
               )}
 
@@ -188,6 +187,7 @@ export default function Suppliers({ suppliers = [], products = [], purchases = [
         />
       )}
       {editing && <FormDialog title="Edit supplier" fields={[{ name: 'name', label: 'Supplier name', defaultValue: editing.name }, { name: 'supplierCode', label: 'Supplier code', defaultValue: editing.supplierCode }, { name: 'phone', label: 'Phone', required: false, defaultValue: editing.phone }, { name: 'city', label: 'City', required: false, defaultValue: editing.city }, { name: 'balance', label: 'Balance (Rs.)', type: 'number', step: '0.01', defaultValue: editing.balance ?? 0 }]} onClose={() => setEditing(null)} onSave={async (data) => { const saved = await onUpdate?.(editing.id, data); if (!saved) return null; setEditing(null); return saved }} onDelete={onDelete ? async () => { const deleted = await onDelete(editing.id); if (deleted) setEditing(null) } : undefined} deleteLabel="Delete supplier" />}
+      {payingSupplier && <SupplierPaymentDialog supplier={payingSupplier} onClose={() => setPayingSupplier(null)} onSave={(payment) => onPayment?.(payment)} />}
     </main>
   )
 }
