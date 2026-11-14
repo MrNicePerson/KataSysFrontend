@@ -312,7 +312,7 @@ export default function App() {
 
   const saveBill = async (bill) => {
     if (editingBillId) {
-      const saved = await mutate(`sales/${editingBillId}`, { method: 'PATCH', body: { paymentPromises: bill.paymentPromises, items: bill.items.map((item) => ({ lineId: item.lineId, quantity: item.quantity, price: item.price })), discount: bill.discount, payments: { cash: bill.payments?.cash, bank: bill.payments?.bank ?? bill.payments?.bankTransfer, cheque: bill.payments?.cheque }, bankDetails: bill.bankDetails, cheque: bill.cheque, padInvoiceNumber: bill.padInvoiceNumber, customerPhone: bill.customerPhone, customerAddress: bill.customerAddress }, refresh: false })
+      const saved = await mutate(`sales/${editingBillId}`, { method: 'PATCH', body: { paymentPromises: bill.paymentPromises, customerId: bill.customerId, items: bill.items.map((item) => ({ lineId: item.lineId, quantity: item.quantity, price: item.price })), discount: bill.discount, payments: { cash: bill.payments?.cash, bank: bill.payments?.bank ?? bill.payments?.bankTransfer, cheque: bill.payments?.cheque }, bankDetails: bill.bankDetails, cheque: bill.cheque, padInvoiceNumber: bill.padInvoiceNumber, customerPhone: bill.customerPhone, customerAddress: bill.customerAddress }, refresh: false })
       if (!saved) return null
       try {
         await refreshWorkspace(token)
