@@ -1,6 +1,7 @@
 import { paymentPromiseStates } from '../../data/paymentPromises.js'
 import { useRef, useState } from 'react'
 import { Printer } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { calculateAccountLedger } from '../../data/businessLogic.js'
 import RecoveryAll from './RecoveryAll.jsx'
 
@@ -97,7 +98,26 @@ export default function CustomerKhata({ customers = [], payments = [], accountAd
     if (result) setMessage(`Installment payment recorded for ${plan.customer}.`)
   }
 
+  const printReport = typeof document !== 'undefined' ? createPortal(
+    <section id="customer-khata-all-print" className="hidden">
+      <style>{`@page { size: A4 portrait; margin: 12mm; } @media print { body { background: white !important; } body > #app { display: none !important; } body > #customer-khata-all-print { display: block !important; position: static !important; width: auto !important; padding: 0 !important; color: #111; } #customer-khata-all-print thead { display: table-header-group; } #customer-khata-all-print tfoot { display: table-footer-group; } #customer-khata-all-print tr { break-inside: avoid; page-break-inside: avoid; } }`}</style>
+      <header className="mb-5 flex items-start justify-between border-b border-gray-300 pb-4">
+        <div><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">KataSys · Customer Khata Summary</p><h1 className="mt-1 text-2xl font-bold">All customers</h1><p className="mt-1 text-xs text-gray-500">Printed {new Date().toLocaleString()}</p></div>
+        <div className="text-right text-sm"><p>Total customers: <strong>{customers.length.toLocaleString()}</strong></p><p>Total amount to receive: <strong>Rs. {amountToReceive.toLocaleString()}</strong></p><p>Total advance: <strong>Rs. {advanceBalance.toLocaleString()}</strong></p><p>Net balance: <strong>Rs. {netBalance.toLocaleString()}</strong></p></div>
+      </header>
+      <table className="w-full border-collapse text-left text-[10px]">
+        <thead><tr className="border-b-2 border-gray-500"><th className="p-2">Customer</th><th className="p-2">Phone</th><th className="p-2">City</th><th className="p-2 text-right">Due</th><th className="p-2 text-right">Advance</th><th className="p-2 text-right">Net balance</th></tr></thead>
+        <tbody>{customers.map((customer) => {
+          const balance = Number(customer.balance || 0)
+          return <tr key={customer.id} className="border-b border-gray-200"><td className="p-2 font-semibold">{customer.name}</td><td className="p-2">{customer.phone || '—'}</td><td className="p-2">{customer.city || '—'}</td><td className="p-2 text-right">Rs. {Math.max(0, balance).toLocaleString()}</td><td className="p-2 text-right">Rs. {Math.max(0, -balance).toLocaleString()}</td><td className="p-2 text-right">Rs. {balance.toLocaleString()}</td></tr>
+        })}</tbody>
+        <tfoot><tr className="border-t-2 border-gray-500 font-bold"><td className="p-2" colSpan="3">Total</td><td className="p-2 text-right">Rs. {amountToReceive.toLocaleString()}</td><td className="p-2 text-right">Rs. {advanceBalance.toLocaleString()}</td><td className="p-2 text-right">Rs. {netBalance.toLocaleString()}</td></tr></tfoot>
+      </table>
+    </section>, document.body,
+  ) : null
+
   return (
+    <>
     <main className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-8 lg:py-10">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
         <div>
@@ -129,22 +149,6 @@ export default function CustomerKhata({ customers = [], payments = [], accountAd
         </button>
         </div>
       </div>
-
-      <section id="customer-khata-all-print" className="hidden print:block">
-        <style>{`@page { size: A4 portrait; margin: 12mm; } @media print { body * { visibility: hidden !important; } #customer-khata-all-print, #customer-khata-all-print * { visibility: visible !important; } #customer-khata-all-print { display: block !important; position: absolute; inset: 0; width: 100%; padding: 0; background: white; color: #111; } }`}</style>
-        <header className="mb-5 flex items-start justify-between border-b border-gray-300 pb-4">
-          <div><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">KataSys · Customer Khata Summary</p><h1 className="mt-1 text-2xl font-bold">All customers</h1><p className="mt-1 text-xs text-gray-500">Printed {new Date().toLocaleString()}</p></div>
-          <div className="text-right text-sm"><p>Total customers: <strong>{customers.length.toLocaleString()}</strong></p><p>Total amount to receive: <strong>Rs. {amountToReceive.toLocaleString()}</strong></p><p>Total advance: <strong>Rs. {advanceBalance.toLocaleString()}</strong></p><p>Net balance: <strong>Rs. {netBalance.toLocaleString()}</strong></p></div>
-        </header>
-        <table className="w-full border-collapse text-left text-[10px]">
-          <thead><tr className="border-b-2 border-gray-500"><th className="p-2">Customer</th><th className="p-2">Phone</th><th className="p-2">City</th><th className="p-2 text-right">Due</th><th className="p-2 text-right">Advance</th><th className="p-2 text-right">Net balance</th></tr></thead>
-          <tbody>{customers.map((customer) => {
-            const balance = Number(customer.balance || 0)
-            return <tr key={customer.id} className="border-b border-gray-200"><td className="p-2 font-semibold">{customer.name}</td><td className="p-2">{customer.phone || '—'}</td><td className="p-2">{customer.city || '—'}</td><td className="p-2 text-right">Rs. {Math.max(0, balance).toLocaleString()}</td><td className="p-2 text-right">Rs. {Math.max(0, -balance).toLocaleString()}</td><td className="p-2 text-right">Rs. {balance.toLocaleString()}</td></tr>
-          })}</tbody>
-          <tfoot><tr className="border-t-2 border-gray-500 font-bold"><td className="p-2" colSpan="3">Total</td><td className="p-2 text-right">Rs. {amountToReceive.toLocaleString()}</td><td className="p-2 text-right">Rs. {advanceBalance.toLocaleString()}</td><td className="p-2 text-right">Rs. {netBalance.toLocaleString()}</td></tr></tfoot>
-        </table>
-      </section>
 
       {message && <p className="mb-4 p-3 rounded-lg bg-[#eaf3e7] text-[#155b4b] text-sm" role="status">{message}</p>}
       {recoveryOpen && <RecoveryAll customers={customers} onClose={() => setRecoveryOpen(false)} onSave={async (input) => {
@@ -297,5 +301,7 @@ export default function CustomerKhata({ customers = [], payments = [], accountAd
         </div>
       )}
     </main>
+    {printReport}
+    </>
   )
 }
