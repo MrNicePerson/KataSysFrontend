@@ -1,5 +1,6 @@
 import { paymentPromiseStates } from '../../data/paymentPromises.js'
 import { useRef, useState } from 'react'
+import { Printer } from 'lucide-react'
 import { calculateAccountLedger } from '../../data/businessLogic.js'
 import RecoveryAll from './RecoveryAll.jsx'
 
@@ -20,6 +21,7 @@ export default function CustomerKhata({ customers = [], payments = [], accountAd
   const displayed = customers.filter((customer) => customer.active !== false && `${customer.name} ${customer.city || ''} ${customer.phone || ''}`.toLowerCase().includes(query.toLowerCase()))
   const amountToReceive = customers.reduce((sum, customer) => sum + Math.max(0, Number(customer.balance || 0)), 0)
   const advanceBalance = customers.reduce((sum, customer) => sum + Math.max(0, -Number(customer.balance || 0)), 0)
+  const netBalance = customers.reduce((sum, customer) => sum + Number(customer.balance || 0), 0)
   const stats = [
     ['Total customers', customers.length],
     ['Amount to receive', `Rs. ${amountToReceive.toLocaleString()}`],
@@ -110,6 +112,7 @@ export default function CustomerKhata({ customers = [], payments = [], accountAd
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+        <button className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#155b4b] bg-white px-4 text-xs font-semibold text-[#155b4b] sm:text-sm" type="button" onClick={() => window.print()}><Printer size={16} />Print all customers</button>
         <button
           className="h-11 px-4 rounded-xl bg-[#155b4b] text-white text-xs sm:text-sm font-semibold"
           type="button"
@@ -126,6 +129,22 @@ export default function CustomerKhata({ customers = [], payments = [], accountAd
         </button>
         </div>
       </div>
+
+      <section id="customer-khata-all-print" className="hidden print:block">
+        <style>{`@page { size: A4 portrait; margin: 12mm; } @media print { body * { visibility: hidden !important; } #customer-khata-all-print, #customer-khata-all-print * { visibility: visible !important; } #customer-khata-all-print { display: block !important; position: absolute; inset: 0; width: 100%; padding: 0; background: white; color: #111; } }`}</style>
+        <header className="mb-5 flex items-start justify-between border-b border-gray-300 pb-4">
+          <div><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">KataSys · Customer Khata Summary</p><h1 className="mt-1 text-2xl font-bold">All customers</h1><p className="mt-1 text-xs text-gray-500">Printed {new Date().toLocaleString()}</p></div>
+          <div className="text-right text-sm"><p>Total customers: <strong>{customers.length.toLocaleString()}</strong></p><p>Total amount to receive: <strong>Rs. {amountToReceive.toLocaleString()}</strong></p><p>Total advance: <strong>Rs. {advanceBalance.toLocaleString()}</strong></p><p>Net balance: <strong>Rs. {netBalance.toLocaleString()}</strong></p></div>
+        </header>
+        <table className="w-full border-collapse text-left text-[10px]">
+          <thead><tr className="border-b-2 border-gray-500"><th className="p-2">Customer</th><th className="p-2">Phone</th><th className="p-2">City</th><th className="p-2 text-right">Due</th><th className="p-2 text-right">Advance</th><th className="p-2 text-right">Net balance</th></tr></thead>
+          <tbody>{customers.map((customer) => {
+            const balance = Number(customer.balance || 0)
+            return <tr key={customer.id} className="border-b border-gray-200"><td className="p-2 font-semibold">{customer.name}</td><td className="p-2">{customer.phone || '—'}</td><td className="p-2">{customer.city || '—'}</td><td className="p-2 text-right">Rs. {Math.max(0, balance).toLocaleString()}</td><td className="p-2 text-right">Rs. {Math.max(0, -balance).toLocaleString()}</td><td className="p-2 text-right">Rs. {balance.toLocaleString()}</td></tr>
+          })}</tbody>
+          <tfoot><tr className="border-t-2 border-gray-500 font-bold"><td className="p-2" colSpan="3">Total</td><td className="p-2 text-right">Rs. {amountToReceive.toLocaleString()}</td><td className="p-2 text-right">Rs. {advanceBalance.toLocaleString()}</td><td className="p-2 text-right">Rs. {netBalance.toLocaleString()}</td></tr></tfoot>
+        </table>
+      </section>
 
       {message && <p className="mb-4 p-3 rounded-lg bg-[#eaf3e7] text-[#155b4b] text-sm" role="status">{message}</p>}
       {recoveryOpen && <RecoveryAll customers={customers} onClose={() => setRecoveryOpen(false)} onSave={async (input) => {

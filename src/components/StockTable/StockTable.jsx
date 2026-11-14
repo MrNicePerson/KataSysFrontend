@@ -2,12 +2,13 @@ export default function StockTable({ products = [], onEdit }) {
   return (
     <>
       <div className="w-full overflow-x-auto rounded-2xl border border-[#e2e6df] bg-white shadow-panel">
-        <table className="w-full text-left text-xs sm:text-sm min-w-[680px]">
+        <table className="w-full text-left text-xs sm:text-sm min-w-[790px]">
           <thead className="bg-[#f7faf5] border-b border-[#e2e6df] text-[#718078] uppercase text-[11px] font-bold tracking-wider">
             <tr>
               <th className="px-4 sm:px-6 py-3.5">Article name</th>
               <th className="px-4 sm:px-6 py-3.5">Supplier / batch</th>
               <th className="px-4 sm:px-6 py-3.5">Available stock</th>
+              <th className="px-4 sm:px-6 py-3.5">Defective / quarantine</th>
               <th className="px-4 sm:px-6 py-3.5">Cost per suit / Tan</th>
               <th className="px-4 sm:px-6 py-3.5">Sale price</th>
               {onEdit && <th className="px-4 sm:px-6 py-3.5">Actions</th>}
@@ -36,6 +37,7 @@ export default function StockTable({ products = [], onEdit }) {
                     {product.available}
                   </span>
                 </td>
+                <td className="px-4 sm:px-6 py-4"><span className="px-2.5 py-1 rounded-md bg-red-50 text-red-700 font-bold text-xs">{product.defective || '0'}</span>{product.defectOnly && <small className="ml-2 text-[#718078]">Defective only</small>}</td>
                 <td className="px-4 sm:px-6 py-4">
                   <div className="font-semibold text-[#173b32]">{product.cost}{product.productType === 'tan' ? <small className="block text-xs font-normal text-[#718078]">Buy / m: Rs. {Number(product.buyPricePerMeter || 0).toLocaleString()} · Sale / Tan: Rs. {Number(product.salePrice || 0).toLocaleString()} · Sale / m: Rs. {Number(product.salePricePerMeter || 0).toLocaleString()}</small> : null}</div>
                 </td>

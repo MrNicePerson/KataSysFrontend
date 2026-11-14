@@ -22,7 +22,7 @@ function exportStockAudit(products, valuation) {
   setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-export default function StockProducts({ products: records = [], suppliers = [], onReceiveStock, onSaveAudit, onUpdateProduct, onDeleteProduct }) {
+export default function StockProducts({ products: records = [], suppliers = [], onReceiveStock, onSaveAudit, onAddDefectiveStock, onUpdateProduct, onDeleteProduct }) {
   const [query, setQuery] = useState('')
   const [reviewOpen, setReviewOpen] = useState(false)
   const [counts, setCounts] = useState({})
@@ -34,9 +34,14 @@ export default function StockProducts({ products: records = [], suppliers = [], 
   const [editValues, setEditValues] = useState({})
   const [editError, setEditError] = useState('')
   const [editSaving, setEditSaving] = useState(false)
+  const [defectOpen, setDefectOpen] = useState(false)
+  const [defectForm, setDefectForm] = useState({ productId: '', article: '', brandName: '', batchNumber: '', quantity: '1', averageCost: '', reason: '' })
+  const [defectError, setDefectError] = useState('')
+  const [defectSaving, setDefectSaving] = useState(false)
   const reviewOpenerRef = useRef(null)
   const reviewKeyboard = useKeyboardScope({ onEscape: () => { if (!reviewSaving) closeReview() }, trapFocus: true })
   const editKeyboard = useKeyboardScope({ onEscape: () => { if (!editSaving) setEditingProduct(null) }, trapFocus: true })
+  const defectKeyboard = useKeyboardScope({ onEscape: () => { if (!defectSaving) setDefectOpen(false) }, trapFocus: true })
   const products = useMemo(() => records.map((p) => ({ ...p, colour: p.shade || '', supplier: suppliers.find((s) => s.id === p.supplierId)?.name || '—', batch: p.batchNumber || '—', available: String(Number(p.stockQuantity || 0) - Number(p.reservedQuantity || 0)), defective: String(p.defectiveQuantity || 0), cost: `Rs. ${Number(p.averageCost || 0).toLocaleString()}`, tone: 'blue' })), [records, suppliers])
   const total = (key) => products.reduce((sum, p) => sum + Number(p[key] || 0), 0)
   const valuation = stockValuation(records)
@@ -69,6 +74,29 @@ export default function StockProducts({ products: records = [], suppliers = [], 
       setEditingProduct(null)
     } catch (error) { setEditError(error.message || 'Could not remove this product.') }
     finally { setEditSaving(false) }
+  }
+
+  const saveDefectiveStock = async (event) => {
+    event.preventDefault()
+    if (!onAddDefectiveStock) return
+    const quantity = Number(defectForm.quantity)
+    if (!Number.isInteger(quantity) || quantity < 1) { setDefectError('Enter a positive whole number of defective suits.'); return }
+    const averageCost = defectForm.averageCost.trim() ? Number(defectForm.averageCost) : 0
+    if (!Number.isFinite(averageCost) || averageCost < 0) { setDefectError('Enter a valid purchase cost or leave it blank if unknown.'); return }
+    setDefectSaving(true); setDefectError('')
+    try {
+      const saved = await onAddDefectiveStock({
+        ...(defectForm.productId ? { productId: defectForm.productId } : {
+          article: defectForm.article.trim(), brandName: defectForm.brandName.trim(),
+          batchNumber: defectForm.batchNumber.trim(), averageCost,
+        }),
+        quantity, reason: defectForm.reason.trim(),
+      })
+      if (!saved) throw new Error('Could not add defective stock. Please try again.')
+      setDefectOpen(false)
+      setDefectForm({ productId: '', article: '', brandName: '', batchNumber: '', quantity: '1', averageCost: '', reason: '' })
+    } catch (error) { setDefectError(error.message || 'Could not add defective stock.') }
+    finally { setDefectSaving(false) }
   }
 
   const closeReview = () => {
@@ -129,6 +157,8 @@ export default function StockProducts({ products: records = [], suppliers = [], 
             Every suit, colour and batch in one place.
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+        {onAddDefectiveStock && <button className="h-11 sm:h-12 px-5 rounded-xl border border-[#155b4b] bg-white text-[#155b4b] text-xs sm:text-sm font-semibold whitespace-nowrap" type="button" onClick={() => { setDefectError(''); setDefectOpen(true) }}>+ Add defective suits</button>}
         <button
           className="h-11 sm:h-12 px-5 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] text-white text-xs sm:text-sm font-semibold transition-all shadow-sm cursor-pointer whitespace-nowrap active:scale-98"
           type="button"
@@ -136,11 +166,38 @@ export default function StockProducts({ products: records = [], suppliers = [], 
         >
           + Receive stock
         </button>
+        </div>
       </div>
 
       <StockStats stats={stats} />
       <StockTools query={query} onQueryChange={setQuery} onReview={openReview} onExport={() => exportStockAudit(products, valuation)} />
       <StockTable products={filtered} onEdit={onUpdateProduct ? openEdit : undefined} />
+      {defectOpen && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#203832]/50 p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !defectSaving) setDefectOpen(false) }}>
+        <form ref={defectKeyboard.ref} onKeyDown={defectKeyboard.onKeyDown} onSubmit={saveDefectiveStock} className="my-auto w-full max-w-xl space-y-4 rounded-2xl border border-[#e2e6df] bg-white p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="add-defective-title">
+          <div><h2 id="add-defective-title" className="text-xl font-bold text-[#173b32]">Add defective suits</h2><p className="mt-1 text-sm text-[#718078]">These units go to defective / quarantine stock only and will not increase saleable quantity.</p></div>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Link to an existing suit (optional)
+            <select value={defectForm.productId} onChange={(event) => setDefectForm((form) => ({ ...form, productId: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] bg-white px-3 text-sm font-normal">
+              <option value="">No product record / details unknown</option>
+              {records.filter((product) => product.active !== false && product.productType !== 'tan').map((product) => <option key={product.id} value={product.id}>{product.article || product.code || product.name} · {product.name} · {product.batchNumber || 'No batch'}</option>)}
+            </select>
+          </label>
+          {!defectForm.productId && <>
+            <p className="rounded-lg bg-[#f7faf5] px-3 py-2 text-xs text-[#718078]">If you do not know the article, brand, batch, or cost, leave those fields blank. An unidentified defective suit record will be created automatically.</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Article / suit name (optional)<input value={defectForm.article} onChange={(event) => setDefectForm((form) => ({ ...form, article: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 text-sm font-normal" /></label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Brand (optional)<input value={defectForm.brandName} onChange={(event) => setDefectForm((form) => ({ ...form, brandName: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 text-sm font-normal" /></label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Batch (optional)<input value={defectForm.batchNumber} onChange={(event) => setDefectForm((form) => ({ ...form, batchNumber: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 text-sm font-normal" /></label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Purchase cost per suit (optional)<input type="number" min="0" step="0.01" value={defectForm.averageCost} onChange={(event) => setDefectForm((form) => ({ ...form, averageCost: event.target.value }))} placeholder="Leave blank if unknown" className="h-11 rounded-xl border border-[#dfe4dc] px-3 text-sm font-normal" /></label>
+            </div>
+          </>}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Quantity (suits)<input type="number" min="1" step="1" required value={defectForm.quantity} onFocus={(event) => event.currentTarget.select()} onChange={(event) => setDefectForm((form) => ({ ...form, quantity: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 text-sm font-normal" /></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Reason (optional)<input value={defectForm.reason} onChange={(event) => setDefectForm((form) => ({ ...form, reason: event.target.value }))} placeholder="e.g. torn or stained" className="h-11 rounded-xl border border-[#dfe4dc] px-3 text-sm font-normal" /></label>
+          </div>
+          {defectError && <p role="alert" className="text-sm text-red-700">{defectError}</p>}
+          <div className="flex justify-end gap-2 border-t border-[#edf0eb] pt-4"><button type="button" disabled={defectSaving} onClick={() => setDefectOpen(false)} className="h-10 rounded-lg border border-[#dfe4dc] px-4 text-sm font-semibold">Cancel</button><button type="submit" disabled={defectSaving} className="h-10 rounded-lg bg-[#155b4b] px-5 text-sm font-semibold text-white disabled:opacity-50">{defectSaving ? 'Saving...' : 'Add defective stock'}</button></div>
+        </form>
+      </div>}
       {editingProduct && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#203832]/50 p-4">
         <form ref={editKeyboard.ref} onKeyDown={editKeyboard.onKeyDown} onSubmit={saveProduct} className="w-full max-w-md rounded-2xl bg-white p-5 sm:p-6 shadow-2xl space-y-4" role="dialog" aria-modal="true" aria-labelledby="edit-stock-title">
           <div><h2 id="edit-stock-title" className="text-xl font-bold text-[#173b32]">Edit stock</h2><p className="mt-1 text-sm text-[#718078]">{editingProduct.article || editingProduct.code || editingProduct.name} · {editingProduct.batchNumber || '—'}</p></div>
