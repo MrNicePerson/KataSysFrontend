@@ -13,6 +13,7 @@ export default function ReceiveStock({ suppliers = [], products = [], purchases 
   const [editingPurchase, setEditingPurchase] = useState(null)
   const [message, setMessage] = useState('')
   const [selectedPurchase, setSelectedPurchase] = useState(null)
+  const [supplierFilter, setSupplierFilter] = useState('all')
   const detailsOpenerRef = useRef(null)
   const closeDetails = () => {
     setSelectedPurchase(null)
@@ -22,13 +23,14 @@ export default function ReceiveStock({ suppliers = [], products = [], purchases 
   useEffect(() => {
     if (selectedPurchase) detailsKeyboard.ref.current?.querySelector('[aria-label="Close bill details"]')?.focus()
   }, [selectedPurchase])
-  const purchased = purchases.reduce((sum, row) => sum + Number(row.total || 0), 0)
-  const paid = purchases.reduce((sum, row) => sum + Number(row.paid || 0), 0)
+  const visiblePurchases = supplierFilter === 'all' ? purchases : purchases.filter((purchase) => String(purchase.supplierId) === supplierFilter)
+  const purchased = visiblePurchases.reduce((sum, row) => sum + Number(row.total || 0), 0)
+  const paid = visiblePurchases.reduce((sum, row) => sum + Number(row.paid || 0), 0)
   const stats = [
-    ['Deliveries', String(purchases.length)],
+    ['Deliveries', String(visiblePurchases.length)],
     ['Purchased', money(purchased)],
     ['Payments at receiving', money(paid)],
-    ['Supplier dues', money(purchases.reduce((sum, row) => sum + Number(row.due || 0), 0))],
+    ['Supplier dues', money(visiblePurchases.reduce((sum, row) => sum + Number(row.due || 0), 0))],
   ]
 
   const saveDelivery = async (delivery) => {
@@ -49,7 +51,7 @@ export default function ReceiveStock({ suppliers = [], products = [], purchases 
     }
   }
 
-  const rows = purchases.map((purchase) => [
+  const rows = visiblePurchases.map((purchase) => [
     receivingLabel(purchase),
     purchase.supplier,
     purchase.date,
@@ -83,6 +85,15 @@ export default function ReceiveStock({ suppliers = [], products = [], purchases 
       </div>
 
       <ReceiveStats stats={stats} />
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <label className="flex w-full max-w-sm flex-col gap-1 text-sm font-semibold text-[#173b32]">Filter by supplier
+          <select value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)} className="h-11 rounded-xl border border-[#dfe4dc] bg-white px-3 font-normal text-[#173b32] focus:outline-none focus:ring-2 focus:ring-[#155b4b]">
+            <option value="all">All suppliers</option>
+            {suppliers.map((supplier) => <option key={supplier.id} value={String(supplier.id)}>{supplier.name}</option>)}
+          </select>
+        </label>
+        <span className="pb-2 text-sm text-[#718078]" aria-live="polite">{visiblePurchases.length} deliveries</span>
+      </div>
       <ReceiveTable
         deliveries={rows}
         onSelect={(id) => { detailsOpenerRef.current = document.activeElement; setSelectedPurchase(purchases.find((purchase) => purchase.id === id) || null) }}
