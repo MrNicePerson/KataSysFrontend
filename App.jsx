@@ -10,7 +10,6 @@ import Sidebar from './src/components/Sidebar/Sidebar.jsx'
 import SignIn from './src/components/SignIn/SignIn.jsx'
 import { createEmptyDatabase } from './src/data/businessLogic.js'
 import { getSaleDayStatus } from './src/data/saleDayStatus.js'
-import { planStockAdjustments } from './src/data/stockAudit.js'
 import SaleAccessGate from './src/components/SaleAccessGate/SaleAccessGate.jsx'
 import { useDocumentLanguage } from './src/i18n/urdu.js'
 import { createTripleRightShortcut, navigationReturnTarget } from './src/keyboard/sidebarNavigation.js'
@@ -407,25 +406,10 @@ export default function App() {
     }
   }
 
-  const saveStockAudit = async (audit) => {
-    const adjustments = planStockAdjustments(audit.items || [], database.products)
-
-    try {
-      for (const adjustment of adjustments) {
-        await mutate(`products/${adjustment.productId}/adjust-stock`, {
-          body: { ...adjustment, reason: `${audit.period || 'Stock'} count`, date: audit.date },
-          refresh: false,
-          throwOnError: true,
-        })
-      }
-    } catch (error) {
-      await refreshWorkspace(token).catch(() => {})
-      throw error
-    }
-
-    if (adjustments.length) await refreshWorkspace(token)
-    return true
-  }
+  const saveStockAudit = async (audit) => mutate('products/stock-audit', {
+    body: audit,
+    throwOnError: true,
+  })
 
   const updateStockProduct = async (id, changes) => {
     const saved = await mutate(`products/${id}`, { method: 'PATCH', body: changes, throwOnError: true })

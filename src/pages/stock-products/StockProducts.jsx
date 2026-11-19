@@ -44,10 +44,12 @@ export default function StockProducts({ products: records = [], suppliers = [], 
   const editKeyboard = useKeyboardScope({ onEscape: () => { if (!editSaving) setEditingProduct(null) }, trapFocus: true })
   const defectKeyboard = useKeyboardScope({ onEscape: () => { if (!defectSaving) setDefectOpen(false) }, trapFocus: true })
   const products = useMemo(() => records.map((p) => ({ ...p, colour: p.shade || '', supplier: suppliers.find((s) => s.id === p.supplierId)?.name || '—', batch: p.batchNumber || '—', available: String(Number(p.stockQuantity || 0) - Number(p.reservedQuantity || 0)), defective: String(p.defectiveQuantity || 0), cost: `Rs. ${Number(p.averageCost || 0).toLocaleString()}`, tone: 'blue' })), [records, suppliers])
-  const total = (key) => products.reduce((sum, p) => sum + Number(p[key] || 0), 0)
+  const activeProducts = products.filter((product) => product.active !== false)
+  const total = (key) => activeProducts.reduce((sum, p) => sum + Number(p[key] || 0), 0)
   const valuation = stockValuation(records)
-  const stats = [['Available whole units', total('available').toLocaleString()], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value', `Rs. ${valuation.sellingValue.toLocaleString()}`, 'Value at current selling prices', valuation.excludedProducts.length ? <><span>Partial total: some available stock is excluded.</span><ul className="mt-1 list-disc pl-4">{valuation.excludedProducts.map((product, index) => <li key={product.id || index}>{product.name} · {product.batch}: {product.reasons.join(', ')}</li>)}</ul></> : null], ['Stock Purchase Cost', `Rs. ${valuation.purchaseCost.toLocaleString()}`, 'Purchase cost of stock currently on hand']]
-  const filtered = products.filter((product) => product.active !== false && [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(query.toLowerCase()))
+  const reservedUnits = total('reservedQuantity')
+  const stats = [['Available whole units', total('available').toLocaleString(), `${reservedUnits.toLocaleString()} reserved for held orders; defective / quarantined units are separate`], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value', `Rs. ${valuation.sellingValue.toLocaleString()}`, 'Value at current selling prices', valuation.excludedProducts.length ? <><span>Partial total: some available stock is excluded.</span><ul className="mt-1 list-disc pl-4">{valuation.excludedProducts.map((product, index) => <li key={product.id || index}>{product.name} · {product.batch}: {product.reasons.join(', ')}</li>)}</ul></> : null], ['Stock Purchase Cost', `Rs. ${valuation.purchaseCost.toLocaleString()}`, 'Purchase cost of stock currently on hand']]
+  const filtered = activeProducts.filter((product) => [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(query.toLowerCase()))
   const reviewProducts = products.filter((product) => reviewStockFilter === 'all' || (reviewStockFilter === 'in-stock' ? Number(product.available) > 0 : Number(product.available) <= 0))
 
   const openEdit = (product) => {
