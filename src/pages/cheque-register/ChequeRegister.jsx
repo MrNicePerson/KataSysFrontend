@@ -2,7 +2,7 @@ import { useState } from 'react'
 import DateDmyInput from '../../components/DateDmyInput.jsx'
 import { formatDmyDate } from '../../data/dateDmy.js'
 
-export default function ChequeRegister({ cheques = [], customers = [], suppliers = [], onStatusChange, onCreate }) {
+export default function ChequeRegister({ cheques = [], customers = [], suppliers = [], onStatusChange, onCreate, onUpdateDetails, onDelete }) {
   const [adding, setAdding] = useState(false)
   const [direction, setDirection] = useState('received')
   const [partyId, setPartyId] = useState('')
@@ -12,6 +12,8 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
   const [activeTab, setActiveTab] = useState('overview')
   const [calendarDate, setCalendarDate] = useState(new Date().toISOString().slice(0, 10))
   const [calendarMonth, setCalendarMonth] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1) })
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [editingCheque, setEditingCheque] = useState(null)
   const parties = direction === 'received' ? customers : suppliers
   const dayKey = (value) => String(value || '').slice(0, 10)
   const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
@@ -113,15 +115,15 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
 
       <div className="space-y-8">
         {groups.map(([title, direction]) => {
-          const rows = cheques.filter((cheque) => cheque.direction === direction)
+          const rows = cheques.filter((cheque) => cheque.direction === direction && (statusFilter === 'all' || cheque.status === statusFilter))
           return (
             <section key={direction}>
-              <h2 className="text-[#173b32] text-lg sm:text-xl font-bold mb-3 flex items-center gap-2">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><h2 className="text-[#173b32] text-lg sm:text-xl font-bold flex items-center gap-2">
                 <span>{title}</span>
                 <span className="text-xs sm:text-sm font-normal text-[#718078]">
                   · {money(rows.reduce((sum, row) => sum + row.amount, 0))}
                 </span>
-              </h2>
+              </h2><label className="text-sm font-semibold">Status <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="ml-2 rounded-lg border px-3 py-2"><option value="all">All</option>{['Pending','Cleared','Returned','Bounced','Cancelled','Rescheduled','Deposited / Presented','Under Clearing'].map((status) => <option key={status}>{status}</option>)}</select></label></div>
 
               <div className="w-full overflow-x-auto rounded-2xl border border-[#e2e6df] bg-white shadow-panel">
                 <table className="w-full text-left text-xs sm:text-sm min-w-[650px]">
@@ -160,6 +162,8 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
                             </span>
                           </td>
                           <td className="px-4 sm:px-6 py-4 text-right">
+                            <button type="button" onClick={() => setEditingCheque(cheque)} className="mr-2 rounded border px-2.5 py-1 text-xs font-semibold">Edit</button>
+                            {cheque.status === 'Pending' && <button type="button" onClick={() => { if (window.confirm(`Delete cheque ${cheque.number || ''}?`)) onDelete?.(cheque.id) }} className="mr-2 rounded border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700">Delete</button>}
                             {cheque.status === 'Pending' ? (
                               <div className="flex items-center justify-end gap-2">
                                 <button
@@ -204,6 +208,14 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
           )
         })}
       </div>
+      {editingCheque && <EditChequeDialog cheque={editingCheque} onClose={() => setEditingCheque(null)} onSave={async (details) => { await onUpdateDetails?.(editingCheque.id, details); setEditingCheque(null) }} />}
     </main>
   )
+}
+
+function EditChequeDialog({ cheque, onClose, onSave }) {
+  const [dueDate, setDueDate] = useState(cheque.expectedClearanceDate || cheque.dueDate || '')
+  const [notes, setNotes] = useState(cheque.notes || '')
+  const [reason, setReason] = useState('')
+  return <div className="fixed inset-0 z-[1000] grid place-items-center bg-black/40 p-4"><form role="dialog" aria-modal="true" aria-labelledby="edit-cheque-title" onSubmit={(event) => { event.preventDefault(); onSave({ expectedClearanceDate: dueDate, notes, remarks: reason }) }} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-5 shadow-xl"><div className="flex justify-between"><h2 id="edit-cheque-title" className="text-lg font-bold">Edit cheque details</h2><button type="button" onClick={onClose} aria-label="Close">×</button></div><label className="block text-sm font-semibold">Expected clearance<DateDmyInput required value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3" /></label><label className="block text-sm font-semibold">Notes<input value={notes} onChange={(event) => setNotes(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3" /></label>{dueDate !== (cheque.expectedClearanceDate || cheque.dueDate || '') && <label className="block text-sm font-semibold">Reason for rescheduling<input required value={reason} onChange={(event) => setReason(event.target.value)} className="mt-1 h-10 w-full rounded-lg border px-3" /></label>}<div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-lg border px-4 py-2">Cancel</button><button type="submit" className="rounded-lg bg-[#155b4b] px-4 py-2 font-semibold text-white">Save</button></div></form></div>
 }
