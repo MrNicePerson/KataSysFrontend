@@ -9,7 +9,21 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
   const [message, setMessage] = useState('')
   const [issued, setIssued] = useState('')
   const [expectedClearanceDate, setExpectedClearanceDate] = useState('')
+  const [calendarDate, setCalendarDate] = useState(new Date().toISOString().slice(0, 10))
+  const [calendarMonth, setCalendarMonth] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1) })
   const parties = direction === 'received' ? customers : suppliers
+  const dayKey = (value) => String(value || '').slice(0, 10)
+  const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
+  const monthCells = Array.from({ length: 42 }, (_, index) => new Date(monthStart.getFullYear(), monthStart.getMonth(), 1 - monthStart.getDay() + index))
+  const dateAmounts = new Map()
+  const bankAmounts = new Map()
+  for (const cheque of cheques) {
+    const key = dayKey(cheque.issued)
+    if (key) dateAmounts.set(key, (dateAmounts.get(key) || 0) + Number(cheque.amount || 0))
+    const bank = String(cheque.bank || 'Unknown bank').trim() || 'Unknown bank'
+    bankAmounts.set(bank, (bankAmounts.get(bank) || 0) + Number(cheque.amount || 0))
+  }
+  const selectedDayCheques = cheques.filter((cheque) => dayKey(cheque.issued) === calendarDate)
 
   const submitCheque = async (event) => {
     event.preventDefault()
@@ -53,6 +67,17 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
       <p className="mt-1 text-xs sm:text-sm text-[#718078] mb-6 sm:mb-8">
         Track pending, cleared and returned cheques against their accounts.
       </p>
+      <section className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.65fr)]" aria-label="Cheque overview">
+        <div className="rounded-2xl border border-[#e2e6df] bg-white p-4 shadow-panel">
+          <div className="mb-3 flex items-center justify-between"><h2 className="font-bold text-[#173b32]">Cheque overview by date</h2><div className="flex gap-2"><button type="button" aria-label="Previous month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} className="rounded border px-3 py-1">‹</button><strong className="min-w-36 text-center">{calendarMonth.toLocaleDateString('en', { month: 'long', year: 'numeric' })}</strong><button type="button" aria-label="Next month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} className="rounded border px-3 py-1">›</button></div></div>
+          <div className="grid grid-cols-7 gap-1 text-center text-xs text-[#718078]">{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day) => <div key={day} className="py-1 font-semibold">{day}</div>)}
+            {monthCells.map((day) => { const key = `${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`; const total = dateAmounts.get(key) || 0; return <button key={key} type="button" onClick={() => { setCalendarDate(key); setIssued(key); setAdding(true) }} aria-label={`${day.getDate()} ${total ? `, ${money(total)} cheques` : ''}`} className={`min-h-12 rounded-lg border p-1 ${day.getMonth() !== calendarMonth.getMonth() ? 'text-gray-300' : 'text-[#173b32]'} ${calendarDate === key ? 'border-[#155b4b] bg-[#e8f2e3]' : 'border-transparent hover:border-[#dfe4dc]'}`}><span>{day.getDate()}</span>{total > 0 && <small className="block truncate text-[9px] font-semibold text-[#155b4b]">{money(total)}</small>}</button> })}
+          </div>
+          <p className="mt-2 text-xs text-[#718078]">Select a date to view totals and use it for a new cheque.</p>
+        </div>
+        <div className="rounded-2xl border border-[#e2e6df] bg-white p-4 shadow-panel"><h2 className="mb-3 font-bold text-[#173b32]">Totals by bank</h2><div className="max-h-64 space-y-2 overflow-auto">{[...bankAmounts].sort((a,b) => b[1]-a[1]).map(([bank, total]) => <div key={bank} className="flex justify-between gap-3 border-b border-[#edf0eb] pb-2 text-sm"><span>{bank}</span><strong>{money(total)}</strong></div>)}{!bankAmounts.size && <p className="text-sm text-[#718078]">No cheque records yet.</p>}</div></div>
+      </section>
+      <p className="mb-4 rounded-xl bg-[#e8f2e3] p-3 text-sm text-[#173b32]">{formatDmyDate(calendarDate)}: {selectedDayCheques.length} cheques · {money(selectedDayCheques.reduce((sum,row) => sum + Number(row.amount || 0),0))}</p>
         <button type="button" className="mb-6 h-11 px-4 rounded-lg bg-[#155b4b] text-white text-sm font-semibold" onClick={() => setAdding((value) => !value)}>
           {adding ? 'Close cheque form' : 'Add manual cheque'}
         </button>
@@ -74,7 +99,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
             <label className="text-xs font-semibold text-[#173b32]">Cheque number<input name="number" className="mt-1 w-full h-10 px-3 rounded-lg border border-[#dfe4dc]" /></label>
             <label className="text-xs font-semibold text-[#173b32]">Bank<input name="bank" className="mt-1 w-full h-10 px-3 rounded-lg border border-[#dfe4dc]" /></label>
             <label className="text-xs font-semibold text-[#173b32]">Amount<input name="amount" type="number" min="0.01" step="0.01" required className="mt-1 w-full h-10 px-3 rounded-lg border border-[#dfe4dc]" /></label>
-            <label className="text-xs font-semibold text-[#173b32]">Issued<DateDmyInput name="issued" required value={issued} onChange={(event) => setIssued(event.target.value)} className="mt-1 w-full h-10 px-3 rounded-lg border border-[#dfe4dc]" /></label>
+            <label className="text-xs font-semibold text-[#173b32]">Issued<DateDmyInput name="issued" required value={issued || calendarDate} onChange={(event) => setIssued(event.target.value)} className="mt-1 w-full h-10 px-3 rounded-lg border border-[#dfe4dc]" /></label>
             <label className="text-xs font-semibold text-[#173b32]">Expected clearance<DateDmyInput name="expectedClearanceDate" value={expectedClearanceDate} onChange={(event) => setExpectedClearanceDate(event.target.value)} className="mt-1 w-full h-10 px-3 rounded-lg border border-[#dfe4dc]" /></label>
             <button className="self-end h-10 rounded-lg bg-[#155b4b] text-white text-sm font-semibold" type="submit">Save cheque</button>
           </form>
