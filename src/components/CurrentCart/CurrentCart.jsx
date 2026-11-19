@@ -1,7 +1,9 @@
 import { ChevronDown, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import OldItemReturn from './OldItemReturn.jsx'
 
-export default function CurrentCart({ items, discount, discountInput, paymentPromises = [], onDiscountChange, onAddReturn, onReturnAdded, onRemoveItem, onUpdateItem, onSaveBill, onHoldBill, onClear, purchasedItems = [], saleSubtotal: saleSubtotalProp, returnTotal: returnTotalProp, refundType = 'cash', onRefundTypeChange, saving = false }) {
+export default function CurrentCart({ items, discount, discountInput, paymentPromises = [], onDiscountChange, onAddReturn, onAddOldReturn, suppliers = [], onReturnAdded, onRemoveItem, onUpdateItem, onSaveBill, onHoldBill, onClear, purchasedItems = [], saleSubtotal: saleSubtotalProp, returnTotal: returnTotalProp, refundType = 'cash', onRefundTypeChange, saving = false }) {
+  const [oldReturnOpen, setOldReturnOpen] = useState(false)
   const [returnItem, setReturnItem] = useState({ itemCode: '', quantity: 1, condition: 'Return' })
   const [returnError, setReturnError] = useState('')
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
@@ -161,6 +163,8 @@ export default function CurrentCart({ items, discount, discountInput, paymentPro
           Select an item from the customer’s previous sale to add it to this return or exchange.
         </p>
 
+        <button type="button" disabled={saving} onClick={() => setOldReturnOpen(true)} className="mb-4 w-full rounded-lg border-2 border-[#155b4b] bg-white p-3 text-sm font-bold text-[#155b4b]">+ Return old item</button>
+        {oldReturnOpen && <OldItemReturn suppliers={suppliers} onClose={() => setOldReturnOpen(false)} onAdd={onAddOldReturn} />}
         <form className="space-y-3" onSubmit={handleReturn}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <label className="relative flex flex-col gap-1 text-xs font-semibold text-[#173b32]">

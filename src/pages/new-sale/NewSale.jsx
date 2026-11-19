@@ -16,7 +16,7 @@ const paymentMethodForDraft = (draft) => {
 }
 const newSaleCheque = (values = {}) => ({ id: values.id || `sale-cheque-${Date.now()}-${Math.random()}`, number: values.number || values.chequeNumber || '', bank: values.bank || values.bankName || '', amount: String(values.amount ?? ''), issued: values.issued || values.chequeDate || '', expectedClearanceDate: values.expectedClearanceDate || values.dueDate || '' })
 
-export default function NewSale({ customers, products = [], bills = [], returns = [], selectedCustomerId, onCustomerChange, onNewCustomer, onSaveBill, onHoldBill, initialDraft, onDraftLoaded, businessDate }) {
+export default function NewSale({ customers, suppliers = [], products = [], bills = [], returns = [], selectedCustomerId, onCustomerChange, onNewCustomer, onSaveBill, onHoldBill, initialDraft, onDraftLoaded, businessDate }) {
   const [items, setItems] = useState(() => prepareSaleDraft(initialDraft).items)
   const [discount, setDiscount] = useState(() => String(initialDraft?.discount ?? ''))
   const [paymentPromises, setPaymentPromises] = useState(() => (initialDraft?.paymentPromises || []).map((promise, index) => ({ id: promise.id || `promise-${index}-${Date.now()}`, dueDate: promise.dueDate || '', amount: String(promise.amount ?? '') })))
@@ -494,6 +494,8 @@ export default function NewSale({ customers, products = [], bills = [], returns 
             </p>
           )}
         <CurrentCart
+            suppliers={suppliers}
+            onAddOldReturn={(item) => { setItems((current) => [...current, item]); setSaleMessage('') }}
             saving={saving}
             items={items}
             discount={normalizedDiscount}
