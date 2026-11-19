@@ -29,6 +29,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
   const [reviewError, setReviewError] = useState('')
   const [reviewSaving, setReviewSaving] = useState(false)
   const [reviewPeriod, setReviewPeriod] = useState('monthly')
+  const [reviewStockFilter, setReviewStockFilter] = useState('all')
   const [reviewDate, setReviewDate] = useState(localDateString())
   const [editingProduct, setEditingProduct] = useState(null)
   const [editValues, setEditValues] = useState({})
@@ -47,6 +48,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
   const valuation = stockValuation(records)
   const stats = [['Available whole units', total('available').toLocaleString()], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value', `Rs. ${valuation.sellingValue.toLocaleString()}`, 'Value at current selling prices', valuation.excludedProducts.length ? <><span>Partial total: some available stock is excluded.</span><ul className="mt-1 list-disc pl-4">{valuation.excludedProducts.map((product, index) => <li key={product.id || index}>{product.name} · {product.batch}: {product.reasons.join(', ')}</li>)}</ul></> : null], ['Stock Purchase Cost', `Rs. ${valuation.purchaseCost.toLocaleString()}`, 'Purchase cost of stock currently on hand']]
   const filtered = products.filter((product) => product.active !== false && [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(query.toLowerCase()))
+  const reviewProducts = products.filter((product) => reviewStockFilter === 'all' || (reviewStockFilter === 'in-stock' ? Number(product.available) > 0 : Number(product.available) <= 0))
 
   const openEdit = (product) => {
     setEditingProduct(product)
@@ -108,6 +110,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
     reviewOpenerRef.current = event?.currentTarget || null
     setCounts(Object.fromEntries(products.map((product) => [product.id, String(Math.max(0, Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0)))])))
     setReviewPeriod('monthly')
+    setReviewStockFilter('all')
     setReviewDate(localDateString())
     setReviewError('')
     setReviewOpen(true)
@@ -121,6 +124,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
     event.preventDefault()
     const invalid = products.find((product) => !/^\d+$/.test(counts[product.id] ?? ''))
     if (invalid) {
+      setReviewStockFilter('all')
       setReviewError(`Enter a whole number for ${invalid.article || invalid.code || invalid.name}.`)
       return
     }
@@ -217,7 +221,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
               </div>
               <button type="button" aria-label="Close stock review" disabled={reviewSaving} onClick={closeReview} className="w-9 h-9 rounded-lg text-2xl text-[#718078] hover:bg-[#f6f8f1] disabled:opacity-50">×</button>
             </div>
-            <div className="px-5 py-3 border-b border-[#edf0eb] grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="px-5 py-3 border-b border-[#edf0eb] grid grid-cols-1 sm:grid-cols-3 gap-3">
               <label className="flex flex-col gap-1 text-xs font-semibold text-[#52645c]">Audit period
                 <select value={reviewPeriod} onChange={(event) => setReviewPeriod(event.target.value)} className="h-10 px-3 rounded-lg border border-[#dfe4dc] bg-white text-sm text-[#173b32]">
                   <option value="weekly">Weekly</option>
@@ -227,6 +231,13 @@ export default function StockProducts({ products: records = [], suppliers = [], 
               <label className="flex flex-col gap-1 text-xs font-semibold text-[#52645c]">Audit date
                 <input type="date" value={reviewDate} onChange={(event) => setReviewDate(event.target.value)} className="h-10 px-3 rounded-lg border border-[#dfe4dc] bg-white text-sm text-[#173b32]" />
               </label>
+              <label className="flex flex-col gap-1 text-xs font-semibold text-[#52645c]">Stock availability
+                <select value={reviewStockFilter} onChange={(event) => setReviewStockFilter(event.target.value)} className="h-10 px-3 rounded-lg border border-[#dfe4dc] bg-white text-sm text-[#173b32]">
+                  <option value="all">All items</option>
+                  <option value="in-stock">In stock</option>
+                  <option value="out-of-stock">Out of stock</option>
+                </select>
+              </label>
             </div>
             <div className="overflow-auto">
               <table className="w-full text-left text-xs sm:text-sm min-w-[820px]">
@@ -234,7 +245,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
                   <tr><th className="px-4 py-3">Article / brand</th><th className="px-4 py-3">Supplier / batch</th><th className="px-4 py-3">Current available</th><th className="px-4 py-3">Counted stock</th><th className="px-4 py-3">Cost per suit</th></tr>
                 </thead>
                 <tbody className="divide-y divide-[#edf0eb]">
-                  {products.map((product) => (
+                  {reviewProducts.map((product) => (
                     <tr key={product.id}>
                       <td className="px-4 py-3"><strong className="block text-[#173b32]">{product.article || product.code || '—'}</strong><small className="text-[#718078]">{product.name}</small></td>
                       <td className="px-4 py-3"><span className="block text-[#173b32]">{product.supplier}</span><small className="text-[#718078]">{product.batch}</small></td>
@@ -243,7 +254,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
                       <td className="px-4 py-3 font-medium text-[#173b32]">{product.cost}</td>
                     </tr>
                   ))}
-                  {!products.length && <tr><td colSpan="5" className="px-4 py-10 text-center text-[#718078]">No stock items to review.</td></tr>}
+                  {!reviewProducts.length && <tr><td colSpan="5" className="px-4 py-10 text-center text-[#718078]">No items match this stock filter.</td></tr>}
                 </tbody>
               </table>
             </div>
