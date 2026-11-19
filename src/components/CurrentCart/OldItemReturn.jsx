@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { X } from 'lucide-react'
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 
 export default function OldItemReturn({ suppliers, onAdd, onClose }) {
@@ -24,7 +25,7 @@ export default function OldItemReturn({ suppliers, onAdd, onClose }) {
   const inputClass = 'w-full rounded-lg border border-[#dfe4dc] bg-white p-2 text-sm'
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
     <section ref={keyboard.ref} onKeyDown={keyboard.onKeyDown} role="dialog" aria-modal="true" aria-labelledby="old-return-title" className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-6 shadow-xl">
-      <div className="flex items-center justify-between"><h2 id="old-return-title" className="text-lg font-bold">Return old item</h2><button type="button" aria-label="Close old item return" onClick={onClose}>Close</button></div>
+      <div className="flex items-center justify-between gap-4"><h2 id="old-return-title" className="text-lg font-bold">Return old item</h2><button type="button" aria-label="Close old item return" onClick={onClose} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#dfe4dc] text-[#173b32] hover:bg-[#f1f6ea]"><X size={20} aria-hidden="true" /></button></div>
       <p className="my-3 text-sm text-gray-600">For items sold before KataSys. A separate return batch preserves the supplier and source.</p>
       <form onSubmit={submit} className="space-y-3">
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
