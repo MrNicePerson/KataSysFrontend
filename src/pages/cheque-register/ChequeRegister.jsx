@@ -9,6 +9,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
   const [message, setMessage] = useState('')
   const [issued, setIssued] = useState('')
   const [expectedClearanceDate, setExpectedClearanceDate] = useState('')
+  const [activeTab, setActiveTab] = useState('overview')
   const [calendarDate, setCalendarDate] = useState(new Date().toISOString().slice(0, 10))
   const [calendarMonth, setCalendarMonth] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1) })
   const parties = direction === 'received' ? customers : suppliers
@@ -55,6 +56,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
     ['Customer cheques – received', 'received'],
   ]
   const money = (amount) => `Rs. ${Number(amount || 0).toLocaleString()}`
+  const visibleGroups = activeTab === 'overview' ? groups : groups.filter(([, groupDirection]) => activeTab === 'supplier' ? groupDirection === 'given' : groupDirection === 'received')
 
   return (
     <main className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-8 lg:py-10">
@@ -67,7 +69,10 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
       <p className="mt-1 text-xs sm:text-sm text-[#718078] mb-6 sm:mb-8">
         Track pending, cleared and returned cheques against their accounts.
       </p>
-      <section className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.65fr)]" aria-label="Cheque overview">
+      <nav className="mb-5 flex flex-wrap gap-2 border-b border-[#dfe4dc] pb-3" aria-label="Cheque register screens">
+        {[['overview', 'Overview'], ['supplier', 'Supplier cheques'], ['customer', 'Customer cheques']].map(([tab, label]) => <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => { setActiveTab(tab); setAdding(false); setDirection(tab === 'customer' ? 'received' : 'given') }} className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${activeTab === tab ? 'bg-[#155b4b] text-white' : 'bg-white text-[#52645c] hover:bg-[#e8f2e3]'}`}>{label}<span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-xs">{tab === 'supplier' ? cheques.filter((row) => row.direction === 'given').length : tab === 'customer' ? cheques.filter((row) => row.direction === 'received').length : cheques.length}</span></button>)}
+      </nav>
+      {activeTab === 'overview' && <section className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.65fr)]" aria-label="Cheque overview">
         <div className="rounded-2xl border border-[#e2e6df] bg-white p-4 shadow-panel">
           <div className="mb-3 flex items-center justify-between"><h2 className="font-bold text-[#173b32]">Cheque overview by date</h2><div className="flex gap-2"><button type="button" aria-label="Previous month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} className="rounded border px-3 py-1">‹</button><strong className="min-w-36 text-center">{calendarMonth.toLocaleDateString('en', { month: 'long', year: 'numeric' })}</strong><button type="button" aria-label="Next month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} className="rounded border px-3 py-1">›</button></div></div>
           <div className="grid grid-cols-7 gap-1 text-center text-xs text-[#718078]">{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day) => <div key={day} className="py-1 font-semibold">{day}</div>)}
@@ -76,11 +81,14 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
           <p className="mt-2 text-xs text-[#718078]">Select a date to view totals and use it for a new cheque.</p>
         </div>
         <div className="rounded-2xl border border-[#e2e6df] bg-white p-4 shadow-panel"><h2 className="mb-3 font-bold text-[#173b32]">Totals by bank</h2><div className="max-h-64 space-y-2 overflow-auto">{[...bankAmounts].sort((a,b) => b[1]-a[1]).map(([bank, total]) => <div key={bank} className="flex justify-between gap-3 border-b border-[#edf0eb] pb-2 text-sm"><span>{bank}</span><strong>{money(total)}</strong></div>)}{!bankAmounts.size && <p className="text-sm text-[#718078]">No cheque records yet.</p>}</div></div>
-      </section>
-      <p className="mb-4 rounded-xl bg-[#e8f2e3] p-3 text-sm text-[#173b32]">{formatDmyDate(calendarDate)}: {selectedDayCheques.length} cheques · {money(selectedDayCheques.reduce((sum,row) => sum + Number(row.amount || 0),0))}</p>
-        <button type="button" className="mb-6 h-11 px-4 rounded-lg bg-[#155b4b] text-white text-sm font-semibold" onClick={() => setAdding((value) => !value)}>
-          {adding ? 'Close cheque form' : 'Add manual cheque'}
-        </button>
+      </section>}
+      {activeTab === 'overview' && <p className="mb-4 rounded-xl bg-[#e8f2e3] p-3 text-sm text-[#173b32]">{formatDmyDate(calendarDate)}: {selectedDayCheques.length} cheques · {money(selectedDayCheques.reduce((sum,row) => sum + Number(row.amount || 0),0))}</p>}
+        {activeTab !== 'overview' && <button type="button" className="mb-6 h-11 px-4 rounded-lg bg-[#155b4b] text-white text-sm font-semibold" onClick={() => { setDirection(activeTab === 'customer' ? 'received' : 'given'); setAdding((value) => !value) }}>
+          {adding ? 'Close cheque form' : `Add ${activeTab === 'supplier' ? 'supplier' : 'customer'} cheque`}
+        </button>}
+        {activeTab === 'overview' && <button type="button" className="mb-6 h-11 px-4 rounded-lg bg-[#155b4b] text-white text-sm font-semibold" onClick={() => setActiveTab('supplier')}>
+          Add cheque
+        </button>}
         {message && <p className="mb-4 text-sm text-[#155b4b]" role="status">{message}</p>}
         {adding && (
           <form onSubmit={submitCheque} className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-4 rounded-xl bg-white border border-[#e2e6df]">
@@ -106,7 +114,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
         )}
 
       <div className="space-y-8">
-        {groups.map(([title, direction]) => {
+        {visibleGroups.map(([title, direction]) => {
           const rows = cheques.filter((cheque) => cheque.direction === direction)
           return (
             <section key={direction}>
