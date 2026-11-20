@@ -2,46 +2,128 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import StockStats from '../../components/StockStats/StockStats.jsx'
 import StockTools from '../../components/StockTools/StockTools.jsx'
 import StockTable from '../../components/StockTable/StockTable.jsx'
+import DefaultZeroInput from '../../components/DefaultZeroInput.jsx'
+import DateDmyInput from '../../components/DateDmyInput.jsx'
 import { useKeyboardScope } from '../../keyboard/useKeyboardScope.js'
 import { localDateString } from '../../data/businessLogic.js'
+import { stockValuation } from '../../data/stockValuation.js'
+import { formatDmyDate } from '../../data/dateDmy.js'
+import { createStockAuditWorkbook } from '../../data/stockAuditWorkbook.js'
 
-const csvCell = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`
-
-function exportStockCsv(products) {
+function exportStockAudit(products, valuation) {
   const date = localDateString()
-  const rows = [
-    ['Audit date', 'Product type', 'Article / Tan name', 'Brand / Tan type', 'Supplier', 'Batch Number', 'Available whole units', 'Meters per Tan', 'Buy price per Tan', 'Buy price per meter', 'Sale price per Tan', 'Sale price per meter', 'Available stock value'],
-    ...products.map((product) => {
-      const available = Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0)
-      const cost = Number(product.averageCost || 0)
-      return [date, product.productType === 'tan' ? 'Tan' : 'Suit', product.productType === 'tan' ? product.name : product.article || product.code || '', product.productType === 'tan' ? product.tanType : product.name || '', product.supplier === '-' ? '' : product.supplier, product.batch === '-' ? '' : product.batch, available, product.productType === 'tan' ? product.metersPerTan : '', product.productType === 'tan' ? cost : '', product.productType === 'tan' ? product.buyPricePerMeter : '', product.productType === 'tan' ? product.salePrice : '', product.productType === 'tan' ? product.salePricePerMeter : '', available * cost]
-    }),
-  ]
-  const csv = `\uFEFF${rows.map((row) => row.map(csvCell).join(',')).join('\r\n')}`
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+  const blob = createStockAuditWorkbook(products, valuation, formatDmyDate(date))
+  const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `stock-audit-${date}.csv`
+  link.download = `stock-audit-${date}.xlsx`
   document.body.appendChild(link)
   link.click()
   link.remove()
   setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-export default function StockProducts({ products: records = [], suppliers = [], onReceiveStock, onSaveAudit }) {
+export default function StockProducts({ products: records = [], suppliers = [], onReceiveStock, onSaveAudit, onAddDefectiveStock, onUpdateProduct, onDeleteProduct }) {
   const [query, setQuery] = useState('')
+  const [reviewQuery, setReviewQuery] = useState('')
   const [reviewOpen, setReviewOpen] = useState(false)
   const [counts, setCounts] = useState({})
   const [reviewError, setReviewError] = useState('')
   const [reviewSaving, setReviewSaving] = useState(false)
   const [reviewPeriod, setReviewPeriod] = useState('monthly')
   const [reviewDate, setReviewDate] = useState(localDateString())
+  const [editingProduct, setEditingProduct] = useState(null)
+  const [editValues, setEditValues] = useState({})
+  const [editError, setEditError] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+  const [defectOpen, setDefectOpen] = useState(false)
+  const [defectForm, setDefectForm] = useState({ productId: '', article: '', brandName: '', batchNumber: '', quantity: '1', averageCost: '', reason: '' })
+  const [defectError, setDefectError] = useState('')
+  const [defectSaving, setDefectSaving] = useState(false)
   const reviewOpenerRef = useRef(null)
   const reviewKeyboard = useKeyboardScope({ onEscape: () => { if (!reviewSaving) closeReview() }, trapFocus: true })
+  const editKeyboard = useKeyboardScope({ onEscape: () => { if (!editSaving) setEditingProduct(null) }, trapFocus: true })
+  const defectKeyboard = useKeyboardScope({ onEscape: () => { if (!defectSaving) setDefectOpen(false) }, trapFocus: true })
   const products = useMemo(() => records.map((p) => ({ ...p, colour: p.shade || '', supplier: suppliers.find((s) => s.id === p.supplierId)?.name || '—', batch: p.batchNumber || '—', available: String(Number(p.stockQuantity || 0) - Number(p.reservedQuantity || 0)), defective: String(p.defectiveQuantity || 0), cost: `Rs. ${Number(p.averageCost || 0).toLocaleString()}`, tone: 'blue' })), [records, suppliers])
-  const total = (key) => products.reduce((sum, p) => sum + Number(p[key] || 0), 0)
-  const stats = [['Available whole units', total('available').toLocaleString()], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value', `Rs. ${products.reduce((sum, p) => sum + Number(p.stockQuantity || 0) * Number(p.averageCost || 0), 0).toLocaleString()}`], ['Stock Purchase Cost', `Rs. ${records.reduce((sum, product) => sum + Number(product.stockQuantity || 0) * Number(product.averageCost || 0), 0).toLocaleString()}`, 'Purchase cost of stock currently on hand']]
-  const filtered = products.filter((product) => [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(query.toLowerCase()))
+  const activeProducts = products.filter((product) => product.active !== false)
+  const total = (key) => activeProducts.reduce((sum, p) => sum + Number(p[key] || 0), 0)
+  const valuation = stockValuation(records)
+  const reservedUnits = total('reservedQuantity')
+  const stats = [['Available whole units', total('available').toLocaleString(), `${reservedUnits.toLocaleString()} reserved for held orders; defective / quarantined units are separate`], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value', `Rs. ${valuation.sellingValue.toLocaleString()}`, 'Value at current selling prices', valuation.excludedProducts.length ? <><span>Partial total: some available stock is excluded.</span><ul className="mt-1 list-disc pl-4">{valuation.excludedProducts.map((product, index) => <li key={product.id || index}>{product.name} · {product.batch}: {product.reasons.join(', ')}</li>)}</ul></> : null], ['Stock Purchase Cost', `Rs. ${valuation.purchaseCost.toLocaleString()}`, 'Purchase cost of stock currently on hand']]
+  const filtered = activeProducts.filter((product) => [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(query.toLowerCase()))
+  const articleSuggestions = [...new Set(activeProducts.flatMap((product) => [product.article, product.code, product.name, product.supplier]).filter(Boolean))].filter((value) => value.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 12)
+  const reviewProducts = products.filter((product) => [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(reviewQuery.trim().toLowerCase()))
+
+  const openEdit = (product) => {
+    setEditingProduct(product)
+    setEditValues({ stockQuantity: String(product.stockQuantity ?? 0), averageCost: String(product.averageCost ?? 0), salePrice: String(product.salePrice ?? 0) })
+    setEditError('')
+  }
+  const saveProduct = async (event) => {
+    event.preventDefault()
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const saved = await onUpdateProduct(editingProduct.id, { ...editValues, expectedStockQuantity: editingProduct.stockQuantity ?? 0 })
+      if (!saved) throw new Error('Could not save stock changes.')
+      setEditingProduct(null)
+    } catch (error) { setEditError(error.message || 'Could not save stock changes.') }
+    finally { setEditSaving(false) }
+  }
+  const deleteProduct = async () => {
+    if (!window.confirm('Remove this product from the stock list? Its history will be preserved.')) return
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const saved = await onDeleteProduct(editingProduct.id)
+      if (!saved) throw new Error('Could not remove this product.')
+      setEditingProduct(null)
+    } catch (error) { setEditError(error.message || 'Could not remove this product.') }
+    finally { setEditSaving(false) }
+  }
+  const deleteListedProduct = async (product) => {
+    if (!window.confirm(`Delete ${product.article || product.code || product.name} from stock? Its history will be preserved.`)) return
+    try {
+      const deleted = await onDeleteProduct(product.id)
+      if (!deleted) window.alert('Could not remove this product.')
+    } catch (error) { window.alert(error.message || 'Could not remove this product.') }
+  }
+
+  const saveDefectiveStock = async (event) => {
+    event.preventDefault()
+    if (!onAddDefectiveStock) return
+    const quantity = Number(defectForm.quantity)
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      setDefectError('Enter a positive whole number of defective suits.')
+      return
+    }
+    const averageCost = defectForm.averageCost.trim() ? Number(defectForm.averageCost) : 0
+    if (!Number.isFinite(averageCost) || averageCost < 0) {
+      setDefectError('Enter a valid purchase cost or leave it blank if unknown.')
+      return
+    }
+    setDefectSaving(true)
+    setDefectError('')
+    try {
+      const saved = await onAddDefectiveStock({
+        ...(defectForm.productId ? { productId: defectForm.productId } : {
+          article: defectForm.article.trim(),
+          brandName: defectForm.brandName.trim(),
+          batchNumber: defectForm.batchNumber.trim(),
+          averageCost,
+        }),
+        quantity,
+        reason: defectForm.reason.trim(),
+      })
+      if (!saved) throw new Error('Could not add defective stock. Please try again.')
+      setDefectOpen(false)
+      setDefectForm({ productId: '', article: '', brandName: '', batchNumber: '', quantity: '1', averageCost: '', reason: '' })
+    } catch (error) {
+      setDefectError(error.message || 'Could not add defective stock.')
+    } finally {
+      setDefectSaving(false)
+    }
+  }
 
   const closeReview = () => {
     setReviewOpen(false)
@@ -54,6 +136,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
     setReviewPeriod('monthly')
     setReviewDate(localDateString())
     setReviewError('')
+    setReviewQuery('')
     setReviewOpen(true)
   }
 
@@ -63,7 +146,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
 
   const saveReview = async (event) => {
     event.preventDefault()
-    const invalid = products.find((product) => !/^\d+$/.test(counts[product.id] ?? ''))
+    const invalid = reviewProducts.find((product) => !/^\d+$/.test(counts[product.id] ?? ''))
     if (invalid) {
       setReviewError(`Enter a whole number for ${invalid.article || invalid.code || invalid.name}.`)
       return
@@ -76,7 +159,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
       const saved = await onSaveAudit({
         period: reviewPeriod,
         date: reviewDate,
-        items: products.map((product) => ({ productId: product.id, countedAvailable: Number(counts[product.id]) })),
+              items: products.map((product) => ({ productId: product.id, countedAvailable: Number(counts[product.id]) })),
       })
       if (!saved) throw new Error('Could not save the stock audit. Please try again.')
       closeReview()
@@ -101,6 +184,14 @@ export default function StockProducts({ products: records = [], suppliers = [], 
             Every suit, colour and batch in one place.
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+        {onAddDefectiveStock && <button
+          className="h-11 sm:h-12 px-5 rounded-xl border border-[#155b4b] bg-white text-[#155b4b] text-xs sm:text-sm font-semibold transition-all whitespace-nowrap"
+          type="button"
+          onClick={() => { setDefectError(''); setDefectOpen(true) }}
+        >
+          + Add defective suits
+        </button>}
         <button
           className="h-11 sm:h-12 px-5 rounded-xl bg-[#155b4b] hover:bg-[#104b3e] text-white text-xs sm:text-sm font-semibold transition-all shadow-sm cursor-pointer whitespace-nowrap active:scale-98"
           type="button"
@@ -108,11 +199,46 @@ export default function StockProducts({ products: records = [], suppliers = [], 
         >
           + Receive stock
         </button>
+        </div>
       </div>
 
       <StockStats stats={stats} />
-      <StockTools query={query} onQueryChange={setQuery} onReview={openReview} onExport={() => exportStockCsv(products)} />
-      <StockTable products={filtered} />
+      <StockTools query={query} onQueryChange={setQuery} onReview={openReview} onExport={() => exportStockAudit(products, valuation)} suggestions={articleSuggestions} />
+      <StockTable products={filtered} onEdit={onUpdateProduct ? openEdit : undefined} onDelete={onDeleteProduct ? deleteListedProduct : undefined} />
+      {defectOpen && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#203832]/50 p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !defectSaving) setDefectOpen(false) }}>
+        <form ref={defectKeyboard.ref} onKeyDown={defectKeyboard.onKeyDown} onSubmit={saveDefectiveStock} className="my-auto w-full max-w-xl space-y-4 rounded-2xl border border-[#e2e6df] bg-white p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="add-defective-title">
+          <div><h2 id="add-defective-title" className="text-xl font-bold text-[#173b32]">Add defective suits</h2><p className="mt-1 text-sm text-[#718078]">These units go to defective / quarantine stock only and will not increase saleable quantity.</p></div>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Link to an existing suit (optional)
+            <select value={defectForm.productId} onChange={(event) => setDefectForm((form) => ({ ...form, productId: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] bg-white px-3 text-sm font-normal">
+              <option value="">No product record / details unknown</option>
+              {records.filter((product) => product.active !== false && product.productType !== 'tan').map((product) => <option key={product.id} value={product.id}>{product.article || product.code || product.name} · {product.name} · {product.batchNumber || 'No batch'}</option>)}
+            </select>
+          </label>
+          {!defectForm.productId && <>
+            <p className="rounded-lg bg-[#f7faf5] px-3 py-2 text-xs text-[#718078]">If you do not know the article, brand, batch, or cost, leave those fields blank. An unidentified defective suit record will be created automatically.</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Article / suit name (optional)<input value={defectForm.article} onChange={(event) => setDefectForm((form) => ({ ...form, article: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 text-sm font-normal" /></label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Brand (optional)<input value={defectForm.brandName} onChange={(event) => setDefectForm((form) => ({ ...form, brandName: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 text-sm font-normal" /></label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Batch (optional)<input value={defectForm.batchNumber} onChange={(event) => setDefectForm((form) => ({ ...form, batchNumber: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 text-sm font-normal" /></label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Purchase cost per suit (optional)<input type="number" min="0" step="0.01" value={defectForm.averageCost} onChange={(event) => setDefectForm((form) => ({ ...form, averageCost: event.target.value }))} placeholder="Leave blank if unknown" className="h-11 rounded-xl border border-[#dfe4dc] px-3 text-sm font-normal" /></label>
+            </div>
+          </>}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Quantity (suits)<input type="number" min="1" step="1" required value={defectForm.quantity} onFocus={(event) => event.currentTarget.select()} onChange={(event) => setDefectForm((form) => ({ ...form, quantity: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 text-sm font-normal" /></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Reason (optional)<input value={defectForm.reason} onChange={(event) => setDefectForm((form) => ({ ...form, reason: event.target.value }))} placeholder="e.g. torn or stained" className="h-11 rounded-xl border border-[#dfe4dc] px-3 text-sm font-normal" /></label>
+          </div>
+          {defectError && <p role="alert" className="text-sm text-red-700">{defectError}</p>}
+          <div className="flex justify-end gap-2 border-t border-[#edf0eb] pt-4"><button type="button" disabled={defectSaving} onClick={() => setDefectOpen(false)} className="h-10 rounded-lg border border-[#dfe4dc] px-4 text-sm font-semibold">Cancel</button><button type="submit" disabled={defectSaving} className="h-10 rounded-lg bg-[#155b4b] px-5 text-sm font-semibold text-white disabled:opacity-50">{defectSaving ? 'Saving...' : 'Add defective stock'}</button></div>
+        </form>
+      </div>}
+      {editingProduct && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#203832]/50 p-4">
+        <form ref={editKeyboard.ref} onKeyDown={editKeyboard.onKeyDown} onSubmit={saveProduct} className="w-full max-w-md rounded-2xl bg-white p-5 sm:p-6 shadow-2xl space-y-4" role="dialog" aria-modal="true" aria-labelledby="edit-stock-title">
+          <div><h2 id="edit-stock-title" className="text-xl font-bold text-[#173b32]">Edit stock</h2><p className="mt-1 text-sm text-[#718078]">{editingProduct.article || editingProduct.code || editingProduct.name} · {editingProduct.batchNumber || '—'}</p></div>
+          {[['stockQuantity', editingProduct.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity (suits)', '1'], ['averageCost', editingProduct.productType === 'tan' ? 'Purchase cost per Tan (Rs.)' : 'Purchase cost per suit (Rs.)', '0.01'], ['salePrice', editingProduct.productType === 'tan' ? 'Sale price per Tan (Rs.)' : 'Sale price per suit (Rs.)', '0.01']].map(([field, label, step]) => <label key={field} className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">{label}<DefaultZeroInput min="0" step={step} required value={editValues[field]} onChange={(event) => setEditValues((current) => ({ ...current, [field]: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 font-normal" /></label>)}
+          {editError && <p role="alert" className="text-sm text-red-700">{editError}</p>}
+          <div className="flex flex-wrap justify-between gap-2">{onDeleteProduct && <button type="button" disabled={editSaving} onClick={deleteProduct} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">Delete</button>}<div className="ml-auto flex gap-2"><button type="button" disabled={editSaving} onClick={() => setEditingProduct(null)} className="rounded-lg border border-[#dfe4dc] px-4 py-2 text-sm font-semibold">Cancel</button><button type="submit" disabled={editSaving} className="rounded-lg bg-[#155b4b] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{editSaving ? 'Saving...' : 'Save changes'}</button></div></div>
+        </form>
+      </div>}
       {reviewOpen && (
         <div className="fixed inset-0 z-50 bg-[#203832]/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !reviewSaving) closeReview() }}>
           <form ref={reviewKeyboard.ref} onKeyDown={reviewKeyboard.onKeyDown} onSubmit={saveReview} className="w-full max-w-5xl max-h-[92vh] overflow-hidden rounded-2xl bg-white border border-[#e2e6df] shadow-2xl flex flex-col" role="dialog" aria-modal="true" aria-labelledby="stock-review-title">
@@ -131,7 +257,11 @@ export default function StockProducts({ products: records = [], suppliers = [], 
                 </select>
               </label>
               <label className="flex flex-col gap-1 text-xs font-semibold text-[#52645c]">Audit date
-                <input type="date" value={reviewDate} onChange={(event) => setReviewDate(event.target.value)} className="h-10 px-3 rounded-lg border border-[#dfe4dc] bg-white text-sm text-[#173b32]" />
+                <DateDmyInput value={reviewDate} onChange={(event) => setReviewDate(event.target.value)} className="h-10 px-3 rounded-lg border border-[#dfe4dc] bg-white text-sm text-[#173b32]" />
+              </label>
+              <label className="sm:col-span-2 flex flex-col gap-1 text-xs font-semibold text-[#52645c]">Search article
+                <input type="search" list="review-article-suggestions" placeholder="Type article name or brand..." value={reviewQuery} onChange={(event) => setReviewQuery(event.target.value)} className="h-10 px-3 rounded-lg border border-[#dfe4dc] bg-white text-sm text-[#173b32]" />
+                <datalist id="review-article-suggestions">{[...new Set(products.flatMap((product) => [product.article, product.code, product.name, product.supplier]).filter(Boolean))].filter((value) => value.toLowerCase().includes(reviewQuery.trim().toLowerCase())).slice(0, 12).map((value) => <option key={value} value={value} />)}</datalist>
               </label>
             </div>
             <div className="overflow-auto">
@@ -140,7 +270,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
                   <tr><th className="px-4 py-3">Article / brand</th><th className="px-4 py-3">Supplier / batch</th><th className="px-4 py-3">Current available</th><th className="px-4 py-3">Counted stock</th><th className="px-4 py-3">Cost per suit</th></tr>
                 </thead>
                 <tbody className="divide-y divide-[#edf0eb]">
-                  {products.map((product) => (
+                  {reviewProducts.map((product) => (
                     <tr key={product.id}>
                       <td className="px-4 py-3"><strong className="block text-[#173b32]">{product.article || product.code || '—'}</strong><small className="text-[#718078]">{product.name}</small></td>
                       <td className="px-4 py-3"><span className="block text-[#173b32]">{product.supplier}</span><small className="text-[#718078]">{product.batch}</small></td>
@@ -149,7 +279,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
                       <td className="px-4 py-3 font-medium text-[#173b32]">{product.cost}</td>
                     </tr>
                   ))}
-                  {!products.length && <tr><td colSpan="5" className="px-4 py-10 text-center text-[#718078]">No stock items to review.</td></tr>}
+                  {!reviewProducts.length && <tr><td colSpan="5" className="px-4 py-10 text-center text-[#718078]">No matching stock items.</td></tr>}
                 </tbody>
               </table>
             </div>
