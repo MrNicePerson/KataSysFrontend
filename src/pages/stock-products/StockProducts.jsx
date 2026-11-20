@@ -24,6 +24,7 @@ function exportStockAudit(products, valuation) {
 
 export default function StockProducts({ products: records = [], suppliers = [], onReceiveStock, onSaveAudit, onAddDefectiveStock, onUpdateProduct, onDeleteProduct }) {
   const [query, setQuery] = useState('')
+  const [reviewQuery, setReviewQuery] = useState('')
   const [reviewOpen, setReviewOpen] = useState(false)
   const [counts, setCounts] = useState({})
   const [reviewError, setReviewError] = useState('')
@@ -50,7 +51,12 @@ export default function StockProducts({ products: records = [], suppliers = [], 
   const reservedUnits = total('reservedQuantity')
   const stats = [['Available whole units', total('available').toLocaleString(), `${reservedUnits.toLocaleString()} reserved for held orders; defective / quarantined units are separate`], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value', `Rs. ${valuation.sellingValue.toLocaleString()}`, 'Value at current selling prices', valuation.excludedProducts.length ? <><span>Partial total: some available stock is excluded.</span><ul className="mt-1 list-disc pl-4">{valuation.excludedProducts.map((product, index) => <li key={product.id || index}>{product.name} · {product.batch}: {product.reasons.join(', ')}</li>)}</ul></> : null], ['Stock Purchase Cost', `Rs. ${valuation.purchaseCost.toLocaleString()}`, 'Purchase cost of stock currently on hand']]
   const filtered = activeProducts.filter((product) => [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(query.toLowerCase()))
-  const reviewProducts = products.filter((product) => reviewStockFilter === 'all' || (reviewStockFilter === 'in-stock' ? Number(product.available) > 0 : Number(product.available) <= 0))
+  const articleSuggestions = [...new Set(activeProducts.flatMap((product) => [product.article, product.code, product.name, product.supplier]).filter(Boolean))].filter((value) => value.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 12)
+  const reviewProducts = products.filter((product) => {
+    const matchesSearch = [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(reviewQuery.trim().toLowerCase())
+    const matchesAvailability = reviewStockFilter === 'all' || (reviewStockFilter === 'in-stock' ? Number(product.available) > 0 : Number(product.available) <= 0)
+    return matchesSearch && matchesAvailability
+  })
 
   const openEdit = (product) => {
     setEditingProduct(product)
@@ -78,6 +84,13 @@ export default function StockProducts({ products: records = [], suppliers = [], 
       setEditingProduct(null)
     } catch (error) { setEditError(error.message || 'Could not remove this product.') }
     finally { setEditSaving(false) }
+  }
+  const deleteListedProduct = async (product) => {
+    if (!window.confirm(`Remove ${product.article || product.code || product.name} from the stock list? Its history will be preserved.`)) return
+    try {
+      const saved = await onDeleteProduct(product.id)
+      if (!saved) window.alert('Could not remove this product.')
+    } catch (error) { window.alert(error.message || 'Could not remove this product.') }
   }
 
   const saveDefectiveStock = async (event) => {
@@ -113,6 +126,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
     setCounts(Object.fromEntries(products.map((product) => [product.id, String(Math.max(0, Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0)))])))
     setReviewPeriod('monthly')
     setReviewStockFilter('all')
+    setReviewQuery('')
     setReviewDate(localDateString())
     setReviewError('')
     setReviewOpen(true)
@@ -176,8 +190,8 @@ export default function StockProducts({ products: records = [], suppliers = [], 
       </div>
 
       <StockStats stats={stats} />
-      <StockTools query={query} onQueryChange={setQuery} onReview={openReview} onExport={() => exportStockAudit(products, valuation)} />
-      <StockTable products={filtered} onEdit={onUpdateProduct ? openEdit : undefined} />
+      <StockTools query={query} onQueryChange={setQuery} onReview={openReview} onExport={() => exportStockAudit(products, valuation)} suggestions={articleSuggestions} />
+      <StockTable products={filtered} onEdit={onUpdateProduct ? openEdit : undefined} onDelete={onDeleteProduct ? deleteListedProduct : undefined} />
       {defectOpen && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#203832]/50 p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !defectSaving) setDefectOpen(false) }}>
         <form ref={defectKeyboard.ref} onKeyDown={defectKeyboard.onKeyDown} onSubmit={saveDefectiveStock} className="my-auto w-full max-w-xl space-y-4 rounded-2xl border border-[#e2e6df] bg-white p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="add-defective-title">
           <div><h2 id="add-defective-title" className="text-xl font-bold text-[#173b32]">Add defective suits</h2><p className="mt-1 text-sm text-[#718078]">These units go to defective / quarantine stock only and will not increase saleable quantity.</p></div>
@@ -240,6 +254,10 @@ export default function StockProducts({ products: records = [], suppliers = [], 
                   <option value="out-of-stock">Out of stock</option>
                 </select>
               </label>
+              <label className="sm:col-span-3 flex flex-col gap-1 text-xs font-semibold text-[#52645c]">Search article or supplier
+                <input type="search" list="review-article-suggestions" placeholder="Type an article, brand or supplier..." value={reviewQuery} onChange={(event) => setReviewQuery(event.target.value)} className="h-10 px-3 rounded-lg border border-[#dfe4dc] bg-white text-sm text-[#173b32]" />
+                <datalist id="review-article-suggestions">{[...new Set(products.flatMap((product) => [product.article, product.code, product.name, product.supplier]).filter(Boolean))].filter((value) => value.toLowerCase().includes(reviewQuery.trim().toLowerCase())).slice(0, 12).map((value) => <option key={value} value={value} />)}</datalist>
+              </label>
             </div>
             <div className="overflow-auto">
               <table className="w-full text-left text-xs sm:text-sm min-w-[820px]">
@@ -256,7 +274,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
                       <td className="px-4 py-3 font-medium text-[#173b32]">{product.cost}</td>
                     </tr>
                   ))}
-                  {!reviewProducts.length && <tr><td colSpan="5" className="px-4 py-10 text-center text-[#718078]">No items match this stock filter.</td></tr>}
+                  {!reviewProducts.length && <tr><td colSpan="5" className="px-4 py-10 text-center text-[#718078]">No items match this search or stock filter.</td></tr>}
                 </tbody>
               </table>
             </div>
