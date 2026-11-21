@@ -7,6 +7,8 @@ export default function OldItemReturn({ suppliers, onAdd, onClose }) {
   const [values, setValues] = useState({ name: '', code: '', quantity: '', returnValue: '', purchaseCost: '', supplierId: '', returnCondition: 'sellable', reason: '' })
   const [error, setError] = useState('')
   const keyboard = useKeyboardScope({ onEscape: onClose, trapFocus: true })
+  const selectedSupplier = suppliers.find((supplier) => supplier.id === values.supplierId)
+  const batchNumber = selectedSupplier?.supplierCode ? `${String(selectedSupplier.supplierCode).trim().toUpperCase()}000000` : ''
   useEffect(() => {
     const opener = document.activeElement
     keyboard.ref.current?.querySelector('input')?.focus()
@@ -15,11 +17,12 @@ export default function OldItemReturn({ suppliers, onAdd, onClose }) {
   const change = (key, value) => setValues((current) => ({ ...current, [key]: value }))
   const submit = (event) => {
     event.preventDefault()
-    if (!values.name.trim() || !values.code.trim() || !suppliers.some((supplier) => supplier.id === values.supplierId)) return setError('Enter the item name, article code and supplier.')
+    if (!values.name.trim() || !values.code.trim() || !selectedSupplier) return setError('Enter the item name, article code and supplier.')
+    if (!batchNumber) return setError('Add a supplier code to this supplier before recording the return.')
     if (!Number.isSafeInteger(Number(values.quantity)) || Number(values.quantity) <= 0) return setError('Quantity must be a positive whole number.')
     if (!Number.isFinite(Number(values.returnValue)) || Number(values.returnValue) <= 0) return setError('Return value must be a positive amount.')
     if (values.purchaseCost === '' || !Number.isFinite(Number(values.purchaseCost)) || Number(values.purchaseCost) < 0) return setError('Enter the stock valuation cost, or explicitly enter zero.')
-    onAdd({ ...values, name: values.name.trim(), code: values.code.trim(), quantity: Number(values.quantity), returnValue: Number(values.returnValue), purchaseCost: Number(values.purchaseCost),
+    onAdd({ ...values, name: values.name.trim(), code: values.code.trim(), batchNumber, quantity: Number(values.quantity), returnValue: Number(values.returnValue), purchaseCost: Number(values.purchaseCost),
       id: crypto.randomUUID(), isReturn: true, oldItemReturn: true, returnCode: values.code.trim(), price: -Number(values.returnValue), returnQuantity: Number(values.quantity) })
     onClose()
   }
@@ -33,9 +36,10 @@ export default function OldItemReturn({ suppliers, onAdd, onClose }) {
         {[
           ['name', 'Item name / brand', 'text'], ['code', 'Article / item code', 'text'],
           ['quantity', 'Quantity', 'number'], ['returnValue', 'Return value per item (customer credit)', 'number'],
-          ['purchaseCost', 'Stock valuation cost per item (separate from credit; zero allowed)', 'number'],
+          ['purchaseCost', 'Stock valuation cost per item (Rs.)', 'number'],
         ].map(([key, label, type]) => <label key={key} className="block text-sm font-medium">{label}<input className={inputClass} required type={type} min={key === 'quantity' ? 1 : key === 'returnValue' ? 0.01 : 0} step={key === 'quantity' ? 1 : 0.01} value={values[key]} onChange={(event) => change(key, event.target.value)} /></label>)}
-        <label className="block text-sm font-medium">Supplier<select required className={inputClass} value={values.supplierId} onChange={(event) => change('supplierId', event.target.value)}><option value="">Choose supplier</option>{suppliers.filter((supplier) => supplier.active !== false).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
+        <label className="block text-sm font-medium">Supplier<select required className={inputClass} value={values.supplierId} onChange={(event) => { change('supplierId', event.target.value); setError('') }}><option value="">Choose supplier</option>{suppliers.filter((supplier) => supplier.active !== false).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
+        <label className="block text-sm font-medium">Return batch number<input className={`${inputClass} bg-[#f7faf5]`} value={batchNumber} readOnly placeholder="Select a supplier with a supplier code" /></label>
         <label className="block text-sm font-medium">Condition<select className={inputClass} value={values.returnCondition} onChange={(event) => change('returnCondition', event.target.value)}><option value="sellable">Return</option><option value="replace">Replace</option><option value="damaged">Defective</option></select></label>
         <label className="block text-sm font-medium">Reason / notes<input className={inputClass} value={values.reason} onChange={(event) => change('reason', event.target.value)} /></label>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e2e6df] pt-3 sm:col-span-2">
