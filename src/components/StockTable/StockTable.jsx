@@ -1,4 +1,5 @@
 export default function StockTable({ products = [], onEdit, onDelete }) {
+  const isTan = (product) => product.isTan || product.productType === 'tan'
   return (
     <>
       <div className="w-full overflow-x-auto overflow-y-hidden rounded-2xl border border-[#e2e6df] bg-white shadow-panel">
@@ -25,8 +26,8 @@ export default function StockTable({ products = [], onEdit, onDelete }) {
                       ✧
                     </span>
                     <div>
-                      <strong className="block font-bold text-[#173b32] text-sm sm:text-base">{product.productType === 'tan' ? product.name : product.article || product.code || '-'}</strong>
-                      {product.productType === 'tan' ? <small className="text-[#718078] text-xs font-medium">TAN · {product.tanType || 'Fabric'} · {product.metersPerTan} meters / Tan</small> : <small className="text-[#718078] text-xs font-medium">Brand Name: {product.name}{product.colour ? ` · ${product.colour}` : ''}</small>}
+                      <strong className="block font-bold text-[#173b32] text-sm sm:text-base">{isTan(product) ? product.name : product.article || product.code || '-'}</strong>
+                      {isTan(product) ? <small className="text-[#718078] text-xs font-medium">TAN · {product.tanType || 'Fabric type not set'} · {Number(product.metersPerTan) > 0 ? `${product.metersPerTan} meters / Tan` : 'Tan length not set'}</small> : <small className="text-[#718078] text-xs font-medium">Brand Name: {product.name}{product.colour ? ` · ${product.colour}` : ''}</small>}
                     </div>
                   </div>
                 </td>
@@ -43,9 +44,9 @@ export default function StockTable({ products = [], onEdit, onDelete }) {
                 </td>
                 <td className="px-4 sm:px-6 py-4"><span className="px-2.5 py-1 rounded-md bg-red-50 text-red-700 font-bold text-xs">{product.defective || '0'}</span>{product.defectOnly && <small className="ml-2 text-[#718078]">Defective only</small>}</td>
                 <td className="px-4 sm:px-6 py-4">
-                  <div className="font-semibold text-[#173b32]">{product.productType === 'tan' ? `Rs. ${Number(product.averageCost || 0).toLocaleString()} / Tan` : product.cost}{product.productType === 'tan' ? <small className="block mt-1 text-xs font-medium text-[#52645c]">Buy price / meter: Rs. {Number(product.buyPricePerMeter || 0).toLocaleString()}</small> : null}</div>
+                  <div className="font-semibold text-[#173b32]">{isTan(product) ? (Number(product.metersPerTan) > 0 ? `Rs. ${Number(product.averageCost || 0).toLocaleString()} / Tan` : 'Tan purchase details needed') : product.cost}{isTan(product) ? <small className="block mt-1 text-xs font-medium text-[#52645c]">Buy price / meter: {product.buyPricePerMeter != null ? `Rs. ${Number(product.buyPricePerMeter).toLocaleString()}` : Number(product.metersPerTan) > 0 ? `Rs. ${(Number(product.averageCost || 0) / Number(product.metersPerTan)).toLocaleString()}` : 'Not recorded'}</small> : null}</div>
                 </td>
-                <td className="px-4 sm:px-6 py-4 font-semibold text-[#173b32]">Rs. {Number(product.salePrice || 0).toLocaleString()}{product.productType === 'tan' ? <small className="block mt-1 text-xs font-medium text-[#52645c]">Sale price / meter: Rs. {Number(product.salePricePerMeter || 0).toLocaleString()}</small> : ' / suit'}</td>
+                <td className="px-4 sm:px-6 py-4 font-semibold text-[#173b32]">{isTan(product) ? (Number(product.metersPerTan) > 0 ? `Rs. ${Number(product.salePrice || 0).toLocaleString()} / Tan` : 'Tan sale details needed') : `Rs. ${Number(product.salePrice || 0).toLocaleString()} / suit`}{isTan(product) ? <small className="block mt-1 text-xs font-medium text-[#52645c]">Sale price / meter: {product.salePricePerMeter != null ? `Rs. ${Number(product.salePricePerMeter).toLocaleString()}` : Number(product.metersPerTan) > 0 ? `Rs. ${(Number(product.salePrice || 0) / Number(product.metersPerTan)).toLocaleString()}` : 'Not recorded'}</small> : null}</td>
                 {(onEdit || onDelete) && <td className="px-4 sm:px-6 py-4"><div className="flex gap-2">{onEdit && <button type="button" onClick={() => onEdit(product)} className="rounded-lg border border-[#155b4b] px-3 py-2 font-semibold text-[#155b4b] hover:bg-[#e8f2e3]">Edit</button>}{onDelete && <button type="button" onClick={() => onDelete(product)} className="rounded-lg border border-red-200 px-3 py-2 font-semibold text-red-700 hover:bg-red-50">Delete</button>}</div></td>}
               </tr>
             ))}

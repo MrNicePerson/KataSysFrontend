@@ -22,6 +22,8 @@ function exportStockAudit(products, valuation) {
   setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
+const hasTanLabel = (product) => /(^|[\s_-])tan($|[\s_-])/i.test([product.article, product.code, product.name].filter(Boolean).join(' '))
+
 export default function StockProducts({ products: records = [], suppliers = [], onReceiveStock, onSaveAudit, onAddDefectiveStock, onUpdateProduct, onDeleteProduct }) {
   const [query, setQuery] = useState('')
   const [reviewQuery, setReviewQuery] = useState('')
@@ -44,10 +46,10 @@ export default function StockProducts({ products: records = [], suppliers = [], 
   const reviewKeyboard = useKeyboardScope({ onEscape: () => { if (!reviewSaving) closeReview() }, trapFocus: true })
   const editKeyboard = useKeyboardScope({ onEscape: () => { if (!editSaving) setEditingProduct(null) }, trapFocus: true })
   const defectKeyboard = useKeyboardScope({ onEscape: () => { if (!defectSaving) setDefectOpen(false) }, trapFocus: true })
-  const products = useMemo(() => records.map((p) => ({ ...p, colour: p.shade || '', supplier: suppliers.find((s) => s.id === p.supplierId)?.name || '-', batch: p.batchNumber || '-', available: String(Math.max(0, Number(p.stockQuantity || 0) - Number(p.reservedQuantity || 0))), defective: String(p.defectiveQuantity || 0), cost: `Rs. ${Number(p.averageCost || 0).toLocaleString()}`, tone: 'blue' })), [records, suppliers])
+  const products = useMemo(() => records.map((p) => ({ ...p, isTan: p.productType === 'tan' || hasTanLabel(p), colour: p.shade || '', supplier: suppliers.find((s) => s.id === p.supplierId)?.name || '-', batch: p.batchNumber || '-', available: String(Math.max(0, Number(p.stockQuantity || 0) - Number(p.reservedQuantity || 0))), defective: String(p.defectiveQuantity || 0), cost: `Rs. ${Number(p.averageCost || 0).toLocaleString()}`, tone: 'blue' })), [records, suppliers])
   const activeProducts = products.filter((product) => product.active !== false)
   const total = (key) => activeProducts.reduce((sum, p) => sum + Number(p[key] || 0), 0)
-  const valuation = stockValuation(activeProducts)
+  const valuation = stockValuation(activeProducts.map((product) => product.isTan && product.productType !== 'tan' ? { ...product, productType: 'tan' } : product))
   const stats = [['Available whole units', total('available').toLocaleString(), 'On hand minus reserved for held orders; defective / quarantined units are separate'], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value (available)', `Rs. ${valuation.sellingValue.toLocaleString()}`, 'Available units at current selling prices', valuation.excludedProducts.length ? <><span>Partial total: some available stock is excluded.</span><ul className="mt-1 list-disc pl-4">{valuation.excludedProducts.map((product, index) => <li key={product.id || index}>{product.name} · {product.batch}: {product.reasons.join(', ')}</li>)}</ul></> : null], ['Purchase cost (available)', `Rs. ${valuation.purchaseCost.toLocaleString()}`, 'Purchase cost of available stock only']]
   const filtered = activeProducts.filter((product) => [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(query.toLowerCase()))
   const articleSuggestions = [...new Set(activeProducts.flatMap((product) => [product.article, product.code, product.name, product.supplier]).filter(Boolean))].filter((value) => value.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 12)
@@ -59,7 +61,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
 
   const openEdit = (product) => {
     setEditingProduct(product)
-    setEditValues({ productType: product.productType === 'tan' ? 'tan' : 'suit', tanType: product.tanType || '', metersPerTan: String(product.metersPerTan ?? ''), buyPricePerMeter: String(product.buyPricePerMeter ?? (product.productType === 'tan' && Number(product.metersPerTan) > 0 ? Number(product.averageCost || 0) / Number(product.metersPerTan) : '')), salePricePerMeter: String(product.salePricePerMeter ?? (product.productType === 'tan' && Number(product.metersPerTan) > 0 ? Number(product.salePrice || 0) / Number(product.metersPerTan) : '')), name: product.name || '', code: product.article || product.code || '', season: product.season || '', brandName: product.brandName || '', stockQuantity: String(product.stockQuantity ?? 0), averageCost: String(product.averageCost ?? 0), salePrice: String(product.salePrice ?? 0) })
+    setEditValues({ productType: product.isTan ? 'tan' : 'suit', tanType: product.tanType || '', metersPerTan: String(product.metersPerTan ?? ''), buyPricePerMeter: String(product.buyPricePerMeter ?? (product.isTan && Number(product.metersPerTan) > 0 ? Number(product.averageCost || 0) / Number(product.metersPerTan) : '')), salePricePerMeter: String(product.salePricePerMeter ?? (product.isTan && Number(product.metersPerTan) > 0 ? Number(product.salePrice || 0) / Number(product.metersPerTan) : '')), name: product.name || '', code: product.article || product.code || '', season: product.season || '', brandName: product.brandName || '', stockQuantity: String(product.stockQuantity ?? 0), averageCost: String(product.averageCost ?? 0), salePrice: String(product.salePrice ?? 0) })
     setEditError('')
   }
   const saveProduct = async (event) => {
