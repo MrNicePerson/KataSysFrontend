@@ -59,7 +59,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
 
   const openEdit = (product) => {
     setEditingProduct(product)
-    setEditValues({ name: product.name || '', code: product.article || product.code || '', season: product.season || '', brandName: product.brandName || '', stockQuantity: String(product.stockQuantity ?? 0), averageCost: String(product.averageCost ?? 0), salePrice: String(product.salePrice ?? 0) })
+    setEditValues({ productType: product.productType === 'tan' ? 'tan' : 'suit', tanType: product.tanType || '', metersPerTan: String(product.metersPerTan ?? ''), buyPricePerMeter: String(product.buyPricePerMeter ?? (product.productType === 'tan' && Number(product.metersPerTan) > 0 ? Number(product.averageCost || 0) / Number(product.metersPerTan) : '')), salePricePerMeter: String(product.salePricePerMeter ?? (product.productType === 'tan' && Number(product.metersPerTan) > 0 ? Number(product.salePrice || 0) / Number(product.metersPerTan) : '')), name: product.name || '', code: product.article || product.code || '', season: product.season || '', brandName: product.brandName || '', stockQuantity: String(product.stockQuantity ?? 0), averageCost: String(product.averageCost ?? 0), salePrice: String(product.salePrice ?? 0) })
     setEditError('')
   }
   const saveProduct = async (event) => {
@@ -67,7 +67,15 @@ export default function StockProducts({ products: records = [], suppliers = [], 
     setEditSaving(true)
     setEditError('')
     try {
-      const saved = await onUpdateProduct(editingProduct.id, { ...editValues, expectedProductToken: productEditToken(editingProduct), expectedStockQuantity: editingProduct.stockQuantity ?? 0 })
+      const tanLength = Number(editValues.metersPerTan)
+      const buyRate = Number(editValues.buyPricePerMeter)
+      const saleRate = Number(editValues.salePricePerMeter)
+      if (editValues.productType === 'tan' && (!(tanLength > 0) || !Number.isFinite(tanLength))) throw new Error('Enter valid meters per Tan.')
+      if (editValues.productType === 'tan' && (!Number.isFinite(buyRate) || buyRate < 0 || !Number.isFinite(saleRate) || saleRate < 0)) throw new Error('Enter valid buy and sale prices per meter.')
+      const changes = editValues.productType === 'tan'
+        ? { ...editValues, metersPerTan: tanLength, buyPricePerMeter: buyRate, salePricePerMeter: saleRate, averageCost: buyRate * tanLength, salePrice: saleRate * tanLength }
+        : { ...editValues, productType: 'suit', tanType: '', metersPerTan: null, buyPricePerMeter: null, salePricePerMeter: null }
+      const saved = await onUpdateProduct(editingProduct.id, { ...changes, expectedProductToken: productEditToken(editingProduct), expectedStockQuantity: editingProduct.stockQuantity ?? 0 })
       if (!saved) throw new Error('Could not save stock changes.')
       setEditingProduct(null)
     } catch (error) { setEditError(error.message || 'Could not save stock changes.') }
@@ -218,10 +226,19 @@ export default function StockProducts({ products: records = [], suppliers = [], 
         </form>
       </div>}
       {editingProduct && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#203832]/50 p-4">
-        <form ref={editKeyboard.ref} onKeyDown={editKeyboard.onKeyDown} onSubmit={saveProduct} className="w-full max-w-md rounded-2xl bg-white p-5 sm:p-6 shadow-2xl space-y-4" role="dialog" aria-modal="true" aria-labelledby="edit-stock-title">
+        <form ref={editKeyboard.ref} onKeyDown={editKeyboard.onKeyDown} onSubmit={saveProduct} className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 sm:p-6 shadow-2xl space-y-4" role="dialog" aria-modal="true" aria-labelledby="edit-stock-title">
           <div><h2 id="edit-stock-title" className="text-xl font-bold text-[#173b32]">Edit stock</h2><p className="mt-1 text-sm text-[#718078]">{editingProduct.article || editingProduct.code || editingProduct.name} · {editingProduct.batchNumber || '—'}</p></div>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Stock type<select value={editValues.productType} onChange={(event) => setEditValues((current) => ({ ...current, productType: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 font-normal"><option value="suit">Suit</option><option value="tan">Tan (fabric)</option></select></label>
           {[['code', 'Article / design'], ['name', 'Name'], ['brandName', 'Brand'], ['season', 'Season']].map(([field, label]) => <label key={field} className="flex flex-col gap-1 text-sm">{label}<input value={editValues[field]} onChange={(event) => setEditValues((current) => ({ ...current, [field]: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3" /></label>)}
-          {[['stockQuantity', editingProduct.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity (suits)', '1'], ['averageCost', editingProduct.productType === 'tan' ? 'Purchase cost per Tan (Rs.)' : 'Purchase cost per suit (Rs.)', '0.01'], ['salePrice', editingProduct.productType === 'tan' ? 'Sale price per Tan (Rs.)' : 'Sale price per suit (Rs.)', '0.01']].map(([field, label, step]) => <label key={field} className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">{label}<input type="number" min="0" step={step} required value={editValues[field]} onChange={(event) => setEditValues((current) => ({ ...current, [field]: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 font-normal" /></label>)}
+          {editValues.productType === 'tan' && <>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Tan / fabric type<input value={editValues.tanType} onChange={(event) => setEditValues((current) => ({ ...current, tanType: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 font-normal" /></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Meters per Tan<input type="number" min="0.01" step="0.01" required value={editValues.metersPerTan} onChange={(event) => setEditValues((current) => ({ ...current, metersPerTan: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 font-normal" /></label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {['buyPricePerMeter', 'salePricePerMeter'].map((field) => <label key={field} className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">{field === 'buyPricePerMeter' ? 'Purchase cost per meter (Rs.)' : 'Sale price per meter (Rs.)'}<input type="number" min="0" step="0.01" required value={editValues[field]} onChange={(event) => setEditValues((current) => ({ ...current, [field]: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 font-normal" /></label>)}
+            </div>
+            <p className="rounded-lg bg-[#f7faf5] p-3 text-xs text-[#718078]">Total purchase and sale prices per Tan are calculated from the per-meter rates and length.</p>
+          </>}
+          {[['stockQuantity', editValues.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity (suits)', '1'], ...(editValues.productType === 'suit' ? [['averageCost', 'Purchase cost per suit (Rs.)', '0.01'], ['salePrice', 'Sale price per suit (Rs.)', '0.01']] : [])].map(([field, label, step]) => <label key={field} className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">{label}<input type="number" min="0" step={step} required value={editValues[field]} onChange={(event) => setEditValues((current) => ({ ...current, [field]: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 font-normal" /></label>)}
           {editError && <p role="alert" className="text-sm text-red-700">{editError}</p>}
           <div className="flex flex-wrap justify-between gap-2">{onDeleteProduct && <button type="button" disabled={editSaving} onClick={deleteProduct} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">Delete</button>}<div className="ml-auto flex gap-2"><button type="button" disabled={editSaving} onClick={() => setEditingProduct(null)} className="rounded-lg border border-[#dfe4dc] px-4 py-2 text-sm font-semibold">Cancel</button><button type="submit" disabled={editSaving} className="rounded-lg bg-[#155b4b] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{editSaving ? 'Saving...' : 'Save changes'}</button></div></div>
         </form>
