@@ -85,7 +85,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
     finally { setEditSaving(false) }
   }
   const deleteProduct = async () => {
-    if (!window.confirm('Remove this product from the stock list? Its history will be preserved.')) return
+    if (!window.confirm(`Archive ${editingProduct.name} from active stock? Its ${Number(editingProduct.stockQuantity || 0)} on-hand units will no longer count as available or be used in new sales. Purchase history will be preserved.`)) return
     setEditSaving(true)
     setEditError('')
     try {
@@ -96,7 +96,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
     finally { setEditSaving(false) }
   }
   const deleteListedProduct = async (product) => {
-    if (!window.confirm(`Remove ${product.article || product.code || product.name} from the stock list? Its history will be preserved.`)) return
+    if (!window.confirm(`Archive ${product.article || product.code || product.name} from active stock? Its ${Number(product.stockQuantity || 0)} on-hand units will no longer count as available or be used in new sales. Purchase history will be preserved.`)) return
     try {
       const saved = await onDeleteProduct(product.id)
       if (!saved) window.alert('Could not remove this product.')
