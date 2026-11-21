@@ -1,7 +1,7 @@
 export default function StockTable({ products = [], onEdit, onDelete }) {
   return (
     <>
-      <div className="w-full overflow-x-auto rounded-2xl border border-[#e2e6df] bg-white shadow-panel">
+      <div className="w-full overflow-x-auto overflow-y-hidden rounded-2xl border border-[#e2e6df] bg-white shadow-panel">
         <table className="w-full text-left text-xs sm:text-sm min-w-[900px]">
           <thead className="bg-[#f7faf5] border-b border-[#e2e6df] text-[#718078] uppercase text-[11px] font-bold tracking-wider">
             <tr>

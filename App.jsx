@@ -325,10 +325,11 @@ export default function App() {
     }
     const saved = await mutate('sales', { body: bill, refresh: false })
     if (!saved) return null
-    // Load the preview while workspace data refreshes in the background.
-    void refreshWorkspace(token).catch((error) => {
+    try {
+      await refreshWorkspace(token)
+    } catch (error) {
       setOperationError(`Bill saved, but workspace refresh failed: ${error.message}`)
-    })
+    }
     await showInvoice(saved, 'new-sale')
     return saved
   }
