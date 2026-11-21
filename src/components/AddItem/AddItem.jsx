@@ -20,7 +20,8 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
 
   const articleLabel = (product) => product.articleName || product.articleNumber || product.article || product.itemCode || product.code || product.productName || product.itemName || product.name
 
-  const isTan = (product) => product.productType === 'tan'
+  const isTan = (product) => product.productType === 'tan' || Boolean(product.tanType) || Number(product.metersPerTan) > 0
+  const tanSaleRate = (product) => Number(product.salePricePerMeter ?? (Number(product.metersPerTan) > 0 ? Number(product.salePrice || 0) / Number(product.metersPerTan) : 0))
   const productDetails = (product) => [
     product.shade || product.colour || product.color,
     !isTan(product) && product.productName,
@@ -28,7 +29,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
     product.itemCode,
     product.batchNumber,
     `${Math.max(0, Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0)).toLocaleString()} available`,
-    `Rs. ${Number(isTan(product) ? Number(product.salePricePerMeter || 0) : Number(product.salePrice || 0)).toLocaleString()}${isTan(product) ? ' / meter' : ''}`,
+    `Rs. ${Number(isTan(product) ? tanSaleRate(product) : Number(product.salePrice || 0)).toLocaleString()}${isTan(product) ? ' / meter' : ''}`,
   ].filter(Boolean).join(' · ')
   const productArticle = (product) => product.articleNumber || product.article || product.code
 
@@ -52,7 +53,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
   const selectProduct = (product) => {
     setSelectedProduct(product)
     setName(articleLabel(product))
-    setPrice(String(product.productType === 'tan' ? product.salePricePerMeter || 0 : product.salePrice || 0))
+    setPrice(String(isTan(product) ? tanSaleRate(product) : product.salePrice || 0))
     setSuggestionsOpen(false)
     setActiveSuggestion(-1)
     quantityRef.current?.focus()
@@ -65,7 +66,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
     if (latest !== selectedProduct) {
       setSelectedProduct(latest)
       setName(articleLabel(latest))
-      setPrice(String(latest.productType === 'tan' ? latest.salePricePerMeter ?? '' : latest.salePrice ?? ''))
+      setPrice(String(isTan(latest) ? tanSaleRate(latest) : latest.salePrice ?? ''))
     }
   }, [products])
 
@@ -96,14 +97,14 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
     if (selectedProduct && !product) return
     onAddItem({
       productId: product?.id,
-      configuredSalePrice: product ? Number(product.productType === 'tan' ? product.salePricePerMeter : product.salePrice) : undefined,
+      configuredSalePrice: product ? Number(isTan(product) ? tanSaleRate(product) : product.salePrice) : undefined,
       code: product?.code || product?.articleNumber || product?.itemCode || name.trim(),
       name: product ? (product.name || product.productName || articleLabel(product)) : name.trim(),
       articleNumber: product?.articleNumber || product?.article || product?.itemCode || product?.code || '',
       productName: product?.productName || product?.name || name.trim(),
-      productType: product?.productType === 'tan' ? 'tan' : 'suit',
+      productType: product && isTan(product) ? 'tan' : 'suit',
       tanType: product?.tanType || '', batchNumber: product?.batchNumber || '', metersPerTan: Number(product?.metersPerTan || 0),
-      salePricePerMeter: Number(product?.salePricePerMeter || 0),
+      salePricePerMeter: product && isTan(product) ? tanSaleRate(product) : 0,
       availableQuantity: product ? availableSellableQuantity(product) : undefined,
       quantity: saleQuantity(quantity),
       price: Number(price) || 0,
@@ -182,7 +183,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
               setSuggestionsOpen(true)
               const normalized = event.target.value.trim().toLowerCase()
               const match = productRecords.find((product) => exactProductMatch(product, normalized))
-              setPrice(match ? String(match.productType === 'tan' ? match.salePricePerMeter || 0 : match.salePrice || 0) : '')
+              setPrice(match ? String(isTan(match) ? tanSaleRate(match) : match.salePrice || 0) : '')
             }}
             onKeyDown={handleSearchKeyDown}
             autoComplete="off"
@@ -216,8 +217,8 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => selectProduct(product)}
                 >
-              {product.productType === 'tan' ? <span className="text-xs font-bold text-[#7a5a2a]">Tan</span> : <><span className="w-fit rounded bg-[#e8f2e3] px-2 py-0.5 text-xs font-bold text-[#155b4b]">Suit</span>{productArticle(product) && <span className="text-sm sm:text-base text-black font-bold">Article: {productArticle(product)}</span>}</>}
-                  {product.productType === 'tan' ? <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:text-[13px]"><strong>Tan name: {product.name}</strong><span>Type: {product.tanType}</span><span>Batch: {product.batchNumber}</span><span>Available: {Math.max(0, Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0))} Tan</span><span>Total length: {product.metersPerTan} meters / Tan</span><strong>Total price: Rs. {Number(product.salePrice || 0).toLocaleString()} / Tan</strong><span>Per meter: Rs. {Number(product.salePricePerMeter || 0).toLocaleString()}</span></div> : <><span className="text-xs sm:text-[13px] font-normal text-[#12332d]">Brand Name: {product.brandName || product.name || product.productName}</span><span className="text-xs sm:text-[13px] text-[#718078] font-medium">{productDetails(product)}</span></>}
+                  {isTan(product) ? <span className="text-xs font-bold text-[#7a5a2a]">Tan</span> : <><span className="w-fit rounded bg-[#e8f2e3] px-2 py-0.5 text-xs font-bold text-[#155b4b]">Suit</span>{productArticle(product) && <span className="text-sm sm:text-base text-black font-bold">Article: {productArticle(product)}</span>}</>}
+                  {isTan(product) ? <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:text-[13px]"><strong>Tan name: {product.name}</strong><span>Type: {product.tanType}</span><span>Batch: {product.batchNumber}</span><span>Available: {Math.max(0, Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0))} Tan</span><span>Total length: {product.metersPerTan} meters / Tan</span><strong>Total price: Rs. {Number(product.salePrice || 0).toLocaleString()} / Tan</strong><span>Per meter: Rs. {tanSaleRate(product).toLocaleString()}</span></div> : <><span className="text-xs sm:text-[13px] font-normal text-[#12332d]">Brand Name: {product.brandName || product.name || product.productName}</span><span className="text-xs sm:text-[13px] text-[#718078] font-medium">{productDetails(product)}</span></>}
                 </button>
               ))}
             </div>
@@ -226,7 +227,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto] gap-4 items-end">
           <label className="flex flex-col gap-2">
-            <span className="text-[#173b32] text-sm sm:text-base font-semibold">{selectedProduct?.productType === 'tan' ? 'Quantity (Tan)' : 'Quantity'}</span>
+            <span className="text-[#173b32] text-sm sm:text-base font-semibold">{selectedProduct && isTan(selectedProduct) ? 'Quantity (Tan)' : 'Quantity'}</span>
             <input
               ref={quantityRef}
               name="quantity"
@@ -261,14 +262,14 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
               }}
               min="1"
               step="1"
-              max={selectedProduct?.productType === 'tan' ? Math.max(0, Number(selectedProduct.stockQuantity || 0) - Number(selectedProduct.reservedQuantity || 0)) : undefined}
+              max={selectedProduct && isTan(selectedProduct) ? Math.max(0, Number(selectedProduct.stockQuantity || 0) - Number(selectedProduct.reservedQuantity || 0)) : undefined}
               required
               className="w-full h-11 sm:h-12 px-3.5 sm:px-4 rounded-xl border border-[#dfe4dc] bg-white text-[#173b32] text-sm sm:text-base focus:outline-none focus:border-[#155b4b] focus:ring-3 focus:ring-[#155b4b]/15 transition-all"
             />
           </label>
 
           <label className="flex flex-col gap-2">
-            <span className="text-[#173b32] text-sm sm:text-base font-semibold">{selectedProduct?.productType === 'tan' ? 'Price per meter (Rs.)' : 'Price per suit'}</span>
+            <span className="text-[#173b32] text-sm sm:text-base font-semibold">{selectedProduct && isTan(selectedProduct) ? 'Price per meter (Rs.)' : 'Price per suit'}</span>
             <input
               ref={priceRef}
               name="price"
@@ -292,7 +293,7 @@ export default function AddItem({ onAddItem, onSkipEmptyItem, products = [] }) {
           </button>
         </div>
       </form>
-      {selectedProduct?.productType === 'tan' && <div className="mt-3 rounded-xl bg-[#f7faf5] p-3 text-sm text-[#52645c]">Length: {selectedProduct.metersPerTan} meters per Tan · Total: {Number(quantity || 0)} × {selectedProduct.metersPerTan} m × Rs. {Number(price || 0).toLocaleString()} = <strong className="text-[#155b4b]">Rs. {(Number(quantity || 0) * Number(selectedProduct.metersPerTan || 0) * Number(price || 0)).toLocaleString()}</strong>. Tan is sold whole.</div>}
+      {selectedProduct && isTan(selectedProduct) && <div className="mt-3 rounded-xl bg-[#f7faf5] p-3 text-sm text-[#52645c]">Length: {selectedProduct.metersPerTan} meters per Tan · Total: {Number(quantity || 0)} × {selectedProduct.metersPerTan} m × Rs. {Number(price || 0).toLocaleString()} = <strong className="text-[#155b4b]">Rs. {(Number(quantity || 0) * Number(selectedProduct.metersPerTan || 0) * Number(price || 0)).toLocaleString()}</strong>. Tan is sold whole.</div>}
 
       <p className="mt-4 text-xs sm:text-[13px] text-[#7e8982]">
         Use ↑ ↓ to choose a result. Enter moves to the next field.

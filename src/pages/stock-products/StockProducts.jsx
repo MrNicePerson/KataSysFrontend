@@ -23,6 +23,7 @@ function exportStockAudit(products, valuation) {
 }
 
 const hasTanLabel = (product) => /(^|[\s_-])tan($|[\s_-])/i.test([product.article, product.code, product.name].filter(Boolean).join(' '))
+const stockSearchText = (product) => [product.article, product.code, product.name, product.supplier, product.batch, product.isTan ? 'tan' : product.productType, product.tanType, product.metersPerTan].join(' ').toLowerCase()
 
 export default function StockProducts({ products: records = [], suppliers = [], onReceiveStock, onSaveAudit, onAddDefectiveStock, onUpdateProduct, onDeleteProduct }) {
   const [query, setQuery] = useState('')
@@ -46,15 +47,15 @@ export default function StockProducts({ products: records = [], suppliers = [], 
   const reviewKeyboard = useKeyboardScope({ onEscape: () => { if (!reviewSaving) closeReview() }, trapFocus: true })
   const editKeyboard = useKeyboardScope({ onEscape: () => { if (!editSaving) setEditingProduct(null) }, trapFocus: true })
   const defectKeyboard = useKeyboardScope({ onEscape: () => { if (!defectSaving) setDefectOpen(false) }, trapFocus: true })
-  const products = useMemo(() => records.map((p) => ({ ...p, isTan: p.productType === 'tan' || hasTanLabel(p), colour: p.shade || '', supplier: suppliers.find((s) => s.id === p.supplierId)?.name || '-', batch: p.batchNumber || '-', available: String(Math.max(0, Number(p.stockQuantity || 0) - Number(p.reservedQuantity || 0))), defective: String(p.defectiveQuantity || 0), cost: `Rs. ${Number(p.averageCost || 0).toLocaleString()}`, tone: 'blue' })), [records, suppliers])
+  const products = useMemo(() => records.map((p) => ({ ...p, isTan: p.productType === 'tan' || (p.tanType && Number(p.metersPerTan) > 0) || hasTanLabel(p), colour: p.shade || '', supplier: suppliers.find((s) => s.id === p.supplierId)?.name || '-', batch: p.batchNumber || '-', available: String(Math.max(0, Number(p.stockQuantity || 0) - Number(p.reservedQuantity || 0))), defective: String(p.defectiveQuantity || 0), cost: `Rs. ${Number(p.averageCost || 0).toLocaleString()}`, tone: 'blue' })), [records, suppliers])
   const activeProducts = products.filter((product) => product.active !== false)
   const total = (key) => activeProducts.reduce((sum, p) => sum + Number(p[key] || 0), 0)
   const valuation = stockValuation(activeProducts.map((product) => product.isTan && product.productType !== 'tan' ? { ...product, productType: 'tan' } : product))
   const stats = [['Available whole units', total('available').toLocaleString(), 'On hand minus reserved for held orders; defective / quarantined units are separate'], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value (available)', `Rs. ${valuation.sellingValue.toLocaleString()}`, 'Available units at current selling prices', valuation.excludedProducts.length ? <><span>Partial total: some available stock is excluded.</span><ul className="mt-1 list-disc pl-4">{valuation.excludedProducts.map((product, index) => <li key={product.id || index}>{product.name} · {product.batch}: {product.reasons.join(', ')}</li>)}</ul></> : null], ['Purchase cost (available)', `Rs. ${valuation.purchaseCost.toLocaleString()}`, 'Purchase cost of available stock only']]
-  const filtered = activeProducts.filter((product) => [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(query.toLowerCase()))
-  const articleSuggestions = [...new Set(activeProducts.flatMap((product) => [product.article, product.code, product.name, product.supplier]).filter(Boolean))].filter((value) => value.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 12)
+  const filtered = activeProducts.filter((product) => stockSearchText(product).includes(query.trim().toLowerCase()))
+  const articleSuggestions = [...new Set(activeProducts.flatMap((product) => [product.article, product.code, product.name, product.supplier, product.tanType, product.isTan ? 'Tan' : ''].filter(Boolean)))].filter((value) => value.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 12)
   const reviewProducts = products.filter((product) => {
-    const matchesSearch = [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(reviewQuery.trim().toLowerCase())
+    const matchesSearch = stockSearchText(product).includes(reviewQuery.trim().toLowerCase())
     const matchesAvailability = reviewStockFilter === 'all' || (reviewStockFilter === 'in-stock' ? Number(product.available) > 0 : Number(product.available) <= 0)
     return matchesSearch && matchesAvailability
   })
@@ -233,6 +234,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
           <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Stock type<select value={editValues.productType} onChange={(event) => setEditValues((current) => ({ ...current, productType: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 font-normal"><option value="suit">Suit</option><option value="tan">Tan (fabric)</option></select></label>
           {[['code', 'Article / design'], ['name', 'Name'], ['brandName', 'Brand'], ['season', 'Season']].map(([field, label]) => <label key={field} className="flex flex-col gap-1 text-sm">{label}<input value={editValues[field]} onChange={(event) => setEditValues((current) => ({ ...current, [field]: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3" /></label>)}
           {editValues.productType === 'tan' && <>
+            {editingProduct.isTan && !(Number(editingProduct.metersPerTan) > 0) && <p className="rounded-lg bg-[#fff8e8] p-3 text-xs text-[#6b5632]">Saved amounts: buy Rs. {Number(editingProduct.averageCost || 0).toLocaleString()} and sale Rs. {Number(editingProduct.salePrice || 0).toLocaleString()} per stock unit. This stock record does not currently show Tan length; check the original receipt before entering a replacement value.</p>}
             <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Tan / fabric type<input value={editValues.tanType} onChange={(event) => setEditValues((current) => ({ ...current, tanType: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 font-normal" /></label>
             <label className="flex flex-col gap-1 text-sm font-semibold text-[#173b32]">Meters per Tan<input type="number" min="0.01" step="0.01" required value={editValues.metersPerTan} onChange={(event) => setEditValues((current) => ({ ...current, metersPerTan: event.target.value }))} className="h-11 rounded-xl border border-[#dfe4dc] px-3 font-normal" /></label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
