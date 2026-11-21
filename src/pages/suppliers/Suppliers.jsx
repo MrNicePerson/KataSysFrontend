@@ -124,7 +124,7 @@ export default function Suppliers({ suppliers = [], products = [], purchases = [
                 <div className="mt-3 space-y-2 max-h-48 overflow-y-auto text-xs">
                   {supplierProducts.length ? supplierProducts.map((product) => <div key={product.id} className="py-2 border-b border-[#edf0eb] flex justify-between gap-3">
                     <span>{product.name} · {product.batchNumber || 'No batch'} · {product.rackLocation || 'No rack'}</span>
-                    <strong className="whitespace-nowrap">{Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0)} available</strong>
+                    <strong className="whitespace-nowrap">{Number(product.stockQuantity || 0)} on hand · {Number(product.reservedQuantity || 0)} reserved · {Math.max(0, Number(product.stockQuantity || 0) - Number(product.reservedQuantity || 0))} available</strong>
                   </div>) : <p className="text-[#718078]">No stock batches linked.</p>}
                 </div>
               </details>

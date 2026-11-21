@@ -22,7 +22,14 @@ export default function EmptyOrdersTable({ bills = [], customers = [], onResume,
                 </th>
                 <td className="px-4 sm:px-6 py-4 font-medium">{customers.find((customer) => customer.id === bill.customerId)?.name || bill.customer || 'Walk-in customer'}</td>
                 <td className="px-4 sm:px-6 py-4 text-[#718078]">{bill.date || 'Today'}</td>
-                <td className="px-4 sm:px-6 py-4">{bill.items?.length || 0}</td>
+                <td className="px-4 sm:px-6 py-4">
+                  <details>
+                    <summary className="cursor-pointer font-semibold">{bill.items?.length || 0} lines · {bill.items?.filter((item) => !item.isReturn && !item.returnQuantity).reduce((sum, item) => sum + Number(item.remainingQuantity ?? item.quantity ?? 0), 0) || 0} units held</summary>
+                    <div className="mt-2 space-y-1 text-[11px] text-[#52645c]">
+                      {(bill.items || []).map((item, itemIndex) => <div key={item.lineId || item.productId || itemIndex}>{item.name || item.productName || item.code || 'Item'}: {Number(item.remainingQuantity ?? item.quantity ?? 0)} {item.isReturn || item.returnQuantity ? '(return)' : 'reserved'}</div>)}
+                    </div>
+                  </details>
+                </td>
                 <td className="px-4 sm:px-6 py-4 font-semibold text-[#173b32]">
                   Rs. {Number(bill.total || 0).toLocaleString()}
                 </td>

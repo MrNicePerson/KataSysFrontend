@@ -44,12 +44,12 @@ export default function StockProducts({ products: records = [], suppliers = [], 
   const reviewKeyboard = useKeyboardScope({ onEscape: () => { if (!reviewSaving) closeReview() }, trapFocus: true })
   const editKeyboard = useKeyboardScope({ onEscape: () => { if (!editSaving) setEditingProduct(null) }, trapFocus: true })
   const defectKeyboard = useKeyboardScope({ onEscape: () => { if (!defectSaving) setDefectOpen(false) }, trapFocus: true })
-  const products = useMemo(() => records.map((p) => ({ ...p, colour: p.shade || '', supplier: suppliers.find((s) => s.id === p.supplierId)?.name || '—', batch: p.batchNumber || '—', available: String(Number(p.stockQuantity || 0) - Number(p.reservedQuantity || 0)), defective: String(p.defectiveQuantity || 0), cost: `Rs. ${Number(p.averageCost || 0).toLocaleString()}`, tone: 'blue' })), [records, suppliers])
+  const products = useMemo(() => records.map((p) => ({ ...p, colour: p.shade || '', supplier: suppliers.find((s) => s.id === p.supplierId)?.name || '-', batch: p.batchNumber || '-', available: String(Math.max(0, Number(p.stockQuantity || 0) - Number(p.reservedQuantity || 0))), defective: String(p.defectiveQuantity || 0), cost: `Rs. ${Number(p.averageCost || 0).toLocaleString()}`, tone: 'blue' })), [records, suppliers])
   const activeProducts = products.filter((product) => product.active !== false)
   const total = (key) => activeProducts.reduce((sum, p) => sum + Number(p[key] || 0), 0)
-  const valuation = stockValuation(records)
+  const valuation = stockValuation(activeProducts)
   const reservedUnits = total('reservedQuantity')
-  const stats = [['Available whole units', total('available').toLocaleString(), `${reservedUnits.toLocaleString()} reserved for held orders; defective / quarantined units are separate`], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value', `Rs. ${valuation.sellingValue.toLocaleString()}`, 'Value at current selling prices', valuation.excludedProducts.length ? <><span>Partial total: some available stock is excluded.</span><ul className="mt-1 list-disc pl-4">{valuation.excludedProducts.map((product, index) => <li key={product.id || index}>{product.name} · {product.batch}: {product.reasons.join(', ')}</li>)}</ul></> : null], ['Stock Purchase Cost', `Rs. ${valuation.purchaseCost.toLocaleString()}`, 'Purchase cost of stock currently on hand']]
+  const stats = [['Available whole units', total('available').toLocaleString(), 'On hand minus reserved for held orders; defective / quarantined units are separate'], ['Reserved for held orders', reservedUnits.toLocaleString(), 'Already excluded from available stock and both value totals'], ['Defective / quarantine', total('defectiveQuantity').toLocaleString()], ['Stock value (available)', `Rs. ${valuation.sellingValue.toLocaleString()}`, 'Available units at current selling prices', valuation.excludedProducts.length ? <><span>Partial total: some available stock is excluded.</span><ul className="mt-1 list-disc pl-4">{valuation.excludedProducts.map((product, index) => <li key={product.id || index}>{product.name} · {product.batch}: {product.reasons.join(', ')}</li>)}</ul></> : null], ['Purchase cost (available)', `Rs. ${valuation.purchaseCost.toLocaleString()}`, 'Purchase cost of available stock only'], ['Reservation data issues', valuation.reservationIssues.length.toLocaleString(), valuation.reservationIssues.length ? <ul className="mt-1 list-disc pl-4">{valuation.reservationIssues.map((product, index) => <li key={product.id || index}>{product.name} · {product.batch}: {product.reserved} reserved, {product.onHand} on hand</li>)}</ul> : 'Reserved quantity is within on-hand stock']]
   const filtered = activeProducts.filter((product) => [product.article, product.code, product.name, product.supplier, product.batch].join(' ').toLowerCase().includes(query.toLowerCase()))
   const articleSuggestions = [...new Set(activeProducts.flatMap((product) => [product.article, product.code, product.name, product.supplier]).filter(Boolean))].filter((value) => value.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 12)
   const reviewProducts = products.filter((product) => {
@@ -190,7 +190,7 @@ export default function StockProducts({ products: records = [], suppliers = [], 
       </div>
 
       <StockStats stats={stats} />
-      <StockTools query={query} onQueryChange={setQuery} onReview={openReview} onExport={() => exportStockAudit(products, valuation)} suggestions={articleSuggestions} />
+      <StockTools query={query} onQueryChange={setQuery} onReview={openReview} onExport={() => exportStockAudit(activeProducts, valuation)} suggestions={articleSuggestions} />
       <StockTable products={filtered} onEdit={onUpdateProduct ? openEdit : undefined} onDelete={onDeleteProduct ? deleteListedProduct : undefined} />
       {defectOpen && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#203832]/50 p-3 sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !defectSaving) setDefectOpen(false) }}>
         <form ref={defectKeyboard.ref} onKeyDown={defectKeyboard.onKeyDown} onSubmit={saveDefectiveStock} className="my-auto w-full max-w-xl space-y-4 rounded-2xl border border-[#e2e6df] bg-white p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="add-defective-title">
@@ -260,21 +260,23 @@ export default function StockProducts({ products: records = [], suppliers = [], 
               </label>
             </div>
             <div className="overflow-auto">
-              <table className="w-full text-left text-xs sm:text-sm min-w-[820px]">
+              <table className="w-full text-left text-xs sm:text-sm min-w-[980px]">
                 <thead className="sticky top-0 bg-[#f7faf5] text-[#718078] uppercase text-[10px] sm:text-[11px] tracking-wide">
-                  <tr><th className="px-4 py-3">Article / brand</th><th className="px-4 py-3">Supplier / batch</th><th className="px-4 py-3">Current available</th><th className="px-4 py-3">Counted stock</th><th className="px-4 py-3">Cost per suit</th></tr>
+                  <tr><th className="px-4 py-3">Article / brand</th><th className="px-4 py-3">Supplier / batch</th><th className="px-4 py-3">On hand</th><th className="px-4 py-3">Reserved</th><th className="px-4 py-3">Current available</th><th className="px-4 py-3">Counted available</th><th className="px-4 py-3">Cost per suit / Tan</th></tr>
                 </thead>
                 <tbody className="divide-y divide-[#edf0eb]">
                   {reviewProducts.map((product) => (
                     <tr key={product.id}>
                       <td className="px-4 py-3"><strong className="block text-[#173b32]">{product.article || product.code || '—'}</strong><small className="text-[#718078]">{product.name}</small></td>
                       <td className="px-4 py-3"><span className="block text-[#173b32]">{product.supplier}</span><small className="text-[#718078]">{product.batch}</small></td>
+                      <td className="px-4 py-3">{Number(product.stockQuantity || 0)}</td>
+                      <td className="px-4 py-3">{Number(product.reservedQuantity || 0)}</td>
                       <td className="px-4 py-3 font-semibold text-[#173b32]">{product.available}</td>
                       <td className="px-4 py-3"><input type="text" inputMode="numeric" pattern="[0-9]*" aria-label={`Counted available stock for ${product.article || product.code || product.name}`} value={counts[product.id] ?? ''} onFocus={(event) => event.currentTarget.select()} onChange={(event) => setCounts((current) => ({ ...current, [product.id]: event.target.value.replace(/\D/g, '') }))} className="w-28 h-10 px-3 rounded-lg border border-[#dfe4dc] text-[#173b32] focus:outline-none focus:border-[#155b4b] focus:ring-2 focus:ring-[#155b4b]/15" /></td>
                       <td className="px-4 py-3 font-medium text-[#173b32]">{product.cost}</td>
                     </tr>
                   ))}
-                  {!reviewProducts.length && <tr><td colSpan="5" className="px-4 py-10 text-center text-[#718078]">No items match this search or stock filter.</td></tr>}
+                  {!reviewProducts.length && <tr><td colSpan="7" className="px-4 py-10 text-center text-[#718078]">No items match this search or stock filter.</td></tr>}
                 </tbody>
               </table>
             </div>

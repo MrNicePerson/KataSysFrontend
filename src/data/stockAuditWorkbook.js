@@ -128,8 +128,8 @@ function stockRows(products) {
     const saleRate = Number(rawSaleRate)
     const missingPrice = rawSaleRate == null || String(rawSaleRate).trim() === '' || !Number.isFinite(saleRate) || saleRate < 0
     const invalidTanLength = isTan && (!Number.isFinite(metersPerTan) || metersPerTan <= 0)
-    let sellingValue = onHand * (isTan ? metersPerTan : 1) * saleRate
-    if (onHand > 0 && (missingPrice || invalidTanLength)) {
+    let sellingValue = available * (isTan ? metersPerTan : 1) * saleRate
+    if (available > 0 && (missingPrice || invalidTanLength)) {
       const reasons = [missingPrice && 'Missing sale price', invalidTanLength && 'Invalid meters per Tan'].filter(Boolean)
       const name = product.articleNumber || product.article || product.code || product.name || 'Unnamed product'
       excluded.push(`${name} · ${product.batchNumber || 'No batch'}: ${reasons.join(', ')}`)
@@ -145,7 +145,7 @@ function stockRows(products) {
       metersPerTan: isTan && Number.isFinite(metersPerTan) && metersPerTan > 0 ? metersPerTan : null,
       purchaseRate: Number(product.averageCost || 0),
       saleRate: missingPrice ? null : saleRate,
-      purchaseValue: onHand * Number(product.averageCost || 0),
+      purchaseValue: available * Number(product.averageCost || 0),
       sellingValue,
     }
   })
@@ -210,11 +210,11 @@ function worksheetXml(products, valuation, date) {
     numberCell(`N${totalRow}`, valuation.sellingValue, 9),
   ].join('')
   const partialNote = excluded.length
-    ? `Partial selling value: ${excluded.length} stocked product(s) are excluded below because their sale price or tan length is invalid. Sale rate is per suit for suits and per meter for tans; purchase rate is per suit or tan.`
-    : 'Sale rate is per suit for suits and per meter for tans; purchase rate is per suit or tan. Tan value uses meters per tan × sale rate per meter.'
+    ? `Partial selling value: ${excluded.length} available product(s) are excluded below because their sale price or tan length is invalid. Reserved units are excluded from both value columns.`
+    : 'Both value columns include available units only; reserved units are excluded. Sale rate is per suit for suits and per meter for tans; tan value uses meters per tan × sale rate per meter.'
   const summaryCells = [
     inlineCell('A3', 'Products', 3), numberCell('B3', rows.length, 7),
-    inlineCell('C3', 'On-hand units', 3), numberCell('D3', rows.reduce((sum, row) => sum + row.onHand, 0), 7),
+    inlineCell('C3', 'Available units', 3), numberCell('D3', rows.reduce((sum, row) => sum + row.available, 0), 7),
     inlineCell('E3', 'Purchase cost (Rs.)', 3), numberCell('F3', valuation.purchaseCost, 4),
     inlineCell('G3', 'Sale value (Rs.)', 3), numberCell('H3', valuation.sellingValue, 4),
     inlineCell('I3', 'Partial rows', 3), numberCell('J3', excluded.length, 7),
