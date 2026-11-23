@@ -32,7 +32,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
     const key = `${cheque.direction}:${bank}`
     const row = selectedBankTotals.get(key) || { bank, direction: cheque.direction, count: 0, amount: 0, cheques: [] }
     row.count += 1
-    row.amount += Number(cheque.amount || 0)
+    row.amount += Math.max(0, Number(cheque.amount || 0) - Number(cheque.paidOutsideChequeAmount || 0))
     row.cheques.push(cheque)
     selectedBankTotals.set(key, row)
   }
@@ -70,13 +70,15 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
     setSettlementError('')
     try {
       const saved = await onStatusChange?.(settlementDraft.cheque.id, 'Paid by other method', {
+        settlementAmount: Number(settlementDraft.amount),
         paymentMethod: settlementDraft.method,
         paymentDate: settlementDraft.date,
         remarks: settlementDraft.remarks.trim(),
         ...(settlementDraft.method === 'bank' ? { bankDetails: { bankName, accountNumber: bank?.accountNumber || settlementDraft.accountNumber.trim(), ...(bank ? { bankAccountId: bank.id } : {}) } } : {}),
       })
       if (!saved) throw new Error('Payment could not be recorded. Please check the error and retry.')
-      setMessage(`Cheque ${settlementDraft.cheque.number || ''} settled by ${settlementDraft.method} and applied to the ${settlementDraft.cheque.partyType || (settlementDraft.cheque.direction === 'given' ? 'supplier' : 'customer')} khata.`)
+      const left = Math.max(0, Number(settlementDraft.cheque.amount || 0) - Number(settlementDraft.cheque.paidOutsideChequeAmount || 0) - Number(settlementDraft.amount || 0))
+      setMessage(left > 0.005 ? `Partial payment of ${money(settlementDraft.amount)} recorded. ${money(left)} remains on cheque ${settlementDraft.cheque.number || ''}.` : `Cheque ${settlementDraft.cheque.number || ''} fully settled by ${settlementDraft.method}.`)
       setSettlementDraft(null)
     } catch (error) { setSettlementError(error.message || 'Payment could not be recorded.') }
   }
@@ -106,7 +108,24 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
           </div>
           <p className="mt-2 text-xs text-[#718078]">Calendar shows cheque counts by expected clearance date. Select a date to see its bank totals.</p>
         </div>
-        <div className="rounded-2xl border border-[#e2e6df] bg-white p-4 shadow-panel"><h2 className="mb-1 font-bold text-[#173b32]">{formatDmyDate(calendarDate)} · {selectedDayCheques.length} cheques due</h2><p className="mb-3 text-xs text-[#718078]">Amounts grouped by bank, with each supplier or customer listed.</p><div className="max-h-64 space-y-2 overflow-auto">{[...selectedBankTotals.values()].map(({ bank, direction: rowDirection, count, amount, cheques: bankCheques }) => <div key={`${rowDirection}:${bank}`} className={`rounded-xl border p-3 text-sm ${rowDirection === 'given' ? 'border-violet-100 bg-violet-50' : 'border-sky-100 bg-sky-50'}`}><div className="flex items-center justify-between gap-3"><div><strong className="block">{bank}</strong><small>{rowDirection === 'given' ? 'Supplier' : 'Customer'} · {count} cheque{count === 1 ? '' : 's'}</small></div><strong>{money(amount)}</strong></div><div className="mt-2 space-y-1 border-t border-black/5 pt-2">{bankCheques.map((cheque) => { const accounts = cheque.direction === 'given' ? suppliers : customers; const party = accounts.find((entry) => entry.id === cheque.partyId)?.name || cheque.party || (cheque.direction === 'given' ? 'Supplier not recorded' : 'Customer not recorded'); return <div key={cheque.id} className="flex flex-wrap justify-between gap-x-3 text-xs text-[#52645c]"><span>{party}{cheque.number ? ` · Cheque ${cheque.number}` : ''}</span><strong>{money(cheque.amount)}</strong></div> })}</div></div>)}{!selectedBankTotals.size && <p className="text-sm text-[#718078]">No cheques expected on this date.</p>}</div></div>
+        <div className="rounded-2xl border border-[#e2e6df] bg-white p-4 shadow-panel">
+          <h2 className="mb-1 font-bold text-[#173b32]">{formatDmyDate(calendarDate)} · {selectedDayCheques.length} cheques due</h2>
+          <p className="mb-3 text-xs text-[#718078]">Amounts grouped by bank, with each supplier or customer listed.</p>
+          <div className="max-h-64 space-y-2 overflow-auto">{[...selectedBankTotals.values()].map(({ bank, direction: rowDirection, count, amount, cheques: bankCheques }) => <div key={`${rowDirection}:${bank}`} className={`rounded-xl border p-3 text-sm ${rowDirection === 'given' ? 'border-violet-100 bg-violet-50' : 'border-sky-100 bg-sky-50'}`}>
+            <div className="flex items-center justify-between gap-3"><div><strong className="block">{bank}</strong><small>{rowDirection === 'given' ? 'Supplier' : 'Customer'} · {count} cheque{count === 1 ? '' : 's'}</small></div><strong>{money(amount)}</strong></div>
+            <div className="mt-2 space-y-2 border-t border-black/5 pt-2">{bankCheques.map((cheque) => {
+              const accounts = cheque.direction === 'given' ? suppliers : customers
+              const party = accounts.find((entry) => entry.id === cheque.partyId)?.name || cheque.party || (cheque.direction === 'given' ? 'Supplier not recorded' : 'Customer not recorded')
+              const paid = Number(cheque.paidOutsideChequeAmount || 0)
+              const remaining = Math.max(0, Number(cheque.amount || 0) - paid)
+              const canSettle = ['Pending', 'Deposited / Presented', 'Under Clearing', 'Rescheduled'].includes(cheque.status || 'Pending') && remaining > 0.005
+              return <div key={cheque.id} className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#52645c]">
+                <span>{party}{cheque.number ? ` · Cheque ${cheque.number}` : ''}<small className="block">{cheque.status || 'Pending'}{paid > 0 ? ` · Paid another way ${money(paid)}` : ''}{canSettle ? ` · Remaining ${money(remaining)}` : ''}</small></span>
+                <div className="flex items-center gap-2"><strong>{money(cheque.amount)}</strong>{canSettle && <button type="button" className="rounded-lg border border-[#155b4b] px-2.5 py-1.5 text-xs font-semibold text-[#155b4b]" onClick={() => { setSettlementError(''); setSettlementDraft({ cheque, amount: String(remaining), date: new Date().toISOString().slice(0, 10), method: 'cash', bankId: '', bankName: '', accountNumber: '', remarks: '' }) }}>Record payment</button>}</div>
+              </div>
+            })}</div>
+          </div>)}{!selectedBankTotals.size && <p className="text-sm text-[#718078]">No cheques expected on this date.</p>}</div>
+        </div>
       </section>}
         {activeTab !== 'overview' && <button type="button" className="mb-6 h-11 px-4 rounded-lg bg-[#155b4b] text-white text-sm font-semibold" onClick={() => { setDirection(activeTab === 'customer' ? 'received' : 'given'); setAdding((value) => !value) }}>
           {adding ? 'Close cheque form' : `Add ${activeTab === 'supplier' ? 'supplier' : 'customer'} cheque`}
@@ -204,7 +223,6 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
                                 </button>
                                 <button type="button" className="px-2.5 py-1 rounded-lg border border-red-200 text-red-700 text-xs font-semibold cursor-pointer" onClick={() => onStatusChange(cheque.id, 'Bounced')}>Mark bounced</button>
                                 <button type="button" className="px-2.5 py-1 rounded-lg border border-[#dfe4dc] text-[#52645c] text-xs font-semibold" onClick={() => onStatusChange(cheque.id, 'Cancelled')}>Cancel</button>
-                                <button type="button" className="px-2.5 py-1 rounded-lg border border-[#155b4b] text-[#155b4b] text-xs font-semibold" onClick={() => { setSettlementError(''); setSettlementDraft({ cheque, date: new Date().toISOString().slice(0, 10), method: 'cash', bankId: '', bankName: '', accountNumber: '', remarks: '' }) }}>Paid another way</button>
                               </div>
                             ) : cheque.status === 'Cleared' ? (
                               <div className="flex items-center justify-end gap-2">
@@ -232,7 +250,18 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
         })}
       </div>
       {editingCheque && <EditChequeDialog cheque={editingCheque} onClose={() => setEditingCheque(null)} onSave={async (details) => { await onUpdateDetails?.(editingCheque.id, details); setEditingCheque(null) }} />}
-      {settlementDraft && <div className="fixed inset-0 z-[1000] grid place-items-center bg-black/40 p-4"><form role="dialog" aria-modal="true" aria-labelledby="settle-cheque-title" onSubmit={settleOutsideCheque} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-5 shadow-xl"><div><h2 id="settle-cheque-title" className="text-xl font-bold text-[#173b32]">Record payment without cheque</h2><p className="mt-1 text-sm text-[#718078]">{settlementDraft.cheque.party || (settlementDraft.cheque.direction === 'given' ? 'Supplier' : 'Customer')} · {settlementDraft.cheque.number || 'Cheque'} · {money(settlementDraft.cheque.amount)} will be settled in its khata and this cheque reminder will stop.</p></div><div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-sm font-semibold">Payment date<DateDmyInput required value={settlementDraft.date} onChange={(event) => setSettlementDraft((current) => ({ ...current, date: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label><label className="grid gap-1 text-sm font-semibold">Paid by<select value={settlementDraft.method} onChange={(event) => setSettlementDraft((current) => ({ ...current, method: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal"><option value="cash">Cash</option><option value="bank">Bank / transfer</option></select></label>{settlementDraft.method === 'bank' && <><label className="grid gap-1 text-sm font-semibold sm:col-span-2">Bank account<select value={settlementDraft.bankId} onChange={(event) => setSettlementDraft((current) => ({ ...current, bankId: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal"><option value="">{banks.length ? 'Choose account or enter bank name' : 'Enter bank name below'}</option>{banks.filter((entry) => entry.active !== false).map((bank) => <option value={bank.id} key={bank.id}>{bank.name}</option>)}</select></label>{!settlementDraft.bankId && <label className="grid gap-1 text-sm font-semibold">Bank name<input required value={settlementDraft.bankName} onChange={(event) => setSettlementDraft((current) => ({ ...current, bankName: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>}{!settlementDraft.bankId && <label className="grid gap-1 text-sm font-semibold">Account / reference<input value={settlementDraft.accountNumber} onChange={(event) => setSettlementDraft((current) => ({ ...current, accountNumber: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>}</>}<label className="grid gap-1 text-sm font-semibold sm:col-span-2">Note (optional)<input value={settlementDraft.remarks} onChange={(event) => setSettlementDraft((current) => ({ ...current, remarks: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label></div>{settlementError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{settlementError}</p>}<div className="flex justify-end gap-2"><button type="button" onClick={() => setSettlementDraft(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="submit" className="rounded-lg bg-[#155b4b] px-4 py-2 text-sm font-semibold text-white">Save payment & settle</button></div></form></div>}
+      {settlementDraft && <div className="fixed inset-0 z-[1000] grid place-items-center bg-black/40 p-4"><form role="dialog" aria-modal="true" aria-labelledby="settle-cheque-title" onSubmit={settleOutsideCheque} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-5 shadow-xl">
+        <div><h2 id="settle-cheque-title" className="text-xl font-bold text-[#173b32]">Record payment outside cheque</h2><p className="mt-1 text-sm text-[#718078]">{settlementDraft.cheque.party || (settlementDraft.cheque.direction === 'given' ? 'Supplier' : 'Customer')} · {settlementDraft.cheque.number || 'Cheque'} · Original amount {money(settlementDraft.cheque.amount)}. Already paid {money(settlementDraft.cheque.paidOutsideChequeAmount)}; remaining {money(Math.max(0, Number(settlementDraft.cheque.amount || 0) - Number(settlementDraft.cheque.paidOutsideChequeAmount || 0)))}.</p></div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1 text-sm font-semibold">Payment amount<input aria-label="Payment amount" required type="number" min="0.01" max={Math.max(0, Number(settlementDraft.cheque.amount || 0) - Number(settlementDraft.cheque.paidOutsideChequeAmount || 0))} step="0.01" value={settlementDraft.amount} onChange={(event) => setSettlementDraft((current) => ({ ...current, amount: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>
+          <label className="grid gap-1 text-sm font-semibold">Payment date<DateDmyInput required value={settlementDraft.date} onChange={(event) => setSettlementDraft((current) => ({ ...current, date: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>
+          <label className="grid gap-1 text-sm font-semibold">Received / paid by<select value={settlementDraft.method} onChange={(event) => setSettlementDraft((current) => ({ ...current, method: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal"><option value="cash">Cash</option><option value="bank">Bank / transfer</option></select></label>
+          {settlementDraft.method === 'bank' && <><label className="grid gap-1 text-sm font-semibold sm:col-span-2">Bank account<select value={settlementDraft.bankId} onChange={(event) => setSettlementDraft((current) => ({ ...current, bankId: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal"><option value="">{banks.length ? 'Choose account or enter bank name' : 'Enter bank name below'}</option>{banks.filter((entry) => entry.active !== false).map((bank) => <option value={bank.id} key={bank.id}>{bank.name}</option>)}</select></label>{!settlementDraft.bankId && <label className="grid gap-1 text-sm font-semibold">Bank name<input required value={settlementDraft.bankName} onChange={(event) => setSettlementDraft((current) => ({ ...current, bankName: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>}{!settlementDraft.bankId && <label className="grid gap-1 text-sm font-semibold">Account / reference<input value={settlementDraft.accountNumber} onChange={(event) => setSettlementDraft((current) => ({ ...current, accountNumber: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>}</>}
+          <label className="grid gap-1 text-sm font-semibold sm:col-span-2">Note (optional)<input value={settlementDraft.remarks} onChange={(event) => setSettlementDraft((current) => ({ ...current, remarks: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>
+        </div>
+        {settlementError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{settlementError}</p>}
+        <div className="flex justify-end gap-2"><button type="button" onClick={() => setSettlementDraft(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="submit" className="rounded-lg bg-[#155b4b] px-4 py-2 text-sm font-semibold text-white">Save payment</button></div>
+      </form></div>}
     </main>
   )
 }
