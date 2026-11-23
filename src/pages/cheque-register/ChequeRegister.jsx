@@ -2,7 +2,7 @@ import { useState } from 'react'
 import DateDmyInput from '../../components/DateDmyInput.jsx'
 import { formatDmyDate } from '../../data/dateDmy.js'
 
-export default function ChequeRegister({ cheques = [], customers = [], suppliers = [], onStatusChange, onCreate, onUpdateDetails, onDelete }) {
+export default function ChequeRegister({ cheques = [], customers = [], suppliers = [], banks = [], onStatusChange, onCreate, onUpdateDetails, onDelete }) {
   const [adding, setAdding] = useState(false)
   const [direction, setDirection] = useState('received')
   const [partyId, setPartyId] = useState('')
@@ -14,6 +14,8 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
   const [calendarMonth, setCalendarMonth] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1) })
   const [statusFilter, setStatusFilter] = useState('all')
   const [editingCheque, setEditingCheque] = useState(null)
+  const [settlementDraft, setSettlementDraft] = useState(null)
+  const [settlementError, setSettlementError] = useState('')
   const parties = direction === 'received' ? customers : suppliers
   const dayKey = (value) => String(value || '').slice(0, 10)
   const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
@@ -58,6 +60,25 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
     } catch (error) {
       setMessage(error.message)
     }
+  }
+
+  const settleOutsideCheque = async (event) => {
+    event.preventDefault()
+    const bank = banks.find((entry) => entry.id === settlementDraft.bankId)
+    const bankName = bank?.name || settlementDraft.bankName.trim()
+    if (settlementDraft.method === 'bank' && !bankName) { setSettlementError('Choose a bank account or enter the bank name.'); return }
+    setSettlementError('')
+    try {
+      const saved = await onStatusChange?.(settlementDraft.cheque.id, 'Paid by other method', {
+        paymentMethod: settlementDraft.method,
+        paymentDate: settlementDraft.date,
+        remarks: settlementDraft.remarks.trim(),
+        ...(settlementDraft.method === 'bank' ? { bankDetails: { bankName, accountNumber: bank?.accountNumber || settlementDraft.accountNumber.trim(), ...(bank ? { bankAccountId: bank.id } : {}) } } : {}),
+      })
+      if (!saved) throw new Error('Payment could not be recorded. Please check the error and retry.')
+      setMessage(`Cheque ${settlementDraft.cheque.number || ''} settled by ${settlementDraft.method} and applied to the ${settlementDraft.cheque.partyType || (settlementDraft.cheque.direction === 'given' ? 'supplier' : 'customer')} khata.`)
+      setSettlementDraft(null)
+    } catch (error) { setSettlementError(error.message || 'Payment could not be recorded.') }
   }
 
   const groups = activeTab === 'supplier' ? [['Supplier cheques', 'given']] : activeTab === 'customer' ? [['Customer cheques', 'received']] : []
@@ -124,7 +145,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
                 <span className="text-xs sm:text-sm font-normal text-[#718078]">
                   · {money(rows.reduce((sum, row) => sum + row.amount, 0))}
                 </span>
-              </h2><label className="text-sm font-semibold">Status <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="ml-2 rounded-lg border px-3 py-2"><option value="all">All</option>{['Pending','Cleared','Returned','Bounced','Cancelled','Rescheduled','Deposited / Presented','Under Clearing'].map((status) => <option key={status}>{status}</option>)}</select></label></div>
+              </h2><label className="text-sm font-semibold">Status <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="ml-2 rounded-lg border px-3 py-2"><option value="all">All</option>{['Pending','Cleared','Paid by other method','Returned','Bounced','Cancelled','Rescheduled','Deposited / Presented','Under Clearing'].map((status) => <option key={status}>{status}</option>)}</select></label></div>
 
               <div className="w-full overflow-x-auto rounded-2xl border border-[#e2e6df] bg-white shadow-panel">
                 <table className="w-full text-left text-xs sm:text-sm min-w-[650px]">
@@ -152,7 +173,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
                           <td className="px-4 sm:px-6 py-4">
                             <span
                               className={`px-2.5 py-1 rounded-md text-xs font-semibold ${
-                                cheque.status === 'Cleared'
+                                ['Cleared', 'Paid by other method'].includes(cheque.status)
                                   ? 'bg-[#e8f2e3] text-[#557250]'
                                   : ['Returned', 'Bounced'].includes(cheque.status)
                                   ? 'bg-red-50 text-red-700'
@@ -165,7 +186,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
                           <td className="px-4 sm:px-6 py-4 text-right">
                             <button type="button" onClick={() => setEditingCheque(cheque)} className="mr-2 rounded border px-2.5 py-1 text-xs font-semibold">Edit</button>
                             {cheque.status === 'Pending' && <button type="button" onClick={() => { if (window.confirm(`Delete cheque ${cheque.number || ''}?`)) onDelete?.(cheque.id) }} className="mr-2 rounded border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700">Delete</button>}
-                            {cheque.status === 'Pending' ? (
+                            {['Pending', 'Deposited / Presented', 'Under Clearing', 'Rescheduled'].includes(cheque.status) ? (
                               <div className="flex items-center justify-end gap-2">
                                 <button
                                   type="button"
@@ -183,6 +204,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
                                 </button>
                                 <button type="button" className="px-2.5 py-1 rounded-lg border border-red-200 text-red-700 text-xs font-semibold cursor-pointer" onClick={() => onStatusChange(cheque.id, 'Bounced')}>Mark bounced</button>
                                 <button type="button" className="px-2.5 py-1 rounded-lg border border-[#dfe4dc] text-[#52645c] text-xs font-semibold" onClick={() => onStatusChange(cheque.id, 'Cancelled')}>Cancel</button>
+                                <button type="button" className="px-2.5 py-1 rounded-lg border border-[#155b4b] text-[#155b4b] text-xs font-semibold" onClick={() => { setSettlementError(''); setSettlementDraft({ cheque, date: new Date().toISOString().slice(0, 10), method: 'cash', bankId: '', bankName: '', accountNumber: '', remarks: '' }) }}>Paid another way</button>
                               </div>
                             ) : cheque.status === 'Cleared' ? (
                               <div className="flex items-center justify-end gap-2">
@@ -210,6 +232,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
         })}
       </div>
       {editingCheque && <EditChequeDialog cheque={editingCheque} onClose={() => setEditingCheque(null)} onSave={async (details) => { await onUpdateDetails?.(editingCheque.id, details); setEditingCheque(null) }} />}
+      {settlementDraft && <div className="fixed inset-0 z-[1000] grid place-items-center bg-black/40 p-4"><form role="dialog" aria-modal="true" aria-labelledby="settle-cheque-title" onSubmit={settleOutsideCheque} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-5 shadow-xl"><div><h2 id="settle-cheque-title" className="text-xl font-bold text-[#173b32]">Record payment without cheque</h2><p className="mt-1 text-sm text-[#718078]">{settlementDraft.cheque.party || (settlementDraft.cheque.direction === 'given' ? 'Supplier' : 'Customer')} · {settlementDraft.cheque.number || 'Cheque'} · {money(settlementDraft.cheque.amount)} will be settled in its khata and this cheque reminder will stop.</p></div><div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-sm font-semibold">Payment date<DateDmyInput required value={settlementDraft.date} onChange={(event) => setSettlementDraft((current) => ({ ...current, date: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label><label className="grid gap-1 text-sm font-semibold">Paid by<select value={settlementDraft.method} onChange={(event) => setSettlementDraft((current) => ({ ...current, method: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal"><option value="cash">Cash</option><option value="bank">Bank / transfer</option></select></label>{settlementDraft.method === 'bank' && <><label className="grid gap-1 text-sm font-semibold sm:col-span-2">Bank account<select value={settlementDraft.bankId} onChange={(event) => setSettlementDraft((current) => ({ ...current, bankId: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal"><option value="">{banks.length ? 'Choose account or enter bank name' : 'Enter bank name below'}</option>{banks.filter((entry) => entry.active !== false).map((bank) => <option value={bank.id} key={bank.id}>{bank.name}</option>)}</select></label>{!settlementDraft.bankId && <label className="grid gap-1 text-sm font-semibold">Bank name<input required value={settlementDraft.bankName} onChange={(event) => setSettlementDraft((current) => ({ ...current, bankName: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>}{!settlementDraft.bankId && <label className="grid gap-1 text-sm font-semibold">Account / reference<input value={settlementDraft.accountNumber} onChange={(event) => setSettlementDraft((current) => ({ ...current, accountNumber: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>}</>}<label className="grid gap-1 text-sm font-semibold sm:col-span-2">Note (optional)<input value={settlementDraft.remarks} onChange={(event) => setSettlementDraft((current) => ({ ...current, remarks: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label></div>{settlementError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{settlementError}</p>}<div className="flex justify-end gap-2"><button type="button" onClick={() => setSettlementDraft(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="submit" className="rounded-lg bg-[#155b4b] px-4 py-2 text-sm font-semibold text-white">Save payment & settle</button></div></form></div>}
     </main>
   )
 }
