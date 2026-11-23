@@ -2,7 +2,7 @@ import { useState } from 'react'
 import DateDmyInput from '../../components/DateDmyInput.jsx'
 import { formatDmyDate } from '../../data/dateDmy.js'
 
-export default function ChequeRegister({ cheques = [], customers = [], suppliers = [], banks = [], onStatusChange, onCreate, onUpdateDetails, onDelete }) {
+export default function ChequeRegister({ cheques = [], customers = [], suppliers = [], banks = [], onStatusChange, onCreate, onReplace, onUpdateDetails, onDelete }) {
   const [adding, setAdding] = useState(false)
   const [direction, setDirection] = useState('received')
   const [partyId, setPartyId] = useState('')
@@ -16,12 +16,15 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
   const [editingCheque, setEditingCheque] = useState(null)
   const [settlementDraft, setSettlementDraft] = useState(null)
   const [settlementError, setSettlementError] = useState('')
+  const [replacementDraft, setReplacementDraft] = useState(null)
+  const [replacementError, setReplacementError] = useState('')
   const parties = direction === 'received' ? customers : suppliers
   const dayKey = (value) => String(value || '').slice(0, 10)
   const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
   const monthCells = Array.from({ length: 42 }, (_, index) => new Date(monthStart.getFullYear(), monthStart.getMonth(), 1 - monthStart.getDay() + index))
   const dateCheques = new Map()
   for (const cheque of cheques) {
+    if (!['Pending', 'Deposited / Presented', 'Under Clearing', 'Rescheduled'].includes(cheque.status || 'Pending')) continue
     const key = dayKey(cheque.expectedClearanceDate || cheque.dueDate)
     if (key) dateCheques.set(key, [...(dateCheques.get(key) || []), cheque])
   }
@@ -83,6 +86,24 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
     } catch (error) { setSettlementError(error.message || 'Payment could not be recorded.') }
   }
 
+  const submitReplacementCheque = async (event) => {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    setReplacementError('')
+    try {
+      const saved = await onReplace?.(replacementDraft.cheque.id, {
+        number: String(form.get('number') || '').trim(),
+        bank: String(form.get('bank') || '').trim(),
+        issued: String(form.get('issued') || ''),
+        expectedClearanceDate: String(form.get('expectedClearanceDate') || ''),
+        notes: String(form.get('notes') || '').trim(),
+      })
+      if (!saved) throw new Error('Replacement cheque could not be saved. Please retry.')
+      setMessage(`Cheque ${replacementDraft.cheque.number || ''} cancelled; replacement cheque for ${money(replacementDraft.remaining)} added. The account balance was not changed again.`)
+      setReplacementDraft(null)
+    } catch (error) { setReplacementError(error.message || 'Replacement cheque could not be saved.') }
+  }
+
   const groups = activeTab === 'supplier' ? [['Supplier cheques', 'given']] : activeTab === 'customer' ? [['Customer cheques', 'received']] : []
   const money = (amount) => `Rs. ${Number(amount || 0).toLocaleString()}`
 
@@ -121,7 +142,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
               const canSettle = ['Pending', 'Deposited / Presented', 'Under Clearing', 'Rescheduled'].includes(cheque.status || 'Pending') && remaining > 0.005
               return <div key={cheque.id} className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#52645c]">
                 <span>{party}{cheque.number ? ` · Cheque ${cheque.number}` : ''}<small className="block">{cheque.status || 'Pending'}{paid > 0 ? ` · Paid another way ${money(paid)}` : ''}{canSettle ? ` · Remaining ${money(remaining)}` : ''}</small></span>
-                <div className="flex items-center gap-2"><strong>{money(cheque.amount)}</strong>{canSettle && <button type="button" className="rounded-lg border border-[#155b4b] px-2.5 py-1.5 text-xs font-semibold text-[#155b4b]" onClick={() => { setSettlementError(''); setSettlementDraft({ cheque, amount: String(remaining), date: new Date().toISOString().slice(0, 10), method: 'cash', bankId: '', bankName: '', accountNumber: '', remarks: '' }) }}>Record payment</button>}</div>
+                <div className="flex flex-wrap items-center gap-2"><strong>{money(cheque.amount)}</strong>{canSettle && <><button type="button" className="rounded-lg border border-[#155b4b] px-2.5 py-1.5 text-xs font-semibold text-[#155b4b]" onClick={() => { setSettlementError(''); setSettlementDraft({ cheque, amount: String(remaining), date: new Date().toISOString().slice(0, 10), method: 'cash', bankId: '', bankName: '', accountNumber: '', remarks: '' }) }}>Record payment</button><button type="button" className="rounded-lg border border-violet-700 px-2.5 py-1.5 text-xs font-semibold text-violet-800" onClick={() => { setReplacementError(''); setReplacementDraft({ cheque, remaining, issued: new Date().toISOString().slice(0, 10), expectedClearanceDate: calendarDate }) }}>Replace remaining</button></>}</div>
               </div>
             })}</div>
           </div>)}{!selectedBankTotals.size && <p className="text-sm text-[#718078]">No cheques expected on this date.</p>}</div>
@@ -261,6 +282,18 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
         </div>
         {settlementError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{settlementError}</p>}
         <div className="flex justify-end gap-2"><button type="button" onClick={() => setSettlementDraft(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="submit" className="rounded-lg bg-[#155b4b] px-4 py-2 text-sm font-semibold text-white">Save payment</button></div>
+      </form></div>}
+      {replacementDraft && <div className="fixed inset-0 z-[1000] grid place-items-center bg-black/40 p-4"><form role="dialog" aria-modal="true" aria-labelledby="replace-cheque-title" onSubmit={submitReplacementCheque} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-5 shadow-xl">
+        <div><h2 id="replace-cheque-title" className="text-xl font-bold text-[#173b32]">Add replacement cheque</h2><p className="mt-1 text-sm text-[#718078]">The old cheque will be cancelled. A new cheque for the remaining {money(replacementDraft.remaining)} will be added for {replacementDraft.cheque.party || 'this account'}. Payments already recorded stay in the customer or supplier khata.</p></div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1 text-sm font-semibold">New cheque number<input name="number" required className="h-10 rounded-lg border px-3 font-normal" /></label>
+          <label className="grid gap-1 text-sm font-semibold">Bank<input name="bank" required className="h-10 rounded-lg border px-3 font-normal" /></label>
+          <label className="grid gap-1 text-sm font-semibold">Issued<DateDmyInput name="issued" required value={replacementDraft.issued} onChange={(event) => setReplacementDraft((current) => ({ ...current, issued: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>
+          <label className="grid gap-1 text-sm font-semibold">Expected clearance<DateDmyInput name="expectedClearanceDate" required value={replacementDraft.expectedClearanceDate} onChange={(event) => setReplacementDraft((current) => ({ ...current, expectedClearanceDate: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>
+          <label className="grid gap-1 text-sm font-semibold sm:col-span-2">Notes (optional)<input name="notes" className="h-10 rounded-lg border px-3 font-normal" /></label>
+        </div>
+        {replacementError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{replacementError}</p>}
+        <div className="flex justify-end gap-2"><button type="button" onClick={() => setReplacementDraft(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="submit" className="rounded-lg bg-[#155b4b] px-4 py-2 text-sm font-semibold text-white">Cancel old & add new</button></div>
       </form></div>}
     </main>
   )
