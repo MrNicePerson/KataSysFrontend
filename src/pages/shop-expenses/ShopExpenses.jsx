@@ -5,6 +5,23 @@ import { localDateString } from '../../data/businessLogic.js'
 export default function ShopExpenses({ expenses = [], financeEntries = [], onCreate }) {
   const entries = [...expenses, ...financeEntries]
   const [isAddingExpense, setAddingExpense] = useState(false)
+  const today = localDateString()
+  const todayDate = new Date(`${today}T00:00:00`)
+  const dayOfWeek = todayDate.getDay() || 7
+  const weekStartDate = new Date(todayDate)
+  weekStartDate.setDate(todayDate.getDate() - dayOfWeek + 1)
+  const weekStart = localDateString(weekStartDate)
+  const monthStart = `${today.slice(0, 7)}-01`
+  const expenseEntries = entries.filter((entry) => ['expense', 'drawing', 'family-drawing'].includes(entry.type) || Boolean(entry.category))
+  const expenseTotalFor = (from, to) => expenseEntries.reduce((sum, entry) => {
+    const date = String(entry.date || '').slice(0, 10)
+    return date >= from && date <= to ? sum + Number(entry.amount || 0) : sum
+  }, 0)
+  const periodStats = [
+    ['Today’s expenses', expenseTotalFor(today, today)],
+    ['This week', expenseTotalFor(weekStart, today)],
+    ['This month', expenseTotalFor(monthStart, today)],
+  ]
   const total = entries.reduce((sum, entry) => sum + entry.amount, 0)
   const withdrawals = entries.filter((entry) => entry.category === 'Personal withdrawal').reduce((sum, entry) => sum + entry.amount, 0)
   const cashExpenses = entries.filter((entry) => entry.method === 'cash').reduce((sum, entry) => sum + entry.amount, 0)
@@ -43,6 +60,13 @@ export default function ShopExpenses({ expenses = [], financeEntries = [], onCre
         >
           + Add expense
         </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 my-6">
+        {periodStats.map(([label, value]) => <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#e2e6df] shadow-panel flex flex-col gap-1" key={label}>
+          <span className="text-xs sm:text-sm font-medium text-[#718078]">{label}</span>
+          <strong className="text-lg sm:text-xl lg:text-2xl font-bold text-[#173b32]">Rs. {Number(value).toLocaleString()}</strong>
+        </div>)}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 my-6">
