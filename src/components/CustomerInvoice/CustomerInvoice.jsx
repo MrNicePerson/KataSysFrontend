@@ -1,6 +1,10 @@
+import { useState } from 'react'
+
 export default function CustomerInvoice({
   customers = [],
   selectedCustomerId = 'walk-in',
+  customerName = '',
+  onCustomerNameChange,
   onCustomerChange,
   onNewCustomer,
   paidInvoiceNumber,
@@ -10,7 +14,10 @@ export default function CustomerInvoice({
   address,
   onAddressChange,
 }) {
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const customer = customers.find((entry) => entry.id === selectedCustomerId)
+  const shownName = customer?.name || customerName
+  const matches = customers.filter((entry) => entry.active !== false && shownName.trim() && `${entry.name} ${entry.phone || ''} ${entry.address || entry.city || ''}`.toLowerCase().includes(shownName.trim().toLowerCase())).slice(0, 6)
   const khata =
     selectedCustomerId === 'walk-in'
       ? 0
@@ -33,25 +40,19 @@ export default function CustomerInvoice({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
         <div className="flex flex-col">
-          <label htmlFor="customer-select" className="text-[#173b32] text-sm sm:text-base font-semibold mb-2">
-            Customer / retailer
-          </label>
-          <select
-            id="customer-select"
-            className="w-full h-11 sm:h-12 px-3.5 sm:px-4 rounded-xl border border-[#dfe4dc] bg-white text-[#173b32] text-sm sm:text-base focus:outline-none focus:border-[#155b4b] focus:ring-3 focus:ring-[#155b4b]/15 transition-all cursor-pointer"
-            value={selectedCustomerId}
-            onChange={(event) => onCustomerChange(event.target.value)}
-          >
-            <option value="walk-in">Walk-in customer</option>
-            {customers.map((entry) => (
-              <option value={entry.id} key={entry.id}>
-                {entry.name}{(entry.address || entry.addressLine || entry.customerAddress || entry.location || entry.city) ? ` · ${entry.address || entry.addressLine || entry.customerAddress || entry.location || entry.city}` : ''}
-              </option>
-            ))}
-          </select>
+          <label htmlFor="customer-select" className="text-[#173b32] text-sm sm:text-base font-semibold mb-2">Customer / retailer</label>
+          <div className="relative">
+            <input id="customer-select" role="combobox" aria-autocomplete="list" aria-expanded={suggestionsOpen} aria-controls="customer-suggestions" autoComplete="off" placeholder="Type a customer name or phone" className="w-full h-11 sm:h-12 px-3.5 sm:px-4 rounded-xl border border-[#dfe4dc] bg-white text-[#173b32] text-sm sm:text-base focus:outline-none focus:border-[#155b4b] focus:ring-3 focus:ring-[#155b4b]/15 transition-all" value={shownName} onFocus={() => setSuggestionsOpen(true)} onBlur={() => setTimeout(() => setSuggestionsOpen(false), 120)} onChange={(event) => { onCustomerNameChange(event.target.value); setSuggestionsOpen(true) }} />
+            {suggestionsOpen && <div id="customer-suggestions" role="listbox" className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-[#dfe4dc] bg-white p-1 shadow-lg">
+              {matches.map((entry) => <button key={entry.id} type="button" role="option" aria-selected={String(entry.id) === String(selectedCustomerId)} onMouseDown={(event) => event.preventDefault()} onClick={() => { onCustomerNameChange(entry.name); onCustomerChange(entry.id); setSuggestionsOpen(false) }} className="block w-full rounded-lg px-3 py-2 text-left text-sm text-[#173b32] hover:bg-[#f1f6ea]"><strong>{entry.name}</strong>{(entry.phone || entry.address || entry.city) && <small className="ml-2 text-[#718078]">{[entry.phone, entry.address || entry.city].filter(Boolean).join(' · ')}</small>}</button>)}
+              <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { onCustomerChange('walk-in'); setSuggestionsOpen(false) }} className="block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-[#155b4b] hover:bg-[#f1f6ea]">Use as walk-in customer</button>
+            </div>}
+          </div>
+          <span className="mt-1 text-xs text-[#718078]">Type a saved customer to select automatically, or use this sale as walk-in.</span>
           <div className="mt-2 text-xs sm:text-sm text-[#718078] font-medium">
             Existing khata: <span className="font-semibold text-[#173b32]">Rs. {khata.toLocaleString()}</span>
           </div>
+          {!customer && <p className="mt-1 text-xs text-[#718078]">If this walk-in sale has an unpaid balance, the customer will be saved in Customer Khata.</p>}
         </div>
 
         <div className="flex flex-col">

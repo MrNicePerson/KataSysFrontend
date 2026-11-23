@@ -42,6 +42,7 @@ export default function NewSale({ customers, suppliers = [], products = [], bill
   const [paymentMethod, setPaymentMethod] = useState(() => paymentMethodForDraft(initialDraft))
   const [saleMessage, setSaleMessage] = useState('')
   const [paidInvoiceNumber, setPaidInvoiceNumber] = useState(() => initialDraft?.padInvoiceNumber ?? initialDraft?.paidInvoiceNumber ?? '')
+  const [customerName, setCustomerName] = useState(() => initialDraft?.walkInCustomerDetails?.name ?? initialDraft?.customerDetails?.name ?? initialDraft?.customer ?? '')
   const [phone, setPhone] = useState(() => initialDraft?.customerPhone ?? '')
   const [address, setAddress] = useState(() => initialDraft?.customerAddress ?? '')
   const [saving, setSaving] = useState(false)
@@ -183,13 +184,22 @@ export default function NewSale({ customers, suppliers = [], products = [], bill
   useEffect(() => {
     const customer = customers.find((entry) => entry.id === selectedCustomerId)
     if (initialDraft) {
+      setCustomerName(initialDraft.walkInCustomerDetails?.name ?? initialDraft.customerDetails?.name ?? initialDraft.customer ?? customer?.name ?? '')
       setPhone(initialDraft.customerPhone ?? customer?.phone ?? customer?.mobile ?? customer?.mobileNumber ?? customer?.phoneNumber ?? customer?.customerPhone ?? customer?.contact ?? '')
       setAddress(initialDraft.customerAddress ?? customer?.address ?? customer?.addressLine ?? customer?.customerAddress ?? customer?.location ?? customer?.city ?? '')
       return
     }
+    if (customer) setCustomerName(customer.name || '')
+    else if (selectedCustomerId !== 'walk-in') setCustomerName('')
     setPhone(customer?.phone ?? customer?.mobile ?? customer?.mobileNumber ?? customer?.phoneNumber ?? customer?.customerPhone ?? customer?.contact ?? '')
     setAddress(customer?.address ?? customer?.addressLine ?? customer?.customerAddress ?? customer?.location ?? customer?.city ?? '')
   }, [customers, selectedCustomerId])
+
+  const handleCustomerNameChange = (value) => {
+    setCustomerName(value)
+    const exactMatch = customers.find((customer) => customer.active !== false && customer.name.trim().toLowerCase() === value.trim().toLowerCase())
+    onCustomerChange(exactMatch ? exactMatch.id : 'walk-in')
+  }
 
   const saleSubtotal = items.filter((item) => !item.isReturn && !item.returnQuantity).reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.price || 0) * (item.productType === 'tan' ? Number(item.metersPerTan || 0) : 1), 0)
   const returnTotal = items.filter((item) => item.isReturn || item.returnQuantity).reduce((sum, item) => sum + Number(item.quantity || 0) * Math.abs(Number(item.price || 0)), 0)
@@ -384,7 +394,10 @@ export default function NewSale({ customers, suppliers = [], products = [], bill
           key: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         }
       }
-      const saved = await onSaveBill({ ...bill, paymentPromises: promises, refundType, idempotencyKey: idempotencyRef.current.key, payments: { ...paymentSummary, bankTransfer: paymentSummary.bank, chequeDetails, cheques: chequeRows, bankDetails }, bankDetails, cheque: chequeRows[0] ? { ...chequeRows[0], chequeNumber: chequeRows[0].number, bankName: chequeRows[0].bank, chequeDate: chequeRows[0].issued, dueDate: chequeRows[0].expectedClearanceDate } : chequeDetails, cheques: chequeRows, due: paymentSummary.uncoveredBalance, paymentDue: chequeDetails.dueDate, previousBalance: Number(selectedCustomer?.balance ?? selectedCustomer?.openingBalance ?? 0), customerId: selectedCustomerId, paidInvoiceNumber, padInvoiceNumber: paidInvoiceNumber, customerPhone: phone, customerAddress: address })
+      const isWalkIn = !selectedCustomer || selectedCustomerId === 'walk-in'
+      const savedCustomerName = selectedCustomer?.name || customerName.trim() || 'Walk-in customer'
+      const walkInCustomerDetails = isWalkIn ? { name: savedCustomerName, phone: phone.trim(), address: address.trim() } : null
+      const saved = await onSaveBill({ ...bill, paymentPromises: promises, refundType, idempotencyKey: idempotencyRef.current.key, payments: { ...paymentSummary, bankTransfer: paymentSummary.bank, chequeDetails, cheques: chequeRows, bankDetails }, bankDetails, cheque: chequeRows[0] ? { ...chequeRows[0], chequeNumber: chequeRows[0].number, bankName: chequeRows[0].bank, chequeDate: chequeRows[0].issued, dueDate: chequeRows[0].expectedClearanceDate } : chequeDetails, cheques: chequeRows, due: paymentSummary.uncoveredBalance, paymentDue: chequeDetails.dueDate, previousBalance: Number(selectedCustomer?.balance ?? selectedCustomer?.openingBalance ?? 0), customerId: isWalkIn ? null : selectedCustomerId, customer: savedCustomerName, customerDetails: walkInCustomerDetails, walkInCustomerDetails, paidInvoiceNumber, padInvoiceNumber: paidInvoiceNumber, customerPhone: phone, customerAddress: address })
       if (!saved) return
       clearSale()
     } catch (error) {
@@ -444,6 +457,8 @@ export default function NewSale({ customers, suppliers = [], products = [], bill
           <CustomerInvoice
             customers={customers}
             selectedCustomerId={selectedCustomerId}
+            customerName={customerName}
+            onCustomerNameChange={handleCustomerNameChange}
             onCustomerChange={onCustomerChange}
             onNewCustomer={onNewCustomer}
             paidInvoiceNumber={paidInvoiceNumber}

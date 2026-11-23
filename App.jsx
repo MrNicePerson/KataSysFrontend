@@ -68,7 +68,7 @@ export default function App() {
   const [operationError, setOperationError] = useState('')
   const [isSidebarOpen, setSidebarOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState('new-sale')
-  const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  const [selectedCustomerId, setSelectedCustomerId] = useState('walk-in')
   const [customerReturnPage, setCustomerReturnPage] = useState('new-sale')
   const [currentReceipt, setCurrentReceipt] = useState(null)
   const [receiptReturnPage, setReceiptReturnPage] = useState('new-sale')
@@ -201,7 +201,7 @@ export default function App() {
   }, [token])
 
   useEffect(() => {
-    if (!selectedCustomerId && customers[0]) setSelectedCustomerId(customers[0].id)
+    if (!selectedCustomerId) setSelectedCustomerId('walk-in')
   }, [customers, selectedCustomerId])
 
   const handleSignIn = async (credentials) => {
