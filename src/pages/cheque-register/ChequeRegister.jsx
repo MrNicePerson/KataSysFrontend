@@ -2,7 +2,7 @@ import { useState } from 'react'
 import DateDmyInput from '../../components/DateDmyInput.jsx'
 import { formatDmyDate } from '../../data/dateDmy.js'
 
-export default function ChequeRegister({ cheques = [], customers = [], suppliers = [], banks = [], onStatusChange, onCreate, onReplace, onUpdateDetails, onDelete }) {
+export default function ChequeRegister({ cheques = [], customers = [], suppliers = [], banks = [], onStatusChange, onCreate, onReplace, onSettleAndReplace, onUpdateDetails, onDelete }) {
   const [adding, setAdding] = useState(false)
   const [direction, setDirection] = useState('received')
   const [partyId, setPartyId] = useState('')
@@ -70,18 +70,23 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
     const bank = banks.find((entry) => entry.id === settlementDraft.bankId)
     const bankName = bank?.name || settlementDraft.bankName.trim()
     if (settlementDraft.method === 'bank' && !bankName) { setSettlementError('Choose a bank account or enter the bank name.'); return }
+    const outstanding = Math.max(0, Number(settlementDraft.cheque.amount || 0) - Number(settlementDraft.cheque.paidOutsideChequeAmount || 0))
+    if (settlementDraft.replaceRemaining && Number(settlementDraft.amount) >= outstanding - 0.005) { setSettlementError('Payment amount must be less than the outstanding amount so a balance remains for the new cheque.'); return }
     setSettlementError('')
     try {
-      const saved = await onStatusChange?.(settlementDraft.cheque.id, 'Paid by other method', {
+      const paymentDetails = {
         settlementAmount: Number(settlementDraft.amount),
         paymentMethod: settlementDraft.method,
         paymentDate: settlementDraft.date,
         remarks: settlementDraft.remarks.trim(),
         ...(settlementDraft.method === 'bank' ? { bankDetails: { bankName, accountNumber: bank?.accountNumber || settlementDraft.accountNumber.trim(), ...(bank ? { bankAccountId: bank.id } : {}) } } : {}),
-      })
+      }
+      const saved = settlementDraft.replaceRemaining
+        ? await onSettleAndReplace?.(settlementDraft.cheque.id, { ...paymentDetails, replacementCheque: { number: settlementDraft.replacementNumber.trim(), bank: settlementDraft.replacementBank.trim(), issued: settlementDraft.replacementIssued, expectedClearanceDate: settlementDraft.replacementExpectedClearanceDate, notes: settlementDraft.remarks.trim() } })
+        : await onStatusChange?.(settlementDraft.cheque.id, 'Paid by other method', paymentDetails)
       if (!saved) throw new Error('Payment could not be recorded. Please check the error and retry.')
       const left = Math.max(0, Number(settlementDraft.cheque.amount || 0) - Number(settlementDraft.cheque.paidOutsideChequeAmount || 0) - Number(settlementDraft.amount || 0))
-      setMessage(left > 0.005 ? `Partial payment of ${money(settlementDraft.amount)} recorded. ${money(left)} remains on cheque ${settlementDraft.cheque.number || ''}.` : `Cheque ${settlementDraft.cheque.number || ''} fully settled by ${settlementDraft.method}.`)
+      setMessage(settlementDraft.replaceRemaining ? `${money(settlementDraft.amount)} payment recorded; old cheque cancelled and replacement cheque ${settlementDraft.replacementNumber} added for ${money(left)}.` : left > 0.005 ? `Partial payment of ${money(settlementDraft.amount)} recorded. ${money(left)} remains on cheque ${settlementDraft.cheque.number || ''}.` : `Cheque ${settlementDraft.cheque.number || ''} fully settled by ${settlementDraft.method}.`)
       setSettlementDraft(null)
     } catch (error) { setSettlementError(error.message || 'Payment could not be recorded.') }
   }
@@ -142,7 +147,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
               const canSettle = ['Pending', 'Deposited / Presented', 'Under Clearing', 'Rescheduled'].includes(cheque.status || 'Pending') && remaining > 0.005
               return <div key={cheque.id} className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#52645c]">
                 <span>{party}{cheque.number ? ` · Cheque ${cheque.number}` : ''}<small className="block">{cheque.status || 'Pending'}{paid > 0 ? ` · Paid another way ${money(paid)}` : ''}{canSettle ? ` · Remaining ${money(remaining)}` : ''}</small></span>
-                <div className="flex flex-wrap items-center gap-2"><strong>{money(cheque.amount)}</strong>{canSettle && <><button type="button" className="rounded-lg border border-[#155b4b] px-2.5 py-1.5 text-xs font-semibold text-[#155b4b]" onClick={() => { setSettlementError(''); setSettlementDraft({ cheque, amount: String(remaining), date: new Date().toISOString().slice(0, 10), method: 'cash', bankId: '', bankName: '', accountNumber: '', remarks: '' }) }}>Record payment</button><button type="button" className="rounded-lg border border-violet-700 px-2.5 py-1.5 text-xs font-semibold text-violet-800" onClick={() => { setReplacementError(''); setReplacementDraft({ cheque, remaining, issued: new Date().toISOString().slice(0, 10), expectedClearanceDate: calendarDate }) }}>Replace remaining</button></>}</div>
+                <div className="flex flex-wrap items-center gap-2"><strong>{money(cheque.amount)}</strong>{canSettle && <><button type="button" className="rounded-lg border border-[#155b4b] px-2.5 py-1.5 text-xs font-semibold text-[#155b4b]" onClick={() => { setSettlementError(''); setSettlementDraft({ cheque, amount: String(remaining), date: new Date().toISOString().slice(0, 10), method: 'cash', bankId: '', bankName: '', accountNumber: '', remarks: '', replaceRemaining: false, replacementNumber: '', replacementBank: '', replacementIssued: new Date().toISOString().slice(0, 10), replacementExpectedClearanceDate: calendarDate }) }}>Record payment</button><button type="button" className="rounded-lg border border-violet-700 px-2.5 py-1.5 text-xs font-semibold text-violet-800" onClick={() => { setReplacementError(''); setReplacementDraft({ cheque, remaining, issued: new Date().toISOString().slice(0, 10), expectedClearanceDate: calendarDate }) }}>Replace remaining</button></>}</div>
               </div>
             })}</div>
           </div>)}{!selectedBankTotals.size && <p className="text-sm text-[#718078]">No cheques expected on this date.</p>}</div>
@@ -274,14 +279,22 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
       {settlementDraft && <div className="fixed inset-0 z-[1000] grid place-items-center bg-black/40 p-4"><form role="dialog" aria-modal="true" aria-labelledby="settle-cheque-title" onSubmit={settleOutsideCheque} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-5 shadow-xl">
         <div><h2 id="settle-cheque-title" className="text-xl font-bold text-[#173b32]">Record payment outside cheque</h2><p className="mt-1 text-sm text-[#718078]">{settlementDraft.cheque.party || (settlementDraft.cheque.direction === 'given' ? 'Supplier' : 'Customer')} · {settlementDraft.cheque.number || 'Cheque'} · Original amount {money(settlementDraft.cheque.amount)}. Already paid {money(settlementDraft.cheque.paidOutsideChequeAmount)}; remaining {money(Math.max(0, Number(settlementDraft.cheque.amount || 0) - Number(settlementDraft.cheque.paidOutsideChequeAmount || 0)))}.</p></div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1 text-sm font-semibold">Payment amount<input aria-label="Payment amount" required type="number" min="0.01" max={Math.max(0, Number(settlementDraft.cheque.amount || 0) - Number(settlementDraft.cheque.paidOutsideChequeAmount || 0))} step="0.01" value={settlementDraft.amount} onChange={(event) => setSettlementDraft((current) => ({ ...current, amount: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>
+          <label className="grid gap-1 text-sm font-semibold">Payment amount<input aria-label="Payment amount" required type="number" min="0.01" max={Math.max(0.01, Number(settlementDraft.cheque.amount || 0) - Number(settlementDraft.cheque.paidOutsideChequeAmount || 0) - (settlementDraft.replaceRemaining ? 0.01 : 0))} step="0.01" value={settlementDraft.amount} onChange={(event) => setSettlementDraft((current) => ({ ...current, amount: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>
           <label className="grid gap-1 text-sm font-semibold">Payment date<DateDmyInput required value={settlementDraft.date} onChange={(event) => setSettlementDraft((current) => ({ ...current, date: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>
           <label className="grid gap-1 text-sm font-semibold">Received / paid by<select value={settlementDraft.method} onChange={(event) => setSettlementDraft((current) => ({ ...current, method: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal"><option value="cash">Cash</option><option value="bank">Bank / transfer</option></select></label>
+          <label className="flex items-center gap-2 text-sm font-semibold sm:col-span-2"><input type="checkbox" checked={settlementDraft.replaceRemaining} onChange={(event) => setSettlementDraft((current) => ({ ...current, replaceRemaining: event.target.checked, amount: event.target.checked ? '' : current.amount }))} />Add a new cheque for the remaining amount and cancel the old cheque</label>
+          {settlementDraft.replaceRemaining && <>
+            <p className="text-xs text-[#718078] sm:col-span-2">Enter the partial cash/bank amount above. The new cheque will be created for the outstanding balance after this payment.</p>
+            <label className="grid gap-1 text-sm font-semibold">New cheque number<input required value={settlementDraft.replacementNumber} onChange={(event) => setSettlementDraft((current) => ({ ...current, replacementNumber: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>
+            <label className="grid gap-1 text-sm font-semibold">New cheque bank<input required value={settlementDraft.replacementBank} onChange={(event) => setSettlementDraft((current) => ({ ...current, replacementBank: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>
+            <label className="grid gap-1 text-sm font-semibold">Cheque issued<DateDmyInput required value={settlementDraft.replacementIssued} onChange={(event) => setSettlementDraft((current) => ({ ...current, replacementIssued: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>
+            <label className="grid gap-1 text-sm font-semibold">Expected clearance<DateDmyInput required value={settlementDraft.replacementExpectedClearanceDate} onChange={(event) => setSettlementDraft((current) => ({ ...current, replacementExpectedClearanceDate: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>
+          </>}
           {settlementDraft.method === 'bank' && <><label className="grid gap-1 text-sm font-semibold sm:col-span-2">Bank account<select value={settlementDraft.bankId} onChange={(event) => setSettlementDraft((current) => ({ ...current, bankId: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal"><option value="">{banks.length ? 'Choose account or enter bank name' : 'Enter bank name below'}</option>{banks.filter((entry) => entry.active !== false).map((bank) => <option value={bank.id} key={bank.id}>{bank.name}</option>)}</select></label>{!settlementDraft.bankId && <label className="grid gap-1 text-sm font-semibold">Bank name<input required value={settlementDraft.bankName} onChange={(event) => setSettlementDraft((current) => ({ ...current, bankName: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>}{!settlementDraft.bankId && <label className="grid gap-1 text-sm font-semibold">Account / reference<input value={settlementDraft.accountNumber} onChange={(event) => setSettlementDraft((current) => ({ ...current, accountNumber: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>}</>}
           <label className="grid gap-1 text-sm font-semibold sm:col-span-2">Note (optional)<input value={settlementDraft.remarks} onChange={(event) => setSettlementDraft((current) => ({ ...current, remarks: event.target.value }))} className="h-10 rounded-lg border px-3 font-normal" /></label>
         </div>
         {settlementError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{settlementError}</p>}
-        <div className="flex justify-end gap-2"><button type="button" onClick={() => setSettlementDraft(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="submit" className="rounded-lg bg-[#155b4b] px-4 py-2 text-sm font-semibold text-white">Save payment</button></div>
+        <div className="flex justify-end gap-2"><button type="button" onClick={() => setSettlementDraft(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button type="submit" className="rounded-lg bg-[#155b4b] px-4 py-2 text-sm font-semibold text-white">{settlementDraft.replaceRemaining ? 'Save payment & replace cheque' : 'Save payment'}</button></div>
       </form></div>}
       {replacementDraft && <div className="fixed inset-0 z-[1000] grid place-items-center bg-black/40 p-4"><form role="dialog" aria-modal="true" aria-labelledby="replace-cheque-title" onSubmit={submitReplacementCheque} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-5 shadow-xl">
         <div><h2 id="replace-cheque-title" className="text-xl font-bold text-[#173b32]">Add replacement cheque</h2><p className="mt-1 text-sm text-[#718078]">The old cheque will be cancelled. A new cheque for the remaining {money(replacementDraft.remaining)} will be added for {replacementDraft.cheque.party || 'this account'}. Payments already recorded stay in the customer or supplier khata.</p></div>
