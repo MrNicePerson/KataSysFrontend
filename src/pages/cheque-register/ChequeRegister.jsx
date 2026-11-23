@@ -28,9 +28,10 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
   for (const cheque of selectedDayCheques) {
     const bank = String(cheque.bank || 'Unknown bank').trim() || 'Unknown bank'
     const key = `${cheque.direction}:${bank}`
-    const row = selectedBankTotals.get(key) || { bank, direction: cheque.direction, count: 0, amount: 0 }
+    const row = selectedBankTotals.get(key) || { bank, direction: cheque.direction, count: 0, amount: 0, cheques: [] }
     row.count += 1
     row.amount += Number(cheque.amount || 0)
+    row.cheques.push(cheque)
     selectedBankTotals.set(key, row)
   }
 
@@ -84,7 +85,7 @@ export default function ChequeRegister({ cheques = [], customers = [], suppliers
           </div>
           <p className="mt-2 text-xs text-[#718078]">Calendar shows cheque counts by expected clearance date. Select a date to see its bank totals.</p>
         </div>
-        <div className="rounded-2xl border border-[#e2e6df] bg-white p-4 shadow-panel"><h2 className="mb-1 font-bold text-[#173b32]">{formatDmyDate(calendarDate)} · {selectedDayCheques.length} cheques due</h2><p className="mb-3 text-xs text-[#718078]">Amounts grouped by bank for the selected date.</p><div className="max-h-64 space-y-2 overflow-auto">{[...selectedBankTotals.values()].map(({ bank, direction: rowDirection, count, amount }) => <div key={`${rowDirection}:${bank}`} className={`flex items-center justify-between gap-3 rounded-xl border p-3 text-sm ${rowDirection === 'given' ? 'border-violet-100 bg-violet-50' : 'border-sky-100 bg-sky-50'}`}><div><strong className="block">{bank}</strong><small>{rowDirection === 'given' ? 'Supplier' : 'Customer'} · {count} cheque{count === 1 ? '' : 's'}</small></div><strong>{money(amount)}</strong></div>)}{!selectedBankTotals.size && <p className="text-sm text-[#718078]">No cheques expected on this date.</p>}</div></div>
+        <div className="rounded-2xl border border-[#e2e6df] bg-white p-4 shadow-panel"><h2 className="mb-1 font-bold text-[#173b32]">{formatDmyDate(calendarDate)} · {selectedDayCheques.length} cheques due</h2><p className="mb-3 text-xs text-[#718078]">Amounts grouped by bank, with each supplier or customer listed.</p><div className="max-h-64 space-y-2 overflow-auto">{[...selectedBankTotals.values()].map(({ bank, direction: rowDirection, count, amount, cheques: bankCheques }) => <div key={`${rowDirection}:${bank}`} className={`rounded-xl border p-3 text-sm ${rowDirection === 'given' ? 'border-violet-100 bg-violet-50' : 'border-sky-100 bg-sky-50'}`}><div className="flex items-center justify-between gap-3"><div><strong className="block">{bank}</strong><small>{rowDirection === 'given' ? 'Supplier' : 'Customer'} · {count} cheque{count === 1 ? '' : 's'}</small></div><strong>{money(amount)}</strong></div><div className="mt-2 space-y-1 border-t border-black/5 pt-2">{bankCheques.map((cheque) => { const accounts = cheque.direction === 'given' ? suppliers : customers; const party = accounts.find((entry) => entry.id === cheque.partyId)?.name || cheque.party || (cheque.direction === 'given' ? 'Supplier not recorded' : 'Customer not recorded'); return <div key={cheque.id} className="flex flex-wrap justify-between gap-x-3 text-xs text-[#52645c]"><span>{party}{cheque.number ? ` · Cheque ${cheque.number}` : ''}</span><strong>{money(cheque.amount)}</strong></div> })}</div></div>)}{!selectedBankTotals.size && <p className="text-sm text-[#718078]">No cheques expected on this date.</p>}</div></div>
       </section>}
         {activeTab !== 'overview' && <button type="button" className="mb-6 h-11 px-4 rounded-lg bg-[#155b4b] text-white text-sm font-semibold" onClick={() => { setDirection(activeTab === 'customer' ? 'received' : 'given'); setAdding((value) => !value) }}>
           {adding ? 'Close cheque form' : `Add ${activeTab === 'supplier' ? 'supplier' : 'customer'} cheque`}
