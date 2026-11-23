@@ -26,6 +26,7 @@ const StockProducts = lazy(() => import('./src/pages/stock-products/StockProduct
 const ReceiveStock = lazy(() => import('./src/pages/receive-stock/ReceiveStock.jsx'))
 const Suppliers = lazy(() => import('./src/pages/suppliers/Suppliers.jsx'))
 const CustomerKhata = lazy(() => import('./src/pages/customer-khata/CustomerKhata.jsx'))
+const PaymentPromises = lazy(() => import('./src/pages/payment-promises/PaymentPromises.jsx'))
 const ChequeRegister = lazy(() => import('./src/pages/cheque-register/ChequeRegister.jsx'))
 const ShopExpenses = lazy(() => import('./src/pages/shop-expenses/ShopExpenses.jsx'))
 const DailyClosing = lazy(() => import('./src/pages/daily-closing/DailyClosing.jsx'))
@@ -47,6 +48,7 @@ const pagePermissions = {
   claims: 'stock',
   suppliers: 'suppliers',
   khata: 'customers',
+  'payment-promises': 'customers',
   cheques: 'cheques',
   expenses: 'finance',
   closing: 'dailyClosing',
@@ -264,7 +266,7 @@ export default function App() {
   }
 
   const navigateTo = (page) => {
-    const pages = { 'New sale': 'new-sale', 'New customer': 'new-customer', 'Bills & receipts': 'bills', 'Customer Returns': 'returns', 'Orders & held bills': 'orders', 'Stock & products': 'stock', 'Receive stock': 'receive', 'Supplier return history': 'supplier-returns', 'Defects & claims': 'claims', Suppliers: 'suppliers', 'Customer khata': 'khata', 'Cheque register': 'cheques', 'Shop expenses': 'expenses', 'Daily closing': 'closing', Reports: 'reports', Settings: 'settings' }
+    const pages = { 'New sale': 'new-sale', 'New customer': 'new-customer', 'Bills & receipts': 'bills', 'Customer Returns': 'returns', 'Orders & held bills': 'orders', 'Stock & products': 'stock', 'Receive stock': 'receive', 'Supplier return history': 'supplier-returns', 'Defects & claims': 'claims', Suppliers: 'suppliers', 'Customer khata': 'khata', 'Payment promises': 'payment-promises', 'Cheque register': 'cheques', 'Shop expenses': 'expenses', 'Daily closing': 'closing', Reports: 'reports', Settings: 'settings' }
     const nextPage = pages[page] || page || 'new-sale'
     if (nextPage === 'closing') setDailyClosingInitialTab('overview')
     setCurrentPage(nextPage)
@@ -394,7 +396,7 @@ export default function App() {
       await showInvoice({ id: notification.relatedId }, 'bills')
       return
     }
-    setCurrentPage(targets[notification.relatedType] || 'notifications')
+    setCurrentPage(notification.relatedType === 'payment-promise' ? 'payment-promises' : targets[notification.relatedType] || 'notifications')
   }
 
   const showStatement = async (type, id) => {
@@ -445,6 +447,7 @@ export default function App() {
       : activePage === 'claims' ? <Claims claims={database.claims} products={database.products} suppliers={suppliers} customers={customers} onCreate={(input) => mutate('claims', { body: input })} onAddDefectiveStock={can('stock', 'edit') ? (input) => mutate('products/defective', { body: input, throwOnError: true }) : undefined} onStatusChange={(id, status) => changeStatus(`claims/${id}/status`, status)} onUpdateDetails={(id, details) => mutate(`claims/${id}`, { method: 'PATCH', body: details })} />
       : activePage === 'suppliers' ? <Suppliers suppliers={suppliers} products={database.products} purchases={database.purchases} payments={database.payments} returns={database.supplierReturns} claims={database.claims} cheques={database.cheques} onCreate={(supplier) => mutate('suppliers', { body: supplier })} onUpdate={(id, supplier) => mutate(`suppliers/${id}`, { method: 'PATCH', body: supplier, throwOnError: true })} onDelete={(id) => mutate(`suppliers/${id}`, { method: 'DELETE', throwOnError: true })} onPayment={(payment) => mutate(`suppliers/${payment.accountId}/payments`, { body: payment })} onStatement={(id) => showStatement('supplier', id)} />
       : activePage === 'khata' ? <CustomerKhata customers={database.customers} banks={database.bankAccounts || []} businessDate={saleDay.date || new Date().toISOString().slice(0, 10)} canEdit={can('customers', 'edit')} canDelete={can('customers', 'delete')} onUpdateCustomer={(id, changes) => mutate(`customers/${id}`, { method: 'PATCH', body: changes, throwOnError: true })} onDeleteCustomer={(id) => mutate(`customers/${id}`, { method: 'DELETE', throwOnError: true })} payments={database.payments} accountAdjustments={database.accountAdjustments || []} sales={savedBills} returns={database.returns} installments={database.installments} onNewCustomer={() => { setCustomerReturnPage('khata'); setCurrentPage('new-customer') }} onPayment={(payment) => mutate(`customers/${payment.accountId}/payments`, { body: payment, throwOnError: true })} onBalanceAdjustment={(input) => mutate(`customers/${input.accountId}/adjustments`, { body: input, throwOnError: true })} onBulkRecovery={(input) => mutate('customers/recovery/bulk', { body: input })} onInstallmentPayment={(id, payment) => mutate(`customers/installments/${id}/payments`, { body: payment })} onStatement={(id) => showStatement('customer', id)} />
+      : activePage === 'payment-promises' ? <PaymentPromises customers={customers} sales={savedBills} payments={database.payments} banks={database.bankAccounts || []} businessDate={saleDay.date} canEdit={can('customers', 'edit')} onSavePromises={(saleId, paymentPromises) => mutate(`customers/payment-promises/${saleId}`, { method: 'PATCH', body: { paymentPromises }, throwOnError: true })} onPayment={(payment) => mutate(`customers/${payment.accountId}/payments`, { body: payment, throwOnError: true })} />
       : activePage === 'cheques' ? <ChequeRegister cheques={database.cheques} customers={customers} suppliers={suppliers} onCreate={(cheque) => mutate('cheques', { body: cheque })} onStatusChange={(id, status) => changeStatus(`cheques/${id}/status`, status)} onUpdateDetails={(id, details) => mutate(`cheques/${id}/details`, { method: 'PATCH', body: details, throwOnError: true })} onDelete={(id) => mutate(`cheques/${id}`, { method: 'DELETE', throwOnError: true })} />
       : activePage === 'expenses' ? <ShopExpenses expenses={database.expenses} financeEntries={database.financeEntries} onCreate={(entry) => mutate('finance/entries', { body: entry })} />
       : activePage === 'closing' ? <DailyClosing database={database} user={user} branchId={branchId} initialTab={dailyClosingInitialTab} onSave={saveDailyRecord} onDelete={(id) => mutate(`finance/daily-closing/${id}`, { method: 'DELETE' })} onReviewStock={() => navigateTo('stock')} onAddBank={(account) => mutate('finance/banks', { body: account })} onUpdateBank={(id, changes) => mutate(`finance/banks/${id}`, { method: 'PATCH', body: changes })} onSaveBankBalances={(input) => mutate('finance/banks/balances', { body: input })} onRecordBankTransaction={(id, transaction) => mutate(`finance/banks/${id}/transactions`, { body: transaction })} onCreateCheque={(cheque) => mutate('cheques', { body: cheque })} onUpdateChequeStatus={(id, status, details) => mutate(`cheques/${id}/status`, { method: 'PATCH', body: { status, ...details } })} onUpdateChequeDetails={(id, details) => mutate(`cheques/${id}/details`, { method: 'PATCH', body: details })} />
