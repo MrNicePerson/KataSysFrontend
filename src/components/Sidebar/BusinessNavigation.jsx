@@ -3,7 +3,6 @@ const links = [
   ['↓', 'Receive stock'],
   ['▾', 'Suppliers'],
   ['♧', 'Customer khata'],
-  ['◷', 'Payment promises'],
   ['+', 'New customer'],
 ]
 

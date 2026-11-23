@@ -5,7 +5,7 @@ const today = () => new Date().toISOString().slice(0, 10)
 const key = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`
 const money = (value) => `Rs. ${Number(value || 0).toLocaleString()}`
 
-export default function PaymentPromises({ customers = [], sales = [], payments = [], banks = [], businessDate, canEdit = false, onSavePromises, onPayment }) {
+export default function PaymentPromises({ embedded = false, customers = [], sales = [], payments = [], banks = [], businessDate, canEdit = false, onSavePromises, onPayment }) {
   const [filter, setFilter] = useState('pending')
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState(null)
@@ -92,9 +92,8 @@ export default function PaymentPromises({ customers = [], sales = [], payments =
   }
 
   const filters = [['all', 'All'], ['pending', 'Pending'], ['resolved', 'Resolved']]
-  return <main className="mx-auto w-full max-w-[1680px] px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
-    <p className="text-xs font-bold uppercase tracking-[3px] text-[#70847b]">YOUR WHOLESALE WORKSPACE</p>
-    <div className="mt-1"><h1 className="text-2xl font-bold tracking-tight text-[#173b32] sm:text-3xl">Payment promises</h1><p className="mt-1 text-sm text-[#718078]">Track expected customer payments, record recoveries, and schedule the next promise.</p></div>
+  return <section className={embedded ? 'w-full' : 'mx-auto w-full max-w-[1680px] px-4 py-6 sm:px-6 sm:py-8 lg:px-12'}>
+    {embedded ? <div className="mb-4"><h2 className="text-xl font-bold text-[#173b32] sm:text-2xl">Payment promises</h2><p className="mt-1 text-sm text-[#718078]">Track expected payments, record recoveries, and schedule the next promise.</p></div> : <><p className="text-xs font-bold uppercase tracking-[3px] text-[#70847b]">YOUR WHOLESALE WORKSPACE</p><div className="mt-1"><h1 className="text-2xl font-bold tracking-tight text-[#173b32] sm:text-3xl">Payment promises</h1><p className="mt-1 text-sm text-[#718078]">Track expected customer payments, record recoveries, and schedule the next promise.</p></div></>}
     {message && <p role="status" className="mt-4 rounded-lg bg-[#eaf3e7] p-3 text-sm text-[#155b4b]">{message}</p>}
     {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     <div className="my-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -124,5 +123,5 @@ export default function PaymentPromises({ customers = [], sales = [], payments =
       <div className="flex justify-end gap-2"><button type="button" disabled={saving} onClick={() => { setEditing(null); setReceiving(null); setError('') }} className="rounded-lg border px-4 py-2 text-sm">Cancel</button><button disabled={saving} className="rounded-lg bg-[#155b4b] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving...' : editing ? 'Save promise' : 'Record payment'}</button></div>
     </form></div>}
     {payments.length > 0 && <p className="mt-4 text-xs text-[#718078]">Promise schedules are expectations only; payments are posted separately to Customer Khata.</p>}
-  </main>
+  </section>
 }

@@ -4,8 +4,9 @@ import { Printer } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { calculateAccountLedger } from '../../data/businessLogic.js'
 import RecoveryAll from './RecoveryAll.jsx'
+import PaymentPromises from '../payment-promises/PaymentPromises.jsx'
 
-export default function CustomerKhata({ customers = [], payments = [], accountAdjustments = [], sales = [], returns = [], installments = [], banks = [], businessDate, canEdit = false, canDelete = false, onNewCustomer, onUpdateCustomer, onDeleteCustomer, onPayment, onBalanceAdjustment, onBulkRecovery, onInstallmentPayment, onStatement }) {
+export default function CustomerKhata({ customers = [], payments = [], accountAdjustments = [], sales = [], returns = [], installments = [], banks = [], businessDate, canEdit = false, canDelete = false, activeTab = 'accounts', onTabChange, onSavePromises, onNewCustomer, onUpdateCustomer, onDeleteCustomer, onPayment, onBalanceAdjustment, onBulkRecovery, onInstallmentPayment, onStatement }) {
   const [query, setQuery] = useState('')
   const [recoveryOpen, setRecoveryOpen] = useState(false)
   const [message, setMessage] = useState('')
@@ -150,6 +151,11 @@ export default function CustomerKhata({ customers = [], payments = [], accountAd
         </div>
       </div>
 
+      <div className="mb-5 flex gap-2 border-b border-[#e2e6df]" role="tablist" aria-label="Customer khata sections">
+        {[['accounts', 'Customer accounts'], ['promises', 'Payment promises']].map(([tab, label]) => <button key={tab} id={`khata-tab-${tab}`} type="button" role="tab" aria-selected={activeTab === tab} aria-controls={`khata-panel-${tab}`} onClick={() => onTabChange?.(tab)} className={`border-b-2 px-4 py-3 text-sm font-semibold ${activeTab === tab ? 'border-[#155b4b] text-[#155b4b]' : 'border-transparent text-[#718078] hover:text-[#173b32]'}`}>{label}</button>)}
+      </div>
+      {activeTab === 'promises' && <div id="khata-panel-promises" role="tabpanel" aria-labelledby="khata-tab-promises"><PaymentPromises embedded customers={customers} sales={sales} payments={payments} banks={banks} businessDate={businessDate} canEdit={canEdit} onSavePromises={onSavePromises} onPayment={onPayment} /></div>}
+      <div id="khata-panel-accounts" role="tabpanel" aria-labelledby="khata-tab-accounts" hidden={activeTab !== 'accounts'}>
       {message && <p className="mb-4 p-3 rounded-lg bg-[#eaf3e7] text-[#155b4b] text-sm" role="status">{message}</p>}
       {recoveryOpen && <RecoveryAll customers={customers} onClose={() => setRecoveryOpen(false)} onSave={async (input) => {
         const saved = await onBulkRecovery?.(input)
@@ -300,6 +306,7 @@ export default function CustomerKhata({ customers = [], payments = [], accountAd
           </form>
         </div>
       )}
+      </div>
     </main>
     {printReport}
     </>
