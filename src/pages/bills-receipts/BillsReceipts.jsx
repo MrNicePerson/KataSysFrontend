@@ -161,6 +161,8 @@ function ReviewEditBillDialog({ bill, products, onClose, onUpdateBill, onUpdateR
 
 export default function BillsReceipts({ bills = [], customers = [], products = [], cheques = [], onNewSale, onReturn, onViewInvoice, onUpdateReceipt, onUpdateBill, onEditBill }) {
   const [query, setQuery] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [viewingBill, setViewingBill] = useState(null)
   const [reviewingBill, setReviewingBill] = useState(null)
   const newSaleRef = useRef(null)
@@ -200,11 +202,17 @@ export default function BillsReceipts({ bills = [], customers = [], products = [
     || bill.customerDetails?.name
     || customers.find((customer) => customer.id === bill.customerId)?.name
     || 'Walk-in customer'
+  const today = (() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  })()
   const filteredBills = bills
     .map((bill) => ({ ...bill, customer: customerName(bill) }))
     .filter((bill) =>
       `${bill.number} ${bill.customer} ${bill.customerPhone || ''} ${(bill.items || []).map((item) => `${item.code || ''} ${item.name || ''}`).join(' ')}`.toLowerCase().includes(query.toLowerCase()),
     )
+    .filter((bill) => (!dateFrom || String(bill.date || '') >= dateFrom) && (!dateTo || String(bill.date || '') <= dateTo))
+    .sort((a, b) => String(b.number || '').localeCompare(String(a.number || ''), undefined, { numeric: true, sensitivity: 'base' }) || String(b.date || '').localeCompare(String(a.date || '')))
   const handlePageMouseDown = (event) => {
     if (event.target.closest?.('input, textarea, select, button, a, [role="button"], [contenteditable="true"], [aria-modal="true"]')) return
     event.preventDefault()
@@ -236,7 +244,9 @@ export default function BillsReceipts({ bills = [], customers = [], products = [
         </button>
       </div>
 
-      <div className="mb-6">
+      <div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-end">
+        <label className="flex w-full max-w-md flex-col gap-1.5 text-xs font-semibold text-[#173b32]">
+          Search bill number or customer
         <input
           ref={searchRef}
           className="w-full max-w-md h-11 sm:h-12 px-4 rounded-xl border border-[#dfe4dc] bg-white text-[#173b32] text-sm sm:text-base placeholder:text-[#7b857e] focus:outline-none focus:border-[#155b4b] focus:ring-3 focus:ring-[#155b4b]/15 shadow-xs"
@@ -245,6 +255,11 @@ export default function BillsReceipts({ bills = [], customers = [], products = [
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
+        </label>
+        <button type="button" onClick={() => { setDateFrom(today); setDateTo(today) }} className={`h-11 rounded-xl border px-4 text-sm font-semibold ${dateFrom === today && dateTo === today ? 'border-[#155b4b] bg-[#eaf3e7] text-[#155b4b]' : 'border-[#dfe4dc] bg-white text-[#173b32]'}`}>Today</button>
+        <label className="flex flex-col gap-1 text-xs font-semibold text-[#173b32]">From date<input aria-label="Bills from date" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="h-11 rounded-xl border border-[#dfe4dc] bg-white px-3 text-sm font-normal" /></label>
+        <label className="flex flex-col gap-1 text-xs font-semibold text-[#173b32]">To date<input aria-label="Bills to date" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="h-11 rounded-xl border border-[#dfe4dc] bg-white px-3 text-sm font-normal" /></label>
+        {(dateFrom || dateTo) && <button type="button" onClick={() => { setDateFrom(''); setDateTo('') }} className="h-11 rounded-xl border border-[#dfe4dc] bg-white px-4 text-sm font-semibold text-[#173b32]">Clear dates</button>}
       </div>
 
       <BillsTable
