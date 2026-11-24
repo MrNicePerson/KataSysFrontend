@@ -81,7 +81,7 @@ export default function SupplierReturns({ suppliers = [], products = [], purchas
               <option value="">{supplierId ? (supplierLines.length ? 'Choose an item' : 'No received items found for this supplier') : 'Choose supplier first'}</option>
               {supplierLines.map(({ purchase: purchaseEntry, item, key }) => (
                 <option key={key} value={key}>
-                  {item.productName || item.name || item.code} · {item.code || 'No code'} · {receivingLabel(purchaseEntry)} · {purchaseEntry.date} · {item.quantity} received · {Math.max(0, Number(item.quantity || 0) - returns.filter((entry) => entry.purchaseId === purchaseEntry.id && (entry.purchaseItemId ? entry.purchaseItemId === item.lineId : entry.productId === item.productId)).reduce((sum, entry) => sum + Number(entry.quantity || 0), 0))} unreturned
+                  {item.productName || item.name || item.code} · {item.code || 'No code'} · {receivingLabel(purchaseEntry)} · {item.quantity} received
                 </option>
               ))}
             </select>
