@@ -16,7 +16,7 @@ const paymentMethodForDraft = (draft) => {
 }
 const newSaleCheque = (values = {}) => ({ id: values.id || `sale-cheque-${Date.now()}-${Math.random()}`, number: values.number || values.chequeNumber || '', bank: values.bank || values.bankName || '', amount: String(values.amount ?? ''), issued: values.issued || values.chequeDate || '', expectedClearanceDate: values.expectedClearanceDate || values.dueDate || '' })
 
-export default function NewSale({ customers, suppliers = [], products = [], bills = [], returns = [], selectedCustomerId, onCustomerChange, onNewCustomer, onSaveBill, onHoldBill, initialDraft, onDraftLoaded, businessDate }) {
+export default function NewSale({ customers, suppliers = [], products = [], bills = [], returns = [], selectedCustomerId, onCustomerChange, onNewCustomer, onSaveBill, onHoldBill, initialDraft, onDraftLoaded, businessDate, editingBillId }) {
   const [items, setItems] = useState(() => prepareSaleDraft(initialDraft).items)
   const [discount, setDiscount] = useState(() => String(initialDraft?.discount ?? ''))
   const [paymentPromises, setPaymentPromises] = useState(() => (initialDraft?.paymentPromises || []).map((promise, index) => ({ id: promise.id || `promise-${index}-${Date.now()}`, dueDate: promise.dueDate || '', amount: String(promise.amount ?? '') })))
@@ -205,7 +205,14 @@ export default function NewSale({ customers, suppliers = [], products = [], bill
   const returnTotal = items.filter((item) => item.isReturn || item.returnQuantity).reduce((sum, item) => sum + Number(item.quantity || 0) * Math.abs(Number(item.price || 0)), 0)
   const total = Math.max(0, saleSubtotal - Number(discount || 0) - returnTotal)
   const normalizedDiscount = Number(discount) || 0
-  const availableProducts = sellableProducts(products)
+  const restoredSaleItems = editingBillId ? (bills.find((bill) => bill.id === editingBillId)?.items || initialDraft?.items || []) : []
+  const restoredQuantities = restoredSaleItems.reduce((quantities, item) => {
+    if (item.productId && !item.isReturn && !item.returnQuantity) quantities.set(item.productId, (quantities.get(item.productId) || 0) + Number(item.quantity || 0))
+    return quantities
+  }, new Map())
+  const availableProducts = sellableProducts(products.map((product) => restoredQuantities.has(product.id)
+    ? { ...product, stockQuantity: Number(product.stockQuantity || 0) + restoredQuantities.get(product.id) }
+    : product))
   const customerProducts = (() => {
     if (!selectedCustomerId || selectedCustomerId === 'walk-in') return []
     const selectedCustomer = customers.find((customer) => String(customer.id) === String(selectedCustomerId))
@@ -235,7 +242,7 @@ export default function NewSale({ customers, suppliers = [], products = [], bill
       .sort((left, right) => String(right.purchasedAt || '').localeCompare(String(left.purchasedAt || '')))
   })()
 
-  useEffect(() => { setItems((current) => refreshCartStock(current, products)) }, [products])
+  useEffect(() => { setItems((current) => refreshCartStock(current, products, restoredSaleItems)) }, [products, editingBillId, initialDraft])
 
   const clearSale = () => {
     idempotencyRef.current = null
@@ -357,7 +364,7 @@ export default function NewSale({ customers, suppliers = [], products = [], bill
 
   const saveBill = async (bill) => {
     if (savingRef.current) return
-    const currentStock = refreshCartStock(items, products)
+    const currentStock = refreshCartStock(items, products, restoredSaleItems)
     const changedPrices = currentStock.filter((item) => item.stockPriceChanged)
     if (changedPrices.length) {
       if (window.confirm('Stock price or tan length changed. Apply current stock prices to the affected cart rows? Review the total and save again.')) setItems(currentStock.map((item) => item.stockPriceChanged ? { ...item, price: item.nextStockPrice, configuredSalePrice: item.nextStockPrice, metersPerTan: item.nextMetersPerTan, stockPriceChanged: false } : item))
